@@ -27,6 +27,7 @@ import wx
 from About import About
 from ConfigDialog import ConfigDialog
 from TorrentConnectionList import TorrentConnectionList
+from TorrentCreateDialog import TorrentCreateDialog
 from TorrentList import TorrentList
 from TorrentStats import TorrentStats
 from ScrollableTextViewer import ScrollableTextViewerFrame
@@ -49,7 +50,7 @@ class Gui(wx.Frame):
         
         
         ##Gui Stuff
-        wx.Frame.__init__(self, None, -1, 'PyBit', size = wx.Size(800, 600), style = wx.DEFAULT_FRAME_STYLE)
+        wx.Frame.__init__(self, None, -1, 'PyBit', size = wx.Size(800, 600), style = wx.DEFAULT_FRAME_STYLE | wx.CLIP_CHILDREN)
         self.CentreOnScreen()
         
         #Layoutmanager
@@ -63,8 +64,8 @@ class Gui(wx.Frame):
         menubar.Append(file, '&File')
 
         torrents = wx.Menu()
-        torrents.Append(111, 'Add from File', 'Opens a torrent from your harddisk')
-        #torrents.Append(112, 'Add from URL', 'Opens a torrent from a http url')
+        torrents.Append(111, 'Create Torrent', 'Creates a new torrent')
+        torrents.Append(112, 'Add from File', 'Opens a torrent from your harddisk')
         torrents.AppendSeparator()
         torrents.Append(113, 'Start selected', 'Starts all selected torrents')
         torrents.Append(114, 'Stop selected', 'Stops all selected torrents')
@@ -89,7 +90,8 @@ class Gui(wx.Frame):
         #wx.ToolBar(self, -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER)
         toolbar = self.CreateToolBar()
         toolbar.SetToolBitmapSize(wx.Size(22,22))
-        toolbar.AddLabelTool(201, 'Open', wx.BitmapFromImage(wx.Image('Icons/openFile.png', wx.BITMAP_TYPE_PNG)), shortHelp='Open Torrentfile', longHelp='Use to open a torrent file')
+        toolbar.AddLabelTool(201, 'New', wx.BitmapFromImage(wx.Image('Icons/newFile.png', wx.BITMAP_TYPE_PNG)), shortHelp='Create Torrentfile', longHelp='Use to create a new torrent file')
+        toolbar.AddLabelTool(202, 'Open', wx.BitmapFromImage(wx.Image('Icons/openFile.png', wx.BITMAP_TYPE_PNG)), shortHelp='Open Torrentfile', longHelp='Use to open a torrent file')
         toolbar.AddSeparator()
         toolbar.AddLabelTool(211, 'Start',wx.BitmapFromImage(wx.Image('Icons/start.png', wx.BITMAP_TYPE_PNG)), shortHelp='Start', longHelp='Starts all selected torrents')
         toolbar.AddLabelTool(212, 'Stop',wx.BitmapFromImage(wx.Image('Icons/stop.png', wx.BITMAP_TYPE_PNG)), shortHelp='Stop', longHelp='Stops all selected torrents')
@@ -125,8 +127,8 @@ class Gui(wx.Frame):
 
         #menu events
         self.Bind(wx.EVT_MENU, self.OnClose, id=101)
-        self.Bind(wx.EVT_MENU, self.OnAddFromFile, id=111)
-        #self.Bind(wx.EVT_MENU, self.OnAddFromURL, id=112)
+        self.Bind(wx.EVT_MENU, self.OnCreateTorrent, id=111)
+        self.Bind(wx.EVT_MENU, self.OnAddFromFile, id=112)
         self.Bind(wx.EVT_MENU, self.torrentList.OnStart, id=113)
         self.Bind(wx.EVT_MENU, self.torrentList.OnStop, id=114)
         self.Bind(wx.EVT_MENU, self.torrentList.OnRemove, id=115)
@@ -137,8 +139,9 @@ class Gui(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnChangelog, id=132)
         self.Bind(wx.EVT_MENU, self.OnReadme, id=133)
 
-        #toolbar events        
-        self.Bind(wx.EVT_TOOL, self.OnAddFromFile, id=201)
+        #toolbar events
+        self.Bind(wx.EVT_TOOL, self.OnCreateTorrent, id=201)
+        self.Bind(wx.EVT_TOOL, self.OnAddFromFile, id=202)
         self.Bind(wx.EVT_TOOL, self.torrentList.OnStart, id=211)
         self.Bind(wx.EVT_TOOL, self.torrentList.OnStop, id=212)
         self.Bind(wx.EVT_TOOL, self.torrentList.OnRemove, id=213)
@@ -217,7 +220,9 @@ class Gui(wx.Frame):
                         showErrorMessage(self, 'Internal error, torrent not added.\n%s.', str(logTraceback()))
             del saveDiag
         del diag
-
+        
+    def OnCreateTorrent(self, event):
+        TorrentCreateDialog(self.progPath, self)
 
     def OnConfig(self, event):
         ConfigDialog(self.config, self)

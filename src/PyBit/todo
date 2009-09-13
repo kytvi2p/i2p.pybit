@@ -1,7 +1,6 @@
 General
 -----------------------
 - cleanup log messages
-- fix flickering problem which occurs if PyBit is run with Windows
 - don't generate different loggers for instances of the same class
 - add support for prioritising files
 - add support for only downloading parts of a torrent (only some of the files)
@@ -45,6 +44,7 @@ Bittorrent.TrackerRequester:
 - change the number of requested peer adresses depending on the number of already connected peers
 - don't ask for peers when stopping
 - don't just append the url parameters to the tracker announce url but instead check for existing parameters at the end of the url and merge things if needed
+- don't retry a request to the same tracker which just responded to our request with a "request failed"-response (due to torrents which got already removed from the tracker and similair issues)!
 
 
 InfoPanel:
@@ -59,7 +59,7 @@ TorrentConnectionList:
 
 TorrentStats:
 - add some kind of "bar", which shows the availability for each piece. Perhaps optional, depends on resource usage.
- 
+
 
 Won't fix
 -----------------------

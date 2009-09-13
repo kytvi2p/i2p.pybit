@@ -23,6 +23,7 @@ from cStringIO import StringIO
 from random import randrange
 from traceback import print_exc
 from urllib import quote, unquote, quote_plus, unquote_plus
+import os
 
 
 class FileHandle:
@@ -191,3 +192,19 @@ def quoteUnicodePlus(uniString):
 
 def unquoteUnicodePlus(uniString):
     return unquote_plus(uniString.encode('UTF-8')).decode('UTF-8', 'ignore')
+
+
+def normalisePath(path, absolute=False, case=False, expand=False, noRelative=False, noSymlinks=False):
+    if case:
+        path = os.path.normcase(path)
+    if expand:
+        path = os.path.expanduser(path)
+    if noSymlinks:
+        path = os.path.realpath(path)
+    if noRelative:
+        path = os.path.normpath(path)
+    if absolute:
+        path = os.path.abspath(path)
+    if noRelative:
+        path = os.path.normpath(path)
+    return path

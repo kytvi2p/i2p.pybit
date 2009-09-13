@@ -108,33 +108,35 @@ class SimpleObjectPersister:
     ##internal functions - db - actions
     
     def _dbKeys(self, regex):
-        db = self._preDbQueryJobs()
-        if regex is None:
-            #get all keys
-            self.log.debug('Getting all keys')
-            cursor = db.execute('SELECT key FROM dict')
-            results = cursor.fetchall()
-        else:
-            #only get the keys matching the given regex
-            self.log.debug('Getting keys which match regex "%s"', regex)
-            cursor = db.execute('SELECT key FROM dict WHERE key REGEXP ?', (regex,))
-            results = cursor.fetchall()
-        results = [result[0] for result in results]
-        self._postDbQueryJobs(db)
+        with self.dbLock:
+            db = self._preDbQueryJobs()
+            if regex is None:
+                #get all keys
+                self.log.debug('Getting all keys')
+                cursor = db.execute('SELECT key FROM dict')
+                results = cursor.fetchall()
+            else:
+                #only get the keys matching the given regex
+                self.log.debug('Getting keys which match regex "%s"', regex)
+                cursor = db.execute('SELECT key FROM dict WHERE key REGEXP ?', (regex,))
+                results = cursor.fetchall()
+            results = [result[0] for result in results]
+            self._postDbQueryJobs(db)
         return results
         
         
     def _dbLoad(self, key):
-        db = self._preDbQueryJobs()
-        self.log.debug('Getting value for key "%s"', str(key))
-        cursor = db.execute('SELECT value, encoding FROM dict WHERE key=?', (key,))
-        result = cursor.fetchone()
-        if result is not None:
-            result = (result['value'], result['encoding'])
-            self.log.debug('Got value "%s" with encoding "%s"', str(result[0]), str(result[1]))
-        else:
-            self.log.debug('Key doesn\'t exist')
-        self._postDbQueryJobs(db)
+        with self.dbLock:
+            db = self._preDbQueryJobs()
+            self.log.debug('Getting value for key "%s"', str(key))
+            cursor = db.execute('SELECT value, encoding FROM dict WHERE key=?', (key,))
+            result = cursor.fetchone()
+            if result is not None:
+                result = (result['value'], result['encoding'])
+                self.log.debug('Got value "%s" with encoding "%s"', str(result[0]), str(result[1]))
+            else:
+                self.log.debug('Key doesn\'t exist')
+            self._postDbQueryJobs(db)
         return result
         
         

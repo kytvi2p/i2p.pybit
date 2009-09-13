@@ -134,7 +134,7 @@ class VirtualListCtrl(wx.ListCtrl):
         
         #windows is a bit strange and requires this call - welcome flickering, here you go ...
         if sys.platform == 'win32':
-            self.Refresh()
+            self.Refresh(False)
             
     
     ##event functions

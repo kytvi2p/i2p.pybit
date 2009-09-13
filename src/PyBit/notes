@@ -25,3 +25,4 @@ Classes with static threads (spawned on startup, die on exit):
 
 Classes with dynamic threads (spawned when needed, die when finished):
 - Bittorrent.Storage (1 per loading torrent, spawned when torrent is started, die when initial loading (hashing) is finished)
+- Bittorrent.TorrentCreator (1 per torrent-creation, spawned when the creation is started and stopped once its finished or aborted)

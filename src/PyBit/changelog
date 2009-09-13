@@ -1,3 +1,14 @@
+0.1.1 - 10.04.2009
+-----------------------
+Blub:
+- fixed bug in "VirtualListCtrl": finally fixed the flickering on Windows
+- changed "ObjectPersister": prevent concurrent access to the db completely, not only on writes (prevents sqlite exceptions caused by locked databases and timeouts)
+- added "Bittorrent.TorrentCreator": A base class for creating torrents, used by the class "TorrentCreateDialog"
+- added "TorrentCreateDialog": A dialog for creating torrents
+- did a few minor changes (for example changed the rounding of some values in the GUI)
+- updated PySamLib from v0.2.3 to v0.2.4
+
+
 0.1.0 - 17.03.2009
 -----------------------
 - splitted "Bittorrent.Connection" up into the class "Connection" (basic socket stuff) and "BtConnection" (bittorrent stuff)

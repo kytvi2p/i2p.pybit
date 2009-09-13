@@ -120,6 +120,10 @@ class SamTcpSocket:
         if self.errorReason is not None:
             #socket failed before
             self.i2pSockStatus.setErrored(False, self.connId)
+            
+        elif self.state == 'init':
+            #socket was waiting for name query
+            self.failFunc(self.connId)
         
         elif self.state == 'connected' or self.state == 'connecting':
             #socket was ok
@@ -133,11 +137,15 @@ class SamTcpSocket:
         
     ##external functions - actions
     
-    def connect(self, remoteDest=None):
+    def connect(self, remoteDest=None, samId=None):
         #called if the socket should send a connect message
         if remoteDest is not None:
             self.remoteDest = remoteDest
+        if samId is not None:
+            self.samId = samId
+            
         assert self.remoteDest is not None, 'uhm, we need a destination ...'
+        assert self.samId is not None, 'uhm, we need a id ...'
         assert self.state == 'init', 'wrong state, expected "init", got "%s"' % (self.state,)
         self.state = 'connecting'
         self.sendFunc(SamMessages.streamConnectMessage(self.samId, self.remoteDest))

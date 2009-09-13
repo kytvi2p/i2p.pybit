@@ -1,3 +1,12 @@
+0.2.4 - 01.04.2009
+-----------------------
+Blub:
+- fixed bug in "SamBaseDestination": fixed endless loop: if the outbound buffer exceeded the free outbound buffer size of the real socket, the loop was not terminated until enough buffer space was available!
+- fixed bug in "SamTcpDestination": if the connection to SAM failed while a connection was in the "waiting for name query result" state, a crash occured
+- improved "SamBaseDestination" slightly: simplified the receiving code
+- improved "SamTcpDestination" slightly: cleanup of the code, don't ever rely on values inside a SAM message being uppercase
+
+
 0.2.3 - 02.03.2009
 -----------------------
 Blub:

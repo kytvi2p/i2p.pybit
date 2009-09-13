@@ -92,7 +92,10 @@ class Storage:
         if not os.path.exists(realFilePath):
             #file needs to be created
             created = True
-            
+        
+        self.log.debug('Processing file "%s" (original name "%s"): new "%s", isdir "%s", isfile "%s", islink "%s", dirname "%s", basename "%s"',\
+                       realFilePath, filePath, str(created), str(os.path.isdir(realFilePath)), str(os.path.isfile(realFilePath)),\
+                       str(os.path.islink(realFilePath)), dirPath, os.path.basename(realFilePath))
         try:
             fl = open(realFilePath, 'ab')
             with fl:

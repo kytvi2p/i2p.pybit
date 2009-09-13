@@ -68,7 +68,6 @@ class SamBaseDestination:
     def _closeRealSocket(self):
         self.inMessage = None
         self.outQueue.clear()
-        self.outQueue.clear()
         self.realSockStatus.removeConn(self.sockNum)
         self.connected = False
         self.sock.close()
@@ -147,8 +146,7 @@ class SamBaseDestination:
                 #reply to destination request
                 if not messageParas['NAME'].upper() == 'ME': 
                     self._handleNameLookup(message)
-                else:
-                    if messageParas['RESULT'].upper() == 'OK':
+                elif messageParas['RESULT'].upper() == 'OK':
                         self.sessionKey = messageParas['VALUE']
                     
             else:
@@ -181,6 +179,7 @@ class SamBaseDestination:
                 if bytesSend < len(data):
                     #not all data send, push remaining data back into queue and abort loop
                     self.outQueue.appendleft(data[bytesSend:])
+                    break
                     
             if len(self.outQueue) == 0:
                 #managed to empty the queue, nothing to send anymore
@@ -189,27 +188,25 @@ class SamBaseDestination:
                 
     def recvEvent(self):
         data = self.sock.recv()
+        dataLen = len(data)
         messages = []
         offset = 0
         
         #process data
-        while not offset >= len(data):
+        while not offset >= dataLen:
             #loop until all received data was processed
             if self.inMessage is None:
                 ##there is no finished message that needs bulk data
                 endOfMessage = data.find('\n', offset)
-                if endOfMessage==-1:
+                if endOfMessage == -1:
                     #only the beginning of a message, store it in the inbound queue
-                    if offset==0:
-                        self.inQueue.append(data)
-                    else:
-                        self.inQueue.append(data[offset:])
-                    offset = len(data)
+                    self.inQueue.append(data[offset:])
+                    offset = dataLen
                     
                 else:
                     #the whole message or the ending
                     message = data[offset:endOfMessage]
-                    offset = endOfMessage+1
+                    offset = endOfMessage + 1
                     if len(self.inQueue) > 0:
                         #get the beginning of the message out of the queue
                         self.inQueue.append(message)
@@ -224,32 +221,28 @@ class SamBaseDestination:
                     #check if we need to wait for more data
                     if 'SIZE' in message['msgParas']:
                         message['Data'] = []
-                        message['DataLen'] = 0
+                        message['DataCurrentLen'] = 0
+                        message['DataTargetLen'] = int(message['msgParas']['SIZE'])
                         self.inMessage = message
                     else:
                         messages.append(message)
             else:
                 ##only missing a few bytes here ...
-                missingBytes = int(self.inMessage['msgParas']['SIZE']) - self.inMessage['DataLen']
-                remainingBytes = len(data) - offset
+                missingBytes = self.inMessage['DataTargetLen'] - self.inMessage['DataCurrentLen']
+                remainingBytes = dataLen - offset
                 if remainingBytes >= missingBytes:
                     #got all
-                    if remainingBytes == missingBytes and offset == 0:
-                        self.inMessage['Data'].append(data)
-                    else:
-                        self.inMessage['Data'].append(data[offset:offset+missingBytes])
-                    self.inMessage['DataLen'] = int(self.inMessage['msgParas']['SIZE'])
+                    self.inMessage['Data'].append(data[offset:offset+missingBytes])
+                    self.inMessage['DataCurrentLen'] += missingBytes
+                    assert self.inMessage['DataCurrentLen'] == self.inMessage['DataTargetLen'], 'message finished but too short?!'
                     offset += missingBytes
                     messages.append(self.inMessage)
                     self.inMessage = None
                 
                 else:
                     #still missing a bit
-                    if offset == 0:
-                        self.inMessage['Data'].append(data)
-                    else:
-                        self.inMessage['Data'].append(data[offset:])
-                    self.inMessage['DataLen'] += remainingBytes
+                    self.inMessage['Data'].append(data[offset:])
+                    self.inMessage['DataCurrentLen'] += remainingBytes
                     offset += remainingBytes        
         
         #handle messages
@@ -564,9 +557,12 @@ class SamTcpDestination(SamExtendedDestination):
         self.nextSamInId = -1
         
         #mapper
-        self.connIdToSamId = {}
-        self.samInIdToConnId = {}
-        self.samOutIdToConnId = {}
+        self.connIdToSamId = {}     #mapper from conn id to sam id for all active conns
+        self.samIdToConnId = {}     #mapper from sam id to conn id for all active conns
+        
+        #other
+        self.failedSockets = set()  #set of conn ids which are not active, meaning they already failed but were not removed
+        self.waitingSockets = set() #set of conn ids of all outgoing conns which wait for session establishement to connect
                     
         SamExtendedDestination.__init__(self, destId, asyncSocketManager, realSockStatus, log, ip, port,
                                         sessionName, 'tcp', sessionDirection, sessionOptions)
@@ -576,15 +572,20 @@ class SamTcpDestination(SamExtendedDestination):
                                         
     def _establishedDestination(self):
         #send connect messages for all sockets which were created in the meantime
-        for connId in self.samOutIdToConnId.itervalues():
+        for connId in self.waitingSockets:
             self._connectI2PSocket(connId, self.i2pSockets[connId])
+        self.waitingSockets.clear()
         SamExtendedDestination._establishedDestination(self)
             
     
     def _failDestination(self, reason):
         #fail sockets
-        for connId in self.connIdToSamId.keys():
-            self.i2pSockets[connId].errorEvent('SESSION_FAILED')
+        for connId in self.i2pSockets.keys():
+            if connId not in self.failedSockets:
+                self.i2pSockets[connId].errorEvent('SESSION_FAILED')
+                
+        assert len(self.connIdToSamId)==0 and len(self.samIdToConnId)==0, 'failed all conns but active conns left?!'
+        assert len(self.waitingSockets)==0, 'failed but still waiting?!'
             
         #clear listening socket if any
         if self.i2pListeningSocket is not None:
@@ -599,9 +600,13 @@ class SamTcpDestination(SamExtendedDestination):
         
     def _removeDestination(self):
         #fail sockets
-        for connId in self.connIdToSamId.keys():
-            self.i2pSockets[connId].errorEvent('SESSION_CLOSED')
-            
+        for connId in self.i2pSockets.keys():
+            if not connId in self.failedSockets:
+                self.i2pSockets[connId].errorEvent('SESSION_CLOSED')
+        
+        assert len(self.connIdToSamId)==0 and len(self.samIdToConnId)==0, 'failed all conns but active conns left?!'
+        assert len(self.waitingSockets)==0, 'failed but still waiting?!'
+        
         #remove sockets
         for i2pSocket in self.i2pSockets.values():
             i2pSocket.close(force=True)
@@ -630,22 +635,16 @@ class SamTcpDestination(SamExtendedDestination):
         #add to status obj
         connId = self.i2pSockStatus.addConn(self.destId, 'tcpOut', 'out')
         
-        #get sam id
-        samId = self.nextSamOutId
-        self.nextSamOutId += 1
-        
-        #add to mapper
-        self.connIdToSamId[connId] = samId
-        self.samOutIdToConnId[samId] = connId
-        
         #create socket object
-        conn = SamTcpSocket(self._sendOverRealSocket, self._failI2PSocket, self._removeI2PSocket, self.i2pSockStatus, connId, samId, 'out', remoteDest, 
+        conn = SamTcpSocket(self._sendOverRealSocket, self._failI2PSocket, self._removeI2PSocket, self.i2pSockStatus, connId, None, 'out', remoteDest, 
                             inMaxQueueSize, outMaxQueueSize, inRecvLimitThreshold)
         self.i2pSockets[connId] = conn
         
         #connect
         if self.sessionEstablished:
             self._connectI2PSocket(connId, conn)
+        else:
+            self.waitingSockets.add(connId)
             
         return connId
             
@@ -660,7 +659,7 @@ class SamTcpDestination(SamExtendedDestination):
         
         #add to mapper
         self.connIdToSamId[connId] = samId
-        self.samInIdToConnId[samId] = connId
+        self.samIdToConnId[samId] = connId
         
         #create socket object
         conn = SamTcpSocket(self._sendOverRealSocket, self._failI2PSocket, self._removeI2PSocket, self.i2pSockStatus, connId, samId, 'in', remoteDest, 
@@ -675,11 +674,23 @@ class SamTcpDestination(SamExtendedDestination):
             self.i2pListeningSocket.acceptEvent(connId, remoteDest)
             
             
+    def _allocateSamId(self, connId):
+        samId = self.nextSamOutId
+        self.nextSamOutId += 1
+        
+        #add to mapper
+        self.connIdToSamId[connId] = samId
+        self.samIdToConnId[samId] = connId
+        return samId
+            
+            
     def _connectI2PSocket(self, connId, i2pSocket):
         remoteDest = i2pSocket.getRemoteDestination()
         if len(remoteDest) == 516 and remoteDest.endswith('AAAA'):
             #full i2p destination
-            i2pSocket.connect(remoteDest)
+            samId = self._allocateSamId(connId)
+            i2pSocket.connect(remoteDest, samId)
+            
         else:
             #not a real destination but some kind of name
             self._addNameLookupQuery(connId, remoteDest, self._finishedNameLookup, funcArgs=[connId])
@@ -687,27 +698,36 @@ class SamTcpDestination(SamExtendedDestination):
             
     def _finishedNameLookup(self, connId, success, msg):
         if success:
-            self.i2pSockets[connId].connect(msg)
+            samId = self._allocateSamId(connId)
+            self.i2pSockets[connId].connect(msg, samId)
         else:
             self.i2pSockets[connId].errorEvent('FAILED_NAME_LOOKUP')
             
     
     def _failI2PSocket(self, connId):
+        "called when a conn failed, either an already connected one or a connecting one"
         i2pSocket = self.i2pSockets[connId]
-        samId = self.connIdToSamId[connId]
+        samId = self.connIdToSamId.get(connId)
         
-        #remove name queries, if any
-        self._removeNameLookupQuery(connId)
+        if samId is None:
+            #outgoing conn with name query, remove
+            self._removeNameLookupQuery(connId)
         
-        #remove from id mapper
-        del self.connIdToSamId[connId]
-        if samId < 0:
-            del self.samInIdToConnId[samId]
         else:
-            del self.samOutIdToConnId[samId]
+            #active conn, remove from id mapper
+            del self.connIdToSamId[connId]
+            del self.samIdToConnId[samId]
+        
+        #set changes
+        self.waitingSockets.discard(connId)
+        self.failedSockets.add(connId)
         
     
     def _removeI2PSocket(self, connId):
+        "called when close() was called for a socket"
+        #remove from set
+        self.failedSockets.remove(connId)
+        
         #remove from socket dict
         del self.i2pSockets[connId]
         
@@ -724,17 +744,18 @@ class SamTcpDestination(SamExtendedDestination):
         if messageType=='STREAM STATUS':
             #a outgoing sam tcp-socket connected ... or failed
             samId = int(messageParas['ID'])
-            connId = self.samOutIdToConnId.get(samId, None)
+            connId = self.samIdToConnId.get(samId)
             
             if connId is not None:
                 #i2p socket still exists
                 i2pSocket = self.i2pSockets[connId]
-                if messageParas['RESULT']=='OK':
+                if messageParas['RESULT'].upper() == 'OK':
                     #socket connected
                     i2pSocket.connectEvent()
                 else:
                     #failed
                     i2pSocket.errorEvent(messageParas['RESULT'])
+                    
             
         elif messageType=='STREAM CONNECTED':
             #got a new incomming tcp-like connection
@@ -746,32 +767,26 @@ class SamTcpDestination(SamExtendedDestination):
             #status info about a previous STREAM SEND command
             
             samId = int(messageParas['ID'])
-            if samId > 0:
-                connId = self.samOutIdToConnId.get(samId, None)
-            else:
-                connId = self.samInIdToConnId.get(samId, None)
+            connId = self.samIdToConnId.get(samId)
                 
             if connId is not None:
                 #socket still exists
                 i2pSocket = self.i2pSockets[connId]
-                if messageParas['RESULT']=='OK':
+                if messageParas['RESULT'].upper() == 'OK':
                     #data was send
                     i2pSocket.sendSucceededEvent()
                 else:
                     #for some reason, the send failed - probably a bug, but a bug in this lib or in sam?
                     i2pSocket.sendFailedEvent()
                     
-                if messageParas['STATE']=='READY':
+                if messageParas['STATE'].upper() == 'READY':
                     #the buffer of the sam bridge is not full, allowed to send more
                     i2pSocket.sendEvent()
                     
         
         elif messageType=='STREAM READY_TO_SEND':
             samId = int(messageParas['ID'])
-            if samId > 0:
-                connId = self.samOutIdToConnId.get(samId, None)
-            else:
-                connId = self.samInIdToConnId.get(samId, None)
+            connId = self.samIdToConnId.get(samId)
                 
             if connId is not None:
                 #socket still exists
@@ -780,25 +795,20 @@ class SamTcpDestination(SamExtendedDestination):
         
         elif messageType=='STREAM CLOSED':
             samId = int(messageParas['ID'])
-            if samId > 0:
-                connId = self.samOutIdToConnId.get(samId, None)
-            else:
-                connId = self.samInIdToConnId.get(samId, None)
+            connId = self.samIdToConnId.get(samId)
                 
             if connId is not None:
                 #socket still exists
-                if messageParas['RESULT']=='OK':
+                if messageParas['RESULT'].upper() == 'OK':
                     #OK isn't a good error reason ...
                     messageParas['RESULT'] = 'CLOSED_BY_PEER'
                     
                 self.i2pSockets[connId].errorEvent(messageParas['RESULT'])
+                
         
         elif messageType=='STREAM RECEIVED':
             samId = int(messageParas['ID'])
-            if samId > 0:
-                connId = self.samOutIdToConnId.get(samId, None)
-            else:
-                connId = self.samInIdToConnId.get(samId, None)
+            connId = self.samIdToConnId.get(samId, None)
                 
             if connId is not None:
                 #socket still exists
@@ -830,7 +840,7 @@ class SamTcpDestination(SamExtendedDestination):
         assert self.i2pListeningSocket is None,'there is already one?!'
         
         if addOld:
-            existingConns = self.samInIdToConnId.values()
+            existingConns = [samId for samId in self.samIdToConnId.itervalues() if samId < 0]
         else:
             existingConns = None
         

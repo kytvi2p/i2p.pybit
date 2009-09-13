@@ -114,7 +114,7 @@ def dataAmountToString(dataAmount, roundToDigits=2):
         del t[0]
         if len(t) == 0:
             break
-    value = str(round(dataAmount, roundToDigits)) + end
+    value = ('%.'+str(roundToDigits)+'f%s') % (round(dataAmount, roundToDigits), end)
     return value
 
 

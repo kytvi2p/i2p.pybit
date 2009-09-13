@@ -26,7 +26,7 @@ from collections import deque
 def _bencode(obj):
     #bittorrent bencode
     #Supports: dicts, lists, ints and strings
-    #May store: dicts, lists, ints, longs and strings
+    #May store: dicts, lists, tuples, ints, longs and strings
     result = deque()
     if type(obj)==dict:
         #dict
@@ -38,7 +38,7 @@ def _bencode(obj):
             result.append(_bencode(obj[i]))
         result.append('e')
         
-    elif type(obj)==list:
+    elif type(obj)==list or type(obj)==tuple:
         #list or tuple
         result.append('l')
         for i in obj:
@@ -58,7 +58,7 @@ def _bencode(obj):
         result.append(obj)
         
     else:
-        raise Exception('Encountered unsupported element of type "'+str(type(obj))+'"!')
+        raise Exception('Encountered unsupported element of type "'+str(type(obj))+'", value "'+str(obj)+'"!')
     
     return ''.join(result)
 

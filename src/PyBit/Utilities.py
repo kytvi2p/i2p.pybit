@@ -21,7 +21,14 @@ from collections import deque
 from cStringIO import StringIO
 from traceback import print_exc
 
+import os
 import wx
+
+
+def scaleInt(desiredResolution, *args):
+    largestValue = max(*args)
+    downscaleFactor = max(largestValue / float(desiredResolution), 1.0)
+    return [int(round(value / downscaleFactor, 0)) for value in args]
 
 
 def logTraceback():
@@ -36,6 +43,27 @@ def encodeStrForPrinting(string):
     else:
         result = string.encode('UTF-8', 'ignore')
     return result
+
+
+def normalisePath(path, absolute=False, case=False, expand=False, noRelative=False, noSymlinks=False):
+    if case:
+        path = os.path.normcase(path)
+    if expand:
+        path = os.path.expanduser(path)
+    if noSymlinks:
+        path = os.path.realpath(path)
+    if noRelative:
+        path = os.path.normpath(path)
+    if absolute:
+        path = os.path.abspath(path)
+    if noRelative:
+        path = os.path.normpath(path)
+    return path
+
+
+def showInfoMessage(parent, text, *args, **kw):
+    title = kw.get('title', 'Info')
+    wx.MessageBox(text % args, title, style=(wx.OK | wx.ICON_INFORMATION), parent=parent)
 
 
 def showWarningMessage(parent, text, *args, **kw):
