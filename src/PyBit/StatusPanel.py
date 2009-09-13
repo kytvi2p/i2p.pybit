@@ -48,9 +48,10 @@ class StatusPanel(wx.Notebook):
         
 
     def changeTorrentId(self, torrentId):
-        self.torrentId = torrentId
-        name = self.childNames[self.currentPage]
-        self.childObjects[name].changeTorrentId(self.torrentId)
+        if not torrentId == self.torrentId:
+            self.torrentId = torrentId
+            name = self.childNames[self.currentPage]
+            self.childObjects[name].changeTorrentId(self.torrentId)
         
         
     def manualUpdate(self):

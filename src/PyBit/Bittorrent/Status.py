@@ -225,11 +225,163 @@ class Status:
         result = self.missingPiecesCount==0
         self.lock.release()
         return result
+
+
+
+
+class OwnStatus(Status):
+    def __init__(self, pieceAmount, pieceStatus=None):
+        Status.__init__(self, pieceAmount, pieceStatus)
+        
+    ##internal functions - pieces
+        
+    def _initStatus(self):
+        Status._initStatus(self)
+        self.wantedPieces = set(xrange(0, self.pieceAmount)) #pieces which we actually want to download
+        self.wantedPiecesCount = self.pieceAmount
+        self.neededPieces = self.missingPieces.copy()        #pieces which are both missing and wanted
+        self.neededPiecesCount = self.missingPiecesCount
+            
+            
+    def _addBitfield(self, bitfield):
+        for pieceIndex in xrange(0, self.pieceAmount):
+            if bitfield[pieceIndex]=='1':
+                if pieceIndex in self.neededPieces:
+                    self.neededPieces.remove(pieceIndex)
+                    self.neededPiecesCount -= 1
+        Status._addBitfield(self, bitfield)
+    
+    
+    def _gotPiece(self, pieceIndex):
+        assert pieceIndex in self.neededPieces, 'got piece which we don\'t want?!'
+        self.neededPieces.remove(pieceIndex)
+        self.neededPiecesCount -= 1
+        Status._gotPiece(self, pieceIndex)
+    
+    
+    def _setPieceStatus(self, pieceIndex, got):
+        if got and pieceIndex in self.neededPieces:
+            #piece is no longer needed
+            self.neededPieces.remove(pieceIndex)
+            self.neededPiecesCount -= 1
+            
+        elif (not got) and (not pieceIndex in self.neededPieces) and pieceIndex in self.wantedPieces:
+            #piece is again needed
+            self.neededPieces.add(pieceIndex)
+            self.neededPiecesCount += 1
+            
+        Status._setPieceStatus(self, pieceIndex, got)
+        
+        
+    def _setPieceWantedFlag(self, pieces, wanted):
+        for pieceIndex in pieces:
+            if wanted and pieceIndex not in self.wantedPieces:
+                self.wantedPieces.add(pieceIndex)
+                self.wantedPiecesCount += 1
+                if pieceIndex in self.missingPieces:
+                    self.neededPieces.add(pieceIndex)
+                    self.neededPiecesCount += 1
+                    
+            elif (not wanted) and pieceIndex in self.wantedPieces:
+                self.wantedPieces.remove(pieceIndex)
+                self.wantedPiecesCount -= 1
+                if pieceIndex in self.missingPieces:
+                    self.neededPieces.remove(pieceIndex)
+                    self.neededPiecesCount -= 1
+    
+    
+    ##external functions - change status
+        
+    def setPieceWantedFlag(self, pieces, wanted):
+        self.lock.acquire()
+        self._setPieceWantedFlag(pieces, wanted)
+        self.lock.release()
+        
+        
+    ##external functions - get information about the pieces
+    
+    def getWantedPieces(self):
+        self.lock.acquire()
+        pieces = self.wantedPieces.copy()
+        self.lock.release()
+        return pieces
+    
+    
+    def getNeededPieces(self):
+        self.lock.acquire()
+        pieces = self.neededPieces.copy()
+        self.lock.release()
+        return pieces
+    
+    
+    def getAmountOfWantedPieces(self):
+        self.lock.acquire()
+        count = self.wantedPiecesCount
+        self.lock.release()
+        return count
+    
+    
+    def getAmountOfNeededPieces(self):
+        self.lock.acquire()
+        count = self.neededPiecesCount
+        self.lock.release()
+        return count
+    
+    
+    def hasMatchingWantedPieces(self, pieces):
+        self.lock.acquire()
+        result = (len(self.wantedPieces.intersection(pieces)) > 0)
+        self.lock.release()
+        return result
+    
+    
+    def hasMatchingNeededPieces(self, pieces):
+        self.lock.acquire()
+        result = (len(self.neededPieces.intersection(pieces)) > 0)
+        self.lock.release()
+        return result
+    
+    
+    def getMatchingWantedPieces(self, pieces):
+        self.lock.acquire()
+        pieces = self.wantedPieces.intersection(pieces)
+        self.lock.release()
+        return pieces
+    
+    
+    def getMatchingNeededPieces(self, pieces):
+        self.lock.acquire()
+        pieces = self.neededPieces.intersection(pieces)
+        self.lock.release()
+        return pieces
+    
+    
+    def wantsPiece(self, pieceIndex):
+        self.lock.acquire()
+        result = pieceIndex in self.wantedPieces
+        self.lock.release()
+        return result
+    
+    
+    def needsPiece(self, pieceIndex):
+        self.lock.acquire()
+        result = pieceIndex in self.neededPieces
+        self.lock.release()
+        return result
+    
+    
+    ##external functions - other
+    
+    def isFinished(self):
+        self.lock.acquire()
+        result = self.neededPiecesCount == 0
+        self.lock.release()
+        return result
     
     
     
     
-class PersistentStatus(Status):
+class PersistentOwnStatus(OwnStatus):
     def __init__(self, btPersister, shouldPersist, pieceAmount, pieceStatus=None):
         self.btPersister = btPersister
         self.shouldPersist = shouldPersist
@@ -238,7 +390,7 @@ class PersistentStatus(Status):
             #remove any leftovers
             self.btPersister.remove('PersistentStatus-bitfield')
             
-        Status.__init__(self, pieceAmount, pieceStatus)
+        OwnStatus.__init__(self, pieceAmount, pieceStatus)
         
         
     ##internal functions - persisting
@@ -249,25 +401,25 @@ class PersistentStatus(Status):
             self.btPersister.store('PersistentStatus-bitfield', binaryBitfield)
                 
         
-    ##internal functions - pieces        
+    ##internal functions - pieces
         
     def _clear(self):
-        Status._clear(self)
+        OwnStatus._clear(self)
         self._persist()
             
             
     def _addBitfield(self, bitfield):
-        Status._addBitfield(self, bitfield)
+        OwnStatus._addBitfield(self, bitfield)
         self._persist()
     
     
     def _gotPiece(self, pieceIndex):
-        Status._gotPiece(self, pieceIndex)
+        OwnStatus._gotPiece(self, pieceIndex)
         self._persist()
             
     
     def _setPieceStatus(self, pieceIndex, got):
-        Status._setPieceStatus(self, pieceIndex, got)
+        OwnStatus._setPieceStatus(self, pieceIndex, got)
         self._persist()
                 
                 

@@ -21,12 +21,12 @@ from __future__ import with_statement
 import logging
 import wx
 
-from VirtualListCtrl import VirtualListCtrl
+from VirtualListCtrl import PersistentVirtualListCtrl
 from Utilities import FunctionCallConverter
 
 
-class TorrentList(VirtualListCtrl):
-    def __init__(self, torrentHandler, childWindow, updateFunc, parent, **kwargs):
+class TorrentList(PersistentVirtualListCtrl):
+    def __init__(self, persister, version, torrentHandler, childWindow, updateFunc, parent, **kwargs):
         #data Stuff
         self.torrentHandler = torrentHandler
         self.childWindow = childWindow
@@ -36,43 +36,46 @@ class TorrentList(VirtualListCtrl):
         
         #columns
         #Syntax: NameOfColumn, NameOfStat, DataType, ColumnWidth
-        cols = [('Pos','pos', 'int', 40),\
-                ('Id','id', 'int', 40),\
-                ('Status', 'state', 'native', 75),\
-                ('Name', 'torrentName', 'native', 125),\
-                ('Size', 'torrentSize', 'dataAmount', 75),\
-                ('Got', 'progressBytes', 'dataAmount', 75),\
-                ('Progress', 'progressPercent', 'percent', 75),\
-                ('Downloaded', 'inPayloadBytes', 'dataAmount', 75),\
-                ('DownSpeed', 'inRawSpeed', 'transferSpeed', 75),\
-                ('Uploaded', 'outPayloadBytes', 'dataAmount', 75),\
-                ('UpSpeed', 'outRawSpeed', 'transferSpeed', 75),\
-                ('Peers', ('connectedPeers', 'knownPeers') , 'peerStats', 125)]
+        cols = [('Pos','pos', 'int', 40, True),\
+                ('Id','id', 'int', 40, False),\
+                ('Status', 'state', 'native', 75, True),\
+                ('Name', 'torrentName', 'native', 125, True),\
+                ('Size', 'torrentSize', 'dataAmount', 75, True),\
+                ('Got', 'progressBytes', 'dataAmount', 75, True),\
+                ('Progress', 'progressPercent', 'percent', 75, True),\
+                ('Downloaded (R)', 'inRawBytes', 'dataAmount', 115, False),\
+                ('Downloaded (P)', 'inPayloadBytes', 'dataAmount', 115, True),\
+                ('Downspeed (R)', 'inRawSpeed', 'transferSpeed', 100, True),\
+                ('Uploaded (R)', 'outRawBytes', 'dataAmount', 100, False),\
+                ('Uploaded (P)', 'outPayloadBytes', 'dataAmount', 100, True),\
+                ('Upspeed (R)', 'outRawSpeed', 'transferSpeed', 100, True),\
+                ('Peers', ('connectedPeers', 'knownPeers') , 'peerStats', 125, True),\
+                ('Avg. Downspeed (R)', 'avgInRawSpeed', 'transferSpeed', 140, False),\
+                ('Avg. Downspeed (P)', 'avgInPayloadSpeed', 'transferSpeed', 140, False),\
+                ('Avg. Upspeed (R)', 'avgOutRawSpeed', 'transferSpeed', 125, False),\
+                ('Avg. Upspeed (P)', 'avgOutPayloadSpeed', 'transferSpeed', 125, False),\
+                ('Protocol Overhead', 'protocolOverhead', 'percent', 150, False)]
                
         statKw = {'wantedStats':{'bt':'all'},
                   'wantedTorrentStats':{'peers':True,
                                         'queue':True,
                                         'progress':True,
                                         'torrent':True,
-                                        'transfer':True}}
+                                        'transfer':True,
+                                        'transferAverages':True}}
                                         
         func = lambda: updateFunc(**statKw)['bt']
-        VirtualListCtrl.__init__(self, cols, func, parent, **kwargs)
+        PersistentVirtualListCtrl.__init__(self, persister, 'TorrentList-', self._updatePerstData, version,
+                                           cols, func, parent, rowIdCol='Id', **kwargs)
 
         #events
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnSelect)
-        self.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.OnDeSelect)
         
         
-    def _getSelectedRows(self):
-        selectedRows = []
-        selected = self.GetFirstSelected()
-        while not selected==-1:
-            selectedRows.append(selected)
-            selected = self.GetNextSelected(selected)
-        return selectedRows
+    def _updatePerstData(self, persColData, currentVersion):
+        return persColData
+    
         
-
     def manualUpdate(self):
         with self.lock:
             self.dataUpdate()
@@ -93,12 +96,7 @@ class TorrentList(VirtualListCtrl):
         self.childWindow(torrentId)
         #event.Skip()
         
-
-    def OnDeSelect(self, event):
-        self.childWindow(None)
-        #event.Skip()
         
-
     def OnStart(self, event):
         #restart a stopped torrent
         with self.lock:

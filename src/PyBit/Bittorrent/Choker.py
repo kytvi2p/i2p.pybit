@@ -74,7 +74,7 @@ class Choker:
         self.normalSlotLimiter.changeLimit(normalSlots)
         
         
-    def _chokeTorrent(self, torrentIdent, conns, uploadableConns, randomSlots, normalSlots, areSeed):
+    def _chokeTorrent(self, torrentIdent, conns, uploadableConns, randomSlots, normalSlots, isFinished):
         shouldUpload = set()
         uploadingConns = set(conn for conn in conns if not conn.localChoked())
         
@@ -91,7 +91,7 @@ class Choker:
                     uploadableConns.remove(conn)
             
             #create list for comparing the others
-            if areSeed:
+            if isFinished:
                 compareList = [(conn.localInterested(), max(conn.getScore(), 1.0), random(), conn) for conn in uploadableConns]
             else:
                 compareList = [(conn.localInterested(), conn.getScore(), 0.0, conn) for conn in uploadableConns]
@@ -129,11 +129,11 @@ class Choker:
         
         for torrentIdent in self.torrents.iterkeys():
             gotPieces = self.torrents[torrentIdent]['ownStatus'].getGotPieces()
-            areSeed = self.torrents[torrentIdent]['ownStatus'].isSeed()
+            isFinished = self.torrents[torrentIdent]['ownStatus'].isFinished()
             conns = self.connHandler.getAllConnections(torrentIdent)
             uploadableConns = set(conn for conn in conns if conn.remoteInterested() and conn.getStatus().hasMatchingMissingPieces(gotPieces))
             
-            self._chokeTorrent(torrentIdent, conns, uploadableConns, randomSlots, normalSlots, areSeed)
+            self._chokeTorrent(torrentIdent, conns, uploadableConns, randomSlots, normalSlots, isFinished)
         
         
     def _chokeForGlobalLimits(self):
@@ -147,7 +147,7 @@ class Choker:
             info['conns'] =  self.connHandler.getAllConnections(torrentIdent)
             info['uploadableConns'] = set(conn for conn in info['conns'] if conn.remoteInterested() and conn.getStatus().hasMatchingMissingPieces(gotPieces))
             info['neededSlots'] = len(info['uploadableConns'])
-            info['areSeed'] = self.torrents[torrentIdent]['ownStatus'].isSeed()
+            info['isFinished'] = self.torrents[torrentIdent]['ownStatus'].isFinished()
             torrentInfo[torrentIdent] = info
             if info['neededSlots'] > 0:
                 neededSlots.append((info['neededSlots'], torrentIdent))
@@ -164,7 +164,7 @@ class Choker:
             self.log.info('%s - random slots %i, normal slots %i, needed slots %s', torrentIdent, randomSlots[torrentIdent], normalSlots[torrentIdent], str(info['neededSlots']))
             totalRandomSlots += randomSlots[torrentIdent]
             totalNormalSlots += normalSlots[torrentIdent]
-            self._chokeTorrent(torrentIdent, info['conns'], info['uploadableConns'], randomSlots[torrentIdent], normalSlots[torrentIdent], info['areSeed'])
+            self._chokeTorrent(torrentIdent, info['conns'], info['uploadableConns'], randomSlots[torrentIdent], normalSlots[torrentIdent], info['isFinished'])
             
         self.log.info('Used %i/%i random slots and %i/%i normal slots', totalRandomSlots, self.randomSlotLimiter.getLimit(), totalNormalSlots, self.normalSlotLimiter.getLimit())
             

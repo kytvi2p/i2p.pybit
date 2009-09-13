@@ -7,7 +7,7 @@ Requirements
 ----------------------- 
 PyBit needs the following:
 - Python >= 2.5 (tested with 2.5 and 2.6; Python 3.0 is incompatible to python 2.x !)
-- wxPython >= 2.6 (unicode version; tested with 2.6.3.2, 2.8.7.1 and 2.8.9.1)
+- wxPython >= 2.8 (unicode version; version 2.8.7.1 and 2.8.9.1 were tested, versions >= 2.6.3.3 should also work but were not tested)
 - python-profiler (optional, only needed if you want to run PyBit with the "--profile" switch to generate profiling stats and want to use the "cProfile" or "hotshot" profiler)
 
 PyBit should run on any platform for which both python and wxPython are available. I tested it mostly on Linux and only a bit on Windows, so Windows and other platforms are more likly to have bugs. Please report any which you encounter to "BlubMail@mail.i2p", I will try to fix them.
@@ -62,6 +62,7 @@ readme
 state.db
 - a sqlite database, used to store the necessary information to readd all torrents after quiting and restarting PyBit
 - also contains any torrent data which needs to be persisted across programm starts, for example the data necessary for fast-resuming torrents (if enabled)
+- also contains persisted GUI data (column sizes and similiar things)
 - if this file is deleted, all torrents will have to be readded manually
 
 todo
@@ -86,3 +87,83 @@ Logs
 Torrents
 - contains copies of the torrents which are currently queued in PyBit (this also means that PyBit never accesses the original torrent file after creating the copy btw)
 - do not delete these manually, these files will be deleted if you remove the corresponding torrent from PyBits queue
+
+
+Columns
+-----------------------
+main torrent list:
+Pos: The position of the torrent in the queue. Not that useful except for sorting because there is no queueing mechanism in PyBit (torrents only get started/stopped manually)
+Id: The unique id of the torrent. The torrent file gets saved as *id*.torrent in the 'torrent' folder and the id is often referenced in log messages.
+Status: The current status of the torrent, for example 'Stopped' or 'Running'.
+Name: The name of the torrent as stored in the torrent itself. In case of multi-file torrents this is also the name of the directory into which the files of the torrent get stored.
+Size: The total size of the torrent.
+Got: How much was already downloaded (only including verified=completed pieces)
+Progress: The download progress in percent.
+Downloaded (R): How much was received up to now (the 'raw' byte count, including protocol messages)
+Downloaded (P): How much was received up to now (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
+Downspeed (R): Current (60sec average) receive speed (of 'raw' data, including protocol data)
+Uploaded (R): How much was send up to now (the 'raw' byte count, including protocol messages)
+Uploaded (P): How much was send up to now (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
+Upspeed (R): Current (60sec average) send speed (of 'raw' data, including protocol data)
+Peers: Includes two stats: The number of connected peers and the number of known peers, the later being shown in brackets
+Avg. Downspeed (R): How much was received on average up to know, ignoring periods when the torrent was stopped ('raw' byte count, including protocol messages)
+Avg. Downspeed (P): How much was received on average up to know, ignoring periods when the torrent was stopped (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
+Avg. Upspeed (R): How much was send on average up to know, ignoring periods when the torrent was stopped ('raw' byte count, including protocol messages)
+Avg. Upspeed (P): How much was send on average up to know, ignoring periods when the torrent was stopped (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
+Protocol Overhead: Overhead caused by protocol message. A value of 50% would for example mean, that on average 15kb of raw data need to be transfered to transfer 10kb of payload data. This stat is not entirely accurate because payload data and raw data get counted at different places (payload data when it is placed or retrieved in/out of the connection buffer, raw data when it is really send/received), but it should get more accurate with increasing transfer sizes.
+
+connections panel:
+Id: The unique id of this connection, for example referenced in the "Used Conns (List)"-column of the "Requests"-panel and in some log messages.
+Addr: The full i2p address of this connection.
+Client: The bittorrent software which this peer uses (detected from the peerid if possible)
+Direction: If the connection was established by us ('out') or by the peer ('in').
+Connected: Time since the connection was established.
+Progress: Download progress of this peer.
+I: "local interest", true (=marked with a '*') if we want to download something from this peer
+C: "local choke", true (=marked with a '*') if we allow this peer to request data from us (=upload to it)
+RI: "remote interest", true (=marked with a '*') if this peer wants to download something from us
+RC: "remote choke), true (=marked with a '*') if this peer allows us to request data from us (=uploads to us)
+Downloaded (R): How much was received up to now (the 'raw' byte count, including protocol messages)
+Downloaded (P): How much was received up to now (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
+Downspeed (R): Current (60sec average) receive speed (of 'raw' data, including protocol data)
+Uploaded (R): How much was send up to now (the 'raw' byte count, including protocol messages)
+Uploaded (P): How much was send up to now (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
+Upspeed (R): Current (60sec average) send speed (of 'raw' data, including protocol data)
+lReq: "local requests", number of local open download requests, meaning how many requests which send to this peer and still wait for the data
+rReq: "remote requests", number of local open upload requests, meaning how many requests from this peer we still have queued and will upload to it if it remains unchoked by us
+Avg. Downspeed (R): How much was received on average up to know ('raw' byte count, including protocol messages)
+Avg. Downspeed (P): How much was received on average up to know (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
+Avg. Upspeed (R): How much was send on average up to know ('raw' byte count, including protocol messages)
+Avg. Upspeed (P): How much was send on average up to know (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
+Score: The score is used by the choker to decide to which peers we should upload. Higher values are better. The value is calculated from the payload ratio and the average download speed of a connection. If we are seeding, then values lower 1.0 are considered as 1.0.
+Payload Ratio: The ratio between downloaded and uploaded data. It tells how many payload bytes we get from a peer for each uploaded byte. So a value of 0.5 would mean that we would need to upload 20kb to get 10kb (on average).
+Protocol Overhead: Overhead caused by protocol message. A value of 50% would for example mean, that on average 15kb of raw data need to be transfered to transfer 10kb of payload data. This stat is not entirely accurate because payload data and raw data get counted at different places (payload data when it is placed or retrieved in/out of the connection buffer, raw data when it is really send/received), but it should get more accurate with increasing transfer sizes.
+
+files panel:
+Id: The unique id of this file, only used internaly.
+Path: The path to this file, starting from the directory, which was selected when the torrent was added (the "data directory" which was selected after the torrent file)
+Size: The size of this file
+Progress: The download progress of this file.
+D: If this file should be downloaded (=true, marked with a '*') or not.
+Priority: The priority of this file. Higher values represent a higher priority.
+First Piece: The first piece of the torrent which is needed for this file.
+Last Piece: The last piece of the torrent which is needed for this file.
+
+requests panel:
+Piece: The number of this piece (numbering starts from 0)
+Size: The size of this piece (only the size of the last piece can vary compared to the others)
+Priority: The priority of this piece
+Availability: The availability of this piece (=how many of our peers have this piece)
+Chunks: Into how many request chunks this piece was split (only these chunks get requested from a peer, not the full piece)
+Finished: How many chunks were already downloaded.
+Needed: How many chunks still need to be downloaded.
+In Progress: How many chunks are currently being requested from peers.
+F: "filled", a request is considered "filled" if all chunks are either finished or in progress. (true= marked with a '*')
+Used Conns: How many different connections are currently used for downloading this piece.
+Used Conns (List): Same as "Used Conns", except that this Column shows a list of the Ids of the used connections.
+
+tracker panel:
+Id: Unique id of this tracker, only used internally
+Tier: index of the tier of this tracker (tier = group of trackers which share information), tiers with a lower index are tried before tiers with a higher one
+Pos in Tier: position of this tracker within the tier, the trackers are tried in order
+Url: The url of this tracker.

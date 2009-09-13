@@ -28,22 +28,27 @@ from About import About
 from ConfigDialog import ConfigDialog
 from TorrentConnectionList import TorrentConnectionList
 from TorrentCreateDialog import TorrentCreateDialog
+from TorrentFileList import TorrentFileList
 from TorrentList import TorrentList
+from TorrentRequestList import TorrentRequestList
 from TorrentStats import TorrentStats
+from TorrentTrackerList import TorrentTrackerList
 from ScrollableTextViewer import ScrollableTextViewerFrame
 from StatusBar import StatusBar
 from StatusPanel import StatusPanel
 
 ##own - other
-from Bittorrent.MultiBt import MultiBtException, VERSION
+from Bittorrent.MultiBt import MultiBtException
 from Utilities import logTraceback, encodeStrForPrinting, showWarningMessage, showErrorMessage, FunctionCallConverter
 
 
 class Gui(wx.Frame):
-    def __init__(self, progPath, config, torrentHandler):
+    def __init__(self, progPath, config, torrentHandler, persister, version):
         self.progPath = progPath
         self.config = config
         self.torrentHandler = torrentHandler
+        self.persister = persister
+        self.version = version
         
         self.log = logging.getLogger("Gui")
         self.stopFlag = False
@@ -109,12 +114,18 @@ class Gui(wx.Frame):
         #Child Windows
         self.childWindows = StatusPanel(self.splitter)        
         self.torrentStats = TorrentStats(self.torrentHandler.getStats, self.childWindows)
-        self.torrentConnectionList = TorrentConnectionList(self.torrentHandler.getStats, self.childWindows)
+        self.torrentConnectionList = TorrentConnectionList(self.persister, self.version, self.torrentHandler.getStats, self.childWindows)
+        self.torrentFileList = TorrentFileList(self.persister, self.version, self.torrentHandler.getStats, self.torrentHandler.setFilePriority, self.torrentHandler.setFileWantedFlag, self.childWindows)
+        self.torrentRequestList = TorrentRequestList(self.persister, self.version, self.torrentHandler.getStats, self.childWindows)
+        self.torrentTrackerList = TorrentTrackerList(self.persister, self.version, self.torrentHandler.getStats, self.childWindows)
         self.childWindows.addChild(self.torrentStats, 'General')
         self.childWindows.addChild(self.torrentConnectionList, 'Connections')
+        self.childWindows.addChild(self.torrentFileList, 'Files')
+        self.childWindows.addChild(self.torrentRequestList, 'Requests')
+        self.childWindows.addChild(self.torrentTrackerList, 'Tracker')
         
         #Main Window
-        self.torrentList = TorrentList(self.torrentHandler, self.childWindows.changeTorrentId, self.torrentHandler.getStats, self.splitter)
+        self.torrentList = TorrentList(self.persister, self.version, self.torrentHandler, self.childWindows.changeTorrentId, self.torrentHandler.getStats, self.splitter)
 
         #startup the splitter
         self.splitter.SplitHorizontally(self.torrentList, self.childWindows)
@@ -229,7 +240,7 @@ class Gui(wx.Frame):
         
 
     def OnAbout(self, event):
-        About(self, VERSION)
+        About(self, self.version)
         
 
     def OnChangelog(self, event):
@@ -247,9 +258,9 @@ class Gui(wx.Frame):
 
 
 
-def showGui(path, config, torrentHandler):
+def showGui(path, config, torrentHandler, persister, version):
     app = wx.App()
-    test = Gui(path, config, torrentHandler)
+    test = Gui(path, config, torrentHandler, persister, version)
     try:
         app.MainLoop()
     except:

@@ -114,7 +114,10 @@ def _bencodeExt(obj):
     elif type(obj)==bool:
         #bool
         result.append('b')
-        result.append(str(obj))
+        if obj == True:
+            result.append('1')
+        else:
+            result.append('0')
         result.append('e')
         
     elif obj is None:
@@ -253,7 +256,10 @@ def _bdecodeExt(encObj, place = 0):
         #bool
         place += 1
         end = encObj.find('e', place)
-        result = bool(encObj[place:end])
+        if encObj[place:end] == '1':
+            result = True
+        else:
+            result = False
         place = end + 1
         
     elif encObj[place]=='n':

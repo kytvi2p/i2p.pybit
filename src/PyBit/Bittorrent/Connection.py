@@ -20,6 +20,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from Conversion import peerIdToClient
+from Logger import Logger
 from Measure import Measure
 from Status import Status
 from Storage import StorageException
@@ -28,7 +29,6 @@ import Messages
 
 from collections import deque
 from time import time
-import logging
 import threading
 
 
@@ -36,7 +36,7 @@ class Connection:
     def __init__(self, connStatus, scheduler, conn, direction, remotePeerAddr,\
                  inMeasureParent, outMeasureParent, outLimiter, inLimiter,\
                  msgLenFunc, msgDecodeFunc, msgLengthFieldLen, maxMsgLength, keepaliveMsgFunc,\
-                 logIdent):
+                 log):
         
         self.sched = scheduler
         
@@ -78,8 +78,7 @@ class Connection:
         self.maxMsgLength = maxMsgLength
         
         #log
-        #self.log = logging.getLogger(torrentIdent+'-Conn '+str(self.connIdent))
-        self.log = logging.getLogger(logIdent)
+        self.log = log
         
         #lock
         self.lock = threading.RLock()
@@ -354,11 +353,13 @@ class BtConnection(Connection):
     def __init__(self, torrentIdent, globalStatus, connStatus, remotePeerId, \
                  scheduler, conn, direction, remotePeerAddr,\
                  inMeasureParent, outMeasureParent, outLimiter, inLimiter):
+                    
+        log = Logger('BtConnection', '%-6s - %-6s -', torrentIdent, conn.fileno())
                  
         Connection.__init__(self, connStatus, scheduler, conn, direction, remotePeerAddr,\
                             inMeasureParent, outMeasureParent, outLimiter, inLimiter,\
                             Messages.getMessageLength, Messages.decodeMessage, 4, 140000, Messages.generateKeepAlive,\
-                            torrentIdent+'-Conn')
+                            log)
         
         #ident
         self.torrentIdent = torrentIdent
@@ -621,6 +622,14 @@ class BtConnection(Connection):
             self.remoteChoke = value
             
             
+    ##internal functions - other
+    
+    def _getScore(self):
+        ratio = self._getPayloadRatio()
+        score = ratio + (ratio * self.inRate.getAveragePayloadRate())
+        return score
+            
+            
     ##external functions - choking and interested
 
     def localChoked(self):
@@ -772,8 +781,7 @@ class BtConnection(Connection):
     
     def getScore(self):
         self.lock.acquire()
-        ratio = self._getPayloadRatio()
-        score = ratio + (ratio * self.inRate.getAveragePayloadRate())
+        score = self._getScore()
         self.lock.release()
         return score
         
@@ -803,6 +811,8 @@ class BtConnection(Connection):
         stats['connectedInterval'] = time() - self.connectTime
         stats['peerProgress'] = self.status.getPercent()
         stats['peerClient'] = self.remoteClient
+        stats['inRawBytes'] = self.inRate.getTotalTransferedBytes()
+        stats['outRawBytes'] = self.outRate.getTotalTransferedBytes()
         stats['inPayloadBytes'] = self.inRate.getTotalTransferedPayloadBytes()
         stats['outPayloadBytes'] = self.outRate.getTotalTransferedPayloadBytes()
         stats['inRawSpeed'] = self.inRate.getCurrentRate()
@@ -813,5 +823,12 @@ class BtConnection(Connection):
         stats['remoteChoke'] = self.remoteChoke
         stats['localRequestCount'] = len(self.inRequestQueue)
         stats['remoteRequestCount'] = self.outRequestsInFlight + len(self.outRequestQueue)
+        stats['avgInRawSpeed'] = self.inRate.getAverageRate() * 1024
+        stats['avgOutRawSpeed'] = self.outRate.getAverageRate() * 1024
+        stats['avgInPayloadSpeed'] = self.inRate.getAveragePayloadRate() * 1024
+        stats['avgOutPayloadSpeed'] = self.outRate.getAveragePayloadRate() * 1024
+        stats['score'] = self._getScore()
+        stats['payloadRatio'] = self._getPayloadRatio()
+        stats['protocolOverhead'] = (100.0 * (stats['inRawBytes'] + stats['outRawBytes'] - stats['inPayloadBytes'] - stats['outPayloadBytes'])) / max(stats['inPayloadBytes'] + stats['outPayloadBytes'], 1.0)
         self.lock.release()
         return stats

@@ -21,12 +21,12 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 from __future__ import with_statement
 from sha import sha
 from time import time
-import logging
 import os
 import threading
 
 ##own
-from Status import PersistentStatus
+from Logger import Logger
+from Status import PersistentOwnStatus
 from Utilities import logTraceback
 
 
@@ -52,8 +52,8 @@ class Storage:
         
         #other
         shouldPersist = self.config.get('storage', 'persistPieceStatus')
-        self.ownStatus = PersistentStatus(btPersister, shouldPersist, self.torrent.getTotalAmountOfPieces())
-        self.log = logging.getLogger(ident+'-Storage')
+        self.ownStatus = PersistentOwnStatus(btPersister, shouldPersist, self.torrent.getTotalAmountOfPieces())
+        self.log = Logger('Storage', '%-6s - ', ident)
         self.lock = threading.Lock()
         
         

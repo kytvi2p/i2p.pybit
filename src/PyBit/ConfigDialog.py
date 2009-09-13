@@ -733,7 +733,8 @@ class ConfigDialog(wx.Frame):
         self.hBox = wx.BoxSizer(wx.HORIZONTAL)
         self.vBox = wx.BoxSizer(wx.VERTICAL)
         #tree
-        self.tree = wx.TreeCtrl(parent=self, id=100, size=wx.Size(150,-1),\
+        treeId = wx.NewId()
+        self.tree = wx.TreeCtrl(parent=self, id=treeId, size=wx.Size(150,-1),\
                                 style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.TR_HAS_BUTTONS | wx.TR_SINGLE )
         root = self.tree.AddRoot('root')
         n10 = self.tree.AppendItem(root, "Choker")
@@ -790,7 +791,7 @@ class ConfigDialog(wx.Frame):
         self.Layout()
         
         #events
-        self.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnTreeSelectChange, id=100)
+        self.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnTreeSelectChange, id=treeId)
         self.Show()
         
 

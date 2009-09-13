@@ -106,11 +106,56 @@ class ConnectionHandler:
     def _removeAllConnectionsOfTorrent(self, torrentIdent):
         for connId in self.torrents[torrentIdent]['connIds'].copy():
             self._removeConnection(connId, "removing torrent")
+            
         
+    ##internal functions - other
+    
+    def _recheckConnLocalInterest(self, torrent):
+        #recheck interest in conns
+        gotPieces = torrent['ownStatus'].getGotPieces()
+        neededPieces = torrent['ownStatus'].getNeededPieces()
+        weAreFinished = torrent['ownStatus'].isFinished()
+                
+        for connId in torrent['connIds'].copy():
+            conn = self.conns[connId]
+            status = conn.getStatus()
+            
+            if weAreFinished:
+                #seed-like
+                if not status.hasMatchingMissingPieces(gotPieces):
+                    #we won't gain new pieces and this peer already has all we have, disconnect
+                    self._removeConnection(connId, "we are finished downloading and this peer has already all pieces which we have", False)
+                elif conn.localInterested():
+                    #we don't need any further pieces ...
+                    conn.setLocalInterest(False)
+                    torrent['requester'].connGotNotInteresting(conn)
+                    
+            else:
+                #still downloading
+                localInterested = conn.localInterested()
+                hasMatchingPieces = status.hasMatchingGotPieces(neededPieces)
+                if localInterested and not hasMatchingPieces:
+                    #nothing to request anymore
+                    conn.setLocalInterest(False)
+                    torrent['requester'].connGotNotInteresting(conn)
+                    
+                elif (not localInterested) and hasMatchingPieces:
+                    #something to request again
+                    conn.setLocalInterest(True)
+                    
+    
+    def _setFileWantedFlag(self, torrentIdent, fileIds, wanted):
+        torrentSet = self.torrents[torrentIdent]
+        filePrio = torrentSet['filePriority']
+        for fileId in fileIds:
+            filePrio.setFileWantedFlag(fileId, wanted)
+        torrentSet['requester'].reset()
+        self._recheckConnLocalInterest(torrentSet)
+    
     
     ##internal functions - torrents
     
-    def _addTorrent(self, torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, requester):
+    def _addTorrent(self, torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, filePriority, requester):
         assert torrentIdent not in self.torrents
         self.torrents[torrentIdent] = {'torrent':torrent,
                                        'pieceStatus':pieceStatus,
@@ -118,6 +163,7 @@ class ConnectionHandler:
                                        'outMeasure':outMeasure,
                                        'storage':storage,
                                        'ownStatus':storage.getStatus(),
+                                       'filePriority':filePriority,
                                        'requester':requester,
                                        'connIds':set(),
                                        'connPeerIds':set(),
@@ -299,12 +345,12 @@ class ConnectionHandler:
             status = conn.getStatus()
             status.gotPiece(message[1])
             
-            if torrent['ownStatus'].isSeed() and status.isSeed():
-                #both seeds, disconnect
-                self._removeConnection(connId, "is seed and we are also a seed", False)
+            if torrent['ownStatus'].isFinished() and not status.hasMatchingMissingPieces(torrent['ownStatus'].getGotPieces()):
+                #nothing to gain, nothing to give - diconnect
+                self._removeConnection(connId, "we are finished downloading and this peer has already all pieces which we have", False)
             
             else:
-                if (not conn.localInterested()) and (not torrent['ownStatus'].hasPiece(message[1])):
+                if (not conn.localInterested()) and torrent['ownStatus'].needsPiece(message[1]):
                     #we were not interested, but now this peer got a piece we need, so we are interested
                     self.log.debug('Conn %i: Interested in peer after he got piece %i', connId, message[1])
                     conn.setLocalInterest(True)
@@ -321,12 +367,13 @@ class ConnectionHandler:
             status = conn.getStatus()
             status.addBitfield(message[1])
 
-            if torrent['ownStatus'].isSeed() and status.isSeed():
-                #both seeds, disconnect
-                self._removeConnection(connId, "is seed and we are also a seed", False)
+            if torrent['ownStatus'].isFinished() and not status.hasMatchingMissingPieces(torrent['ownStatus'].getGotPieces()):
+                #nothing to gain, nothing to give - diconnect
+                self._removeConnection(connId, "we are finished downloading and this peer has already all pieces which we have", False)
+            
             else:
                 #check if the peer has something interesting
-                if status.hasMatchingGotPieces(self._getTorrentInfo(conn)['ownStatus'].getMissingPieces()):
+                if status.hasMatchingGotPieces(torrent['ownStatus'].getNeededPieces()):
                     #yep he has
                     self.log.debug('Conn %i: Interested in peer after getting bitfield', connId)
                     conn.setLocalInterest(True)
@@ -353,25 +400,26 @@ class ConnectionHandler:
                 self.log.debug('Piece %i is finished', message[1][0])
                 
                 #send have messages
-                missingPieces = torrent['ownStatus'].getMissingPieces()
-                weAreSeed = torrent['ownStatus'].isSeed()
+                gotPieces = torrent['ownStatus'].getGotPieces()
+                neededPieces = torrent['ownStatus'].getNeededPieces()
+                weAreFinished = torrent['ownStatus'].isFinished()
                 
                 for connId in torrent['connIds'].copy():
                     conn = self.conns[connId]
                     conn.send(Messages.generateHave(message[1][0]))
                     status = conn.getStatus()
                     
-                    if weAreSeed and status.isSeed():
-                        #both seeds, disconnect
-                        self._removeConnection(connId, "is seed and we are also a seed", False)
+                    if weAreFinished and not status.hasMatchingMissingPieces(gotPieces):
+                        #nothing to gain, nothing to give - diconnect
+                        self._removeConnection(connId, "we are finished downloading and this peer has already all pieces which we have", False)
                     
                     else:
                         if conn.localInterested():
                             #we were interested up to now
-                            if not status.hasMatchingGotPieces(missingPieces):
+                            if not status.hasMatchingGotPieces(neededPieces):
                                 #nothing to request anymore
                                 conn.setLocalInterest(False)
-                                torrent['requester'].connGotNotInteresting(conn)                 
+                                torrent['requester'].connGotNotInteresting(conn)
                             
         elif message[0] == 8:
             #cancel
@@ -475,15 +523,23 @@ class ConnectionHandler:
     
     ##external functions - torrents
     
-    def addTorrent(self, torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, requester):
+    def addTorrent(self, torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, filePriority, requester):
         self.lock.acquire()
-        self._addTorrent(torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, requester)
+        self._addTorrent(torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, filePriority, requester)
         self.lock.release()
         
         
     def removeTorrent(self, torrentIdent):
         self.lock.acquire()
         self._removeTorrent(torrentIdent)
+        self.lock.release()
+        
+        
+    ##external functions - actions
+    
+    def setFileWantedFlag(self, torrentIdent, fileIds, wanted):
+        self.lock.acquire()
+        self._setFileWantedFlag(torrentIdent, fileIds, wanted)
         self.lock.release()
         
     
@@ -495,5 +551,15 @@ class ConnectionHandler:
         if torrentIdent in self.torrents:
             for conn in self._getAllConnections(torrentIdent):
                 stats.append(conn.getStats())
+        self.lock.release()
+        return stats
+    
+    
+    def getRequesterStats(self, torrentIdent):
+        self.lock.acquire()
+        if torrentIdent in self.torrents:
+            stats = self.torrents[torrentIdent]['requester'].getStats()
+        else:
+            stats = []
         self.lock.release()
         return stats

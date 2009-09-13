@@ -19,39 +19,56 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 
 import wx
 
-from VirtualListCtrl import VirtualListCtrl
+from VirtualListCtrl import PersistentVirtualListCtrl
 
-class TorrentConnectionList(VirtualListCtrl):
-    def __init__(self, rawUpdateFunc, parent, **kwargs):
+class TorrentConnectionList(PersistentVirtualListCtrl):
+    def __init__(self, persister, version, rawUpdateFunc, parent, **kwargs):
         self.torrentId = None
   
         #Syntax: NameOfColumn, NameOfStat, DataType, ColumnWidth
-        cols = [('Id','id', 'int', 40),\
-                ('Addr','addr', 'native', 125),\
-                ('Client','peerClient', 'native', 100),\
-                ('Direction','direction','native', 75),\
-                ('Connected', 'connectedInterval', 'timeInterval', 75),\
-                ('Progress', 'peerProgress', 'percent', 75),\
-                ('Downloaded', 'inPayloadBytes', 'dataAmount', 75),\
-                ('DownSpeed', 'inRawSpeed', 'transferSpeed', 75),\
-                ('Uploaded', 'outPayloadBytes', 'dataAmount', 75),\
-                ('UpSpeed', 'outRawSpeed', 'transferSpeed', 75),\
-                ('I', 'localInterest', 'bool', 20),\
-                ('C', 'localChoke', 'bool', 20),\
-                ('RI', 'remoteInterest', 'bool', 30),\
-                ('RC', 'remoteChoke', 'bool', 30),\
-                ('lReq', 'localRequestCount', 'int', 50),\
-                ('rReq', 'remoteRequestCount', 'int', 50)]
+        cols = [('Id','id', 'int', 40, False),\
+                ('Addr','addr', 'native', 125, True),\
+                ('Client','peerClient', 'native', 100, True),\
+                ('Direction','direction','native', 75, True),\
+                ('Connected', 'connectedInterval', 'timeInterval', 75, True),\
+                ('Progress', 'peerProgress', 'percent', 75, True),\
+                ('I', 'localInterest', 'bool', 20, True),\
+                ('C', 'localChoke', 'bool', 20, True),\
+                ('RI', 'remoteInterest', 'bool', 30, True),\
+                ('RC', 'remoteChoke', 'bool', 30, True),\
+                ('Downloaded (R)', 'inRawBytes', 'dataAmount', 110, False),\
+                ('Downloaded (P)', 'inPayloadBytes', 'dataAmount', 110, True),\
+                ('Downspeed (R)', 'inRawSpeed', 'transferSpeed', 110, True),\
+                ('Uploaded (R)', 'outRawBytes', 'dataAmount', 100, False),\
+                ('Uploaded (P)', 'outPayloadBytes', 'dataAmount', 100, True),\
+                ('Upspeed (R)', 'outRawSpeed', 'transferSpeed', 100, True),\
+                ('lReq', 'localRequestCount', 'int', 50, True),\
+                ('rReq', 'remoteRequestCount', 'int', 50, True),\
+                ('Avg. Downspeed (R)', 'avgInRawSpeed', 'transferSpeed', 140, False),\
+                ('Avg. Downspeed (P)', 'avgInPayloadSpeed', 'transferSpeed', 140, False),\
+                ('Avg. Upspeed (R)', 'avgOutRawSpeed', 'transferSpeed', 125, False),\
+                ('Avg. Upspeed (P)', 'avgOutPayloadSpeed', 'transferSpeed', 125, False),\
+                ('Score', 'score', 'float', 75, False),\
+                ('Payload Ratio', 'payloadRatio', 'float', 125, False),
+                ('Protocol Overhead', 'protocolOverhead', 'percent', 150, False)]
        
         self.rawUpdateFunc = rawUpdateFunc
-        self._updateStatKw()
-        func = lambda: self.rawUpdateFunc(**self.statKw)['bt']['connections']
-        VirtualListCtrl.__init__(self, cols, func, parent, **kwargs)
+        PersistentVirtualListCtrl.__init__(self, persister, 'TorrentConnectionList-', self._updatePerstData, version,
+                                           cols, self._getRowData, parent, rowIdCol='Id', **kwargs)
+       
         
+    def _updatePerstData(self, persColData, currentVersion):
+        return persColData
+    
         
-    def _updateStatKw(self):
-        self.statKw = {'wantedStats':{'bt':self.torrentId},
-                       'wantedTorrentStats':{'connections':True}}
+    def _getRowData(self):
+        if self.torrentId is None:
+            data = []
+        else:
+            statKw = {'wantedStats':{'bt':self.torrentId},
+                      'wantedTorrentStats':{'connections':True}}
+            data = self.rawUpdateFunc(**statKw)['bt']['connections']
+        return data
         
 
     def changeTorrentId(self, torrentId):
@@ -64,14 +81,12 @@ class TorrentConnectionList(VirtualListCtrl):
         elif self.torrentId is None and torrentId is not None:
             #got enabled
             self.torrentId = torrentId
-            self._updateStatKw()
             self.dataUpdate()
             
         elif self.torrentId is not None and torrentId is not None:
             #normal change
             if not self.torrentId == torrentId:
                 self.torrentId = torrentId
-                self._updateStatKw()
                 self.dataUpdate()
         self.lock.release()
         

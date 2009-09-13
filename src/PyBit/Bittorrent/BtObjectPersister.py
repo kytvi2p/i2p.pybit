@@ -18,13 +18,13 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from __future__ import with_statement
-import logging
+from Logger import Logger
 
 class BtObjectPersister:
     def __init__(self, persister, torrentIdent):
         self.persister = persister
         self.torrentIdent = torrentIdent
-        self.log = logging.getLogger('BtPersister')
+        self.log = Logger('BtPersister', '%-6s - ', torrentIdent)
         
         
     def load(self, key):

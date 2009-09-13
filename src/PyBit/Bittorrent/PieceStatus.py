@@ -162,6 +162,12 @@ class PieceStatus:
 
 
     ##external functions - status
+    
+    def getAvailability(self, pieceIndex):
+        self.lock.acquire()
+        availability = self.availability[pieceIndex]
+        self.lock.release()
+        return availability
 
     def increaseAvailability(self, pieceIndex=None, bitfield=None):
         self.lock.acquire()
@@ -183,7 +189,7 @@ class PieceStatus:
 
     def getPriority(self, pieceIndex=None, pieces=None):
         self.lock.acquire()
-        if pieceIndex is None:
+        if pieceIndex is not None:
             priority = self.priority[pieceIndex] * -1
         else:
             priority = {}
@@ -195,8 +201,20 @@ class PieceStatus:
 
     def setPriority(self, pieces, newPriority):
         self.lock.acquire()
+        newPriority *= -1
         self._updatePieceGroups((pieceIndex for pieceIndex in pieces if not self.priority[pieceIndex] == newPriority) , newPriority=newPriority)
         self.lock.release()
+        
+        
+    def getConcurrentRequestsCounter(self, pieceIndex):
+        self.lock.acquire()
+        concRequests = self.concurrentRequests[pieceIndex]
+        if concRequests == -1:
+            concRequests = 0
+        elif concRequests == 0:
+            concRequests = -1
+        self.lock.release()
+        return concRequests
 
 
     def setConcurrentRequestsCounter(self, pieces, newConcurrentRequests):

@@ -19,12 +19,12 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 
 from sha import sha
 from time import time
-import logging
 import re
 import threading
 
 from Bencoding import bdecode
 from HttpUtilities import joinUrl, splitUrl
+from Logger import Logger
 from Utilities import logTraceback
 
 
@@ -56,7 +56,7 @@ class TrackerRequester:
         #other
         self.paused = False
         self.stopped = False
-        self.log = logging.getLogger(torrentIdent+'-TrackerRequester')
+        self.log = Logger('TrackerRequester', '%-6s - ', torrentIdent)
         self.lock = threading.Lock()
         
     
@@ -378,3 +378,17 @@ class TrackerRequester:
         self.lock.acquire()
         self._setEvent(event)
         self.lock.release()
+        
+        
+    def getStats(self):
+        self.lock.acquire()
+        stats = []
+        for tierNum, tier in enumerate(self.trackerTiers):
+            for trackerNum, trackerId in enumerate(tier):
+                tracker = self.trackerInfos[trackerId]
+                stats.append({'tier':tierNum + 1,
+                              'tierPos':trackerNum + 1,
+                              'trackerUrl':tracker['logUrl'],
+                              'trackerId':trackerId})
+        self.lock.release()
+        return stats

@@ -1,3 +1,19 @@
+0.2.0 - 09.08.2009
+-----------------------
+Blub:
+- fixed bug in "Bittorrent.Bencoding": bools got wrongly encoded, this bug wasn't triggered up to now because none of the persisted data structures contained bools.
+- fixed bug in "Bittorrent.Requester": When a piece download failed (checksum error) a crash could occur in certain cases.
+- added support for prioritising files
+- added support for only downloading some files of a torrent
+- added 'files' panel: Shows the files of the selected torrent, can be used to adjust the priority of the files and to decide which files should be downloaded
+- added 'requests' panel: Shows all running requests of a torrent
+- added 'tracker' panel: Shows all trackers which are used for a torrent
+- added support for persisting some GUI changes: The size and order of all columns gets persisted, along with the information which columns should be shown and which not. This applies to all list-dialogs within PyBit (=the torrent list and the Connections/Files/Requests/Tracker panels)
+- added a few new columns to the main torrent list and the 'Connections' panel, most are hidden per default
+- some small GUI improvements: If a list-dialog gets differently sorted or if in general the order of its items changes, the selected item stays the same (previously the position of the selection stayed the same and thus a different item could get selected)
+- fixed a small memory leak in the logging system: Different instances of the same Bittorrent.* class now always use the same logger instance. Previously the instance for each torrent got its own logger which leaks a bit of memory because logger instances never get released/GCed.
+
+
 0.1.3 - 16.05.2009
 -----------------------
 Blub:

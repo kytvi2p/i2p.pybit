@@ -19,8 +19,8 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 
 from collections import deque, defaultdict
 from sha import sha
-import logging
 
+from Logger import Logger
 from Request import Request
 from Utilities import logTraceback
 
@@ -33,15 +33,10 @@ class Requester:
         self.pieceStatus = pieceStatus
         self.ownStatus = storage.getStatus()
         
-        #pieces
-        self.pieceStatus.setConcurrentRequestsCounter(self.ownStatus.getGotPieces(), -2)
-        self.pieceStatus.setConcurrentRequestsCounter(self.ownStatus.getMissingPieces(), -1)
         self.requestedPieces = {} #pieces which are (partly) requested
-
-        #conns
         self.waitingConns = set() #connections which allow requests and are not filled
         
-        self.log = logging.getLogger(ident+'-Requester')
+        self.log = Logger('Requester', '%-6s - ', ident)
     
     
     ##internal functions - requesting
@@ -152,7 +147,7 @@ class Requester:
                     
                 if pieceIndex in self.requestedPieces:
                     #piece was requested again by now
-                    if not self.requestedPieces.isRequestable(endgame):
+                    if not self.requestedPieces[pieceIndex].isRequestable(endgame):
                         #no point in further trying
                         break
                     
@@ -181,7 +176,7 @@ class Requester:
     ##external functions - requests
     
     def makeRequests(self, conn):
-        assert not self.ownStatus.isSeed(), 'already seed but trying to request?!'
+        assert not self.ownStatus.isFinished(), 'already seed but trying to request?!'
         self._makeRequestsForConn(conn)
         
                     
@@ -200,7 +195,7 @@ class Requester:
     
     def finishedRequest(self, data, conn, pieceIndex, offset):
         #finished a request
-        assert not self.ownStatus.isSeed(), 'already seed but finished a request?!'
+        assert not self.ownStatus.isFinished(), 'already seed but finished a request?!'
         finishedPiece = False
         request = self.requestedPieces[pieceIndex]
         
@@ -245,7 +240,7 @@ class Requester:
                     self.pieceStatus.setConcurrentRequestsCounter((pieceIndex,), -1)
                     self._tryPieceWithWaitingConns(pieceIndex)
                     
-        if self.ownStatus.isSeed():
+        if self.ownStatus.isFinished():
             #clear waiting conns
             self.waitingConns.clear()
         else:
@@ -261,7 +256,7 @@ class Requester:
 
     def connGotUnchoked(self, conn):
         #conn got unchoked, make requests
-        assert not self.ownStatus.isSeed(), 'already seed but trying to request?!'
+        assert not self.ownStatus.isFinished(), 'already seed but trying to request?!'
         self._makeRequestsForConn(conn)
         
 
@@ -282,9 +277,28 @@ class Requester:
         
     def reset(self):
         #pieces
-        self.pieceStatus.setConcurrentRequestsCounter(self.ownStatus.getGotPieces(), -2)
-        self.pieceStatus.setConcurrentRequestsCounter(self.ownStatus.getMissingPieces(), -1)
-        self.requestedPieces = {} #pieces which are (partly) requested
+        neededPieces = self.ownStatus.getNeededPieces()
+        notNeededPieces = self.ownStatus.getGotPieces()
+        notNeededPieces.update(self.ownStatus.getMissingPieces())
+        notNeededPieces.difference_update(neededPieces)
         
-        #conns
-        self.waitingConns = set() #connections which allow requests and are not filled
+        #abort requests
+        canceledConns = set()
+        requests = [pieceIndex for pieceIndex in self.requestedPieces if pieceIndex not in neededPieces]
+        for pieceIndex in requests:
+            self.log.debug('Aborting requests for piece %i', pieceIndex)
+            canceledConns.update(self.requestedPieces[pieceIndex].abortAllRequests())
+            del self.requestedPieces[pieceIndex]
+            
+        #change piece status
+        neededPieces.difference_update(set(self.requestedPieces.iterkeys()))
+        self.pieceStatus.setConcurrentRequestsCounter(notNeededPieces, -2)
+        self.pieceStatus.setConcurrentRequestsCounter(neededPieces, -1)
+                
+        #make requests for conns with canceled requests
+        for conn in canceledConns:
+            self._makeRequestsForConn(conn)
+            
+            
+    def getStats(self):
+        return [req.getStats() for req in self.requestedPieces.itervalues()]

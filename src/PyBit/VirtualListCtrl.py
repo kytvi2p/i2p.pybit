@@ -27,14 +27,14 @@ import Conversion
 
 
 class VirtualListCtrl(wx.ListCtrl):
-    def __init__(self, cols, updateFunc, parent, customDataToStringFuncs=[], id=-1,
+    def __init__(self, cols, dataFunc, parent, customDataToStringFuncs=[], rowIdCol=None, id=-1,
                  pos=wx.DefaultPosition, size=wx.DefaultSize, style=wx.LC_REPORT | wx.LC_VIRTUAL | wx.LC_VRULES, **kwargs):
         wx.ListCtrl.__init__(self, parent, id, pos, size, style, **kwargs)
         """
         cols:
             [(*columnName*, *dataKeyword*, *dataType*, *columnWidth*), ...]
         """
-        self.updateFunc = updateFunc
+        self.dataFunc = dataFunc
         
         #get a copy of the converter dicts
         self.dataToStringFuncs = copy(Conversion.dataToStringFuncs)
@@ -45,29 +45,9 @@ class VirtualListCtrl(wx.ListCtrl):
                 self.dataToStringFuncs[funcTup[0]]=funcTup[1]
                 
         #columns
-        self.colData = {}
-        self.colInfo = {} #static info stuff
-        self.colMapper = [] #maps a column name to a position
-        
-        #add columns, build up mapper and data dict
-        place = 0
-        while place < len(cols):
-            colSet = cols[place]
-            self.colData[colSet[0]] = []
-            self.colInfo[colSet[0]] = {'colPos':place,\
-                                       'dataKeyword':colSet[1],\
-                                       'dataType':colSet[2]}
-            self.colMapper.append(colSet[0])
-            self.InsertColumn(place, colSet[0])
-            if colSet[3] is not None:
-                self.SetColumnWidth(place, colSet[3])
-            place += 1
-
-        self.colNum = place #number of columns
-        
-        #sorting vars
-        self.sortColumn = 0
-        self.sortDirection = 'ASC'
+        self.rowIdCol = rowIdCol
+        self.colDefaults = cols #default column data (size and so on)
+        self._initColumns(cols) #sets class vars!
         
         #lock
         self.lock = threading.RLock() #guess...
@@ -75,19 +55,87 @@ class VirtualListCtrl(wx.ListCtrl):
         #events
         self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick) #sort on col click
         self.Bind(wx.EVT_LIST_COL_RIGHT_CLICK, self.OnColRightClick) #display options on right click on col
+        self.Bind(wx.EVT_LIST_COL_END_DRAG, self.OnColResize) #update the size info for the resized column
         
         #tell ListCtrl how many items we currently have
         self.SetItemCount(0)
         
         
-    ##internal functions
+    ##internal functions - columns
     
-    def _getRawData(self, colName, rowIndex):
-        return self.colData[colName][rowIndex]
+    def _createColumnInfo(self, cols):
+        #cols = [(*columnName*, *dataKeyword*, *dataType*, *columnWidth*, *active*), ...]
         
+        colInfo = {}   #columns info stuff
+        colMapper = [] #maps a column name to a position
+        
+        #build up mapper and info dict
+        place = 0
+        while place < len(cols):
+            #process one col
+            colSet = cols[place]
+            colInfo[colSet[0]] = {'dataKeyword':colSet[1],
+                                  'dataType':colSet[2],
+                                  'columnWidth':colSet[3]}
+            if colSet[4]:
+                #active column
+                colMapper.append(colSet[0])
+            place += 1
+        return colInfo, colMapper
+    
+    
+    def _applyColumnInfo(self, colInfo, colMapper):
+        #create the 'real' (=gui) columns
+        for i in xrange(0, len(colMapper)):
+            colName = colMapper[i]
+            self.InsertColumn(i, colName)
+            self.SetColumnWidth(i, colInfo[colName]['columnWidth'])
+            
+            
+    def _createColumns(self, colInfo, colMapper):
+        #create the columns itself
+        self._applyColumnInfo(colInfo, colMapper)
+        
+        #set class vars
+        self.colInfo = colInfo            #column info
+        self.colMapper = colMapper        #maps a column name to a position
+        self.colNum = len(self.colMapper) #number of columns
+        self.colData = dict(((colName, []) for colName in self.colInfo)) #row data, per column one list
+        
+        
+    def _initColumns(self, cols):
+        #initialises everything columns related
+        colInfo, colMapper = self._createColumnInfo(cols)
+        self._createColumns(colInfo, colMapper)
+        
+        self.sortColumn = 0        #index of the column, which is used for sorting
+        self.sortDirection = 'ASC' #sort direction, either ASC or DESC
+        
+        
+    def _resetColumns(self):
+        #reset everything back to the defaults
+        self.DeleteAllColumns()                                         #remove all existing columns
+        colInfo, colMapper = self._createColumnInfo(self.colDefaults)   #build the needed vars out of the defaults
+        self._createColumns(colInfo, colMapper)                         #create new columns according to these default
+        
+        self.sortColumn = 0        #index of the column, which is used for sorting
+        self.sortDirection = 'ASC' #sort direction, either ASC or DESC
+        
+        self.dataUpdate() #refill the columns
+        
+        
+    ##internal functions - data
         
     def _dataUpdate(self, data):
         oldDataAmount = len(self.colData[self.colMapper[0]])
+        
+        #remember selected rows if possible
+        if self.rowIdCol is not None:
+            rowIdColData = self.colData[self.rowIdCol]
+            selectedRows = self._getSelectedRows()
+            selectedRowIds = [rowIdColData[rowIdx] for rowIdx in selectedRows if rowIdx < len(rowIdColData)]
+            for rowIdx in selectedRows:
+                self.Select(rowIdx, on=0)
         
         #create sort list
         colName = self.colMapper[self.sortColumn]
@@ -126,6 +174,13 @@ class VirtualListCtrl(wx.ListCtrl):
         newDataAmount = len(sortList)
         if newDataAmount != oldDataAmount:
             self.SetItemCount(newDataAmount)
+            
+        #restore row selection if possible
+        if self.rowIdCol is not None:
+            rowIdColData = self.colData[self.rowIdCol]
+            selectedRows = [rowIdColData.index(rowId) for rowId in selectedRowIds if rowId in rowIdColData]
+            for rowIdx in sorted(selectedRows):
+                self.Select(rowIdx, on=1)
                 
         #refresh currently displayed items
         firstDisplayedRow = self.GetTopItem()
@@ -138,58 +193,11 @@ class VirtualListCtrl(wx.ListCtrl):
                 self.Refresh(False)
             else:
                 self.Refresh(True)
-            
+                
     
-    ##event functions
+    ##internal functions - columns
 
-    def OnColClick(self, event):
-        self.lock.acquire()
-        clickedCol = event.GetColumn()
-        if not clickedCol == self.sortColumn:
-            #use another column for sorting stuff
-            self.sortColumn = clickedCol
-            self.sortDirection = 'ASC'
-        else:
-            #just reverse sorting order
-            if self.sortDirection == 'ASC':
-                self.sortDirection = 'DESC'
-            else:
-                self.sortDirection = 'ASC'
-        
-        self.dataUpdate()
-        self.lock.release()
-        
-        
-    def OnColRightClick(self, event):
-        self.lock.acquire()
-        cols = []
-        for colName in self.colData.iterkeys():
-            active = (colName in self.colMapper)
-            cols.append((colName, active))
-        cols.sort()
-        
-        clickedCol = event.GetColumn()
-        if clickedCol == -1:
-            merk = ColumnSelectionPopup(cols, self.enableCol, self.disableCol, None, self.moveCol)
-        else:
-            merk = ColumnSelectionPopup(cols, self.enableCol, self.disableCol, self.colMapper[clickedCol], self.moveCol)
-        self.PopupMenu(merk)
-        self.lock.release()
-        
-        
-    def OnGetItemText(self, rowIndex, columnIndex):
-        self.lock.acquire()
-        colName = self.colMapper[columnIndex]
-        data = self.colData[colName][rowIndex]
-        data = self.dataToStringFuncs[self.colInfo[colName]['dataType']](data)
-        self.lock.release()
-        return data
-    
-    
-    ##external functions - columns
-
-    def disableCol(self, colName):
-        self.lock.acquire()
+    def _disableCol(self, colName):
         if self.colNum > 1:
             #ok to disable column, its not the last one
             colPos = self.colMapper.index(colName)
@@ -206,25 +214,24 @@ class VirtualListCtrl(wx.ListCtrl):
             elif self.sortColumn>colPos:
                 #we sort depending on a column which is after the deleted column
                 self.sortColumn -= 1
-                
-        self.lock.release()
+        
+        self.Refresh()
         
 
-    def enableCol(self, colName):
-        self.lock.acquire()
-        self.InsertColumn(self.colNum, colName)        
+    def _enableCol(self, colName):
+        self.InsertColumn(self.colNum, colName)
+        self.SetColumnWidth(self.colNum, self.colInfo[colName]['columnWidth'])
         self.colMapper.append(colName)
         self.colNum += 1
         self.dataUpdate()
-        self.lock.release()
         
-
-    def moveCol(self, colName, direction):
-        self.lock.acquire()
+        
+    def _moveCol(self, colName, direction):
         colPos = self.colMapper.index(colName)
         if (colPos + direction) >= 0 and (colPos + direction) < self.colNum:
             self.DeleteColumn(colPos)
             self.InsertColumn(colPos + direction, colName)
+            self.SetColumnWidth(colPos + direction, self.colInfo[colName]['columnWidth'])
             del self.colMapper[colPos]
             self.colMapper.insert(colPos + direction, colName)
 
@@ -239,8 +246,62 @@ class VirtualListCtrl(wx.ListCtrl):
                 self.sortColumn += direction
                 
         self.dataUpdate()
-        self.lock.release()
         
+        
+    ##internal functions - events
+
+    def _onColClick(self, event):
+        clickedCol = event.GetColumn()
+        if not clickedCol == self.sortColumn:
+            #use another column for sorting stuff
+            self.sortColumn = clickedCol
+            self.sortDirection = 'ASC'
+        else:
+            #just reverse sorting order
+            if self.sortDirection == 'ASC':
+                self.sortDirection = 'DESC'
+            else:
+                self.sortDirection = 'ASC'
+        
+        self.dataUpdate()
+        
+        
+    def _onColRightClick(self, event):
+        cols = []
+        for colName in self.colData.iterkeys():
+            active = (colName in self.colMapper)
+            cols.append((colName, active))
+        cols.sort()
+        
+        clickedCol = event.GetColumn()
+        if clickedCol == -1:
+            merk = ColumnSelectionPopup(cols, self, None, None, None)
+        else:
+            merk = ColumnSelectionPopup(cols, self, self.colMapper[clickedCol], clickedCol, len(self.colMapper))
+        self.PopupMenu(merk)
+        
+        
+    def _onColResize(self, event):
+        resizedColNum = event.GetColumn()
+        resizedColName = self.colMapper[resizedColNum]
+        newSize = self.GetColumnWidth(resizedColNum)
+        self.colInfo[resizedColName]['columnWidth'] = newSize
+                
+    
+    ##internal functions - other
+        
+    def _getRawData(self, colName, rowIndex):
+        return self.colData[colName][rowIndex]
+    
+    
+    def _getSelectedRows(self):
+        selectedRows = []
+        selected = self.GetFirstSelected()
+        while not selected==-1:
+            selectedRows.append(selected)
+            selected = self.GetNextSelected(selected)
+        return selectedRows
+    
         
     ##external functions - data
     
@@ -249,36 +310,97 @@ class VirtualListCtrl(wx.ListCtrl):
         self._dataUpdate([])
         self.lock.release()
         
-        
-    def changeUpdateFunc(self, updateFunc):
-        self.lock.acquire()
-        self.updateFunc = updateFunc
-        self.lock.release()
-        
     
     def dataUpdate(self):
         self.lock.acquire()
-        data = self.updateFunc()
+        data = self.dataFunc()
         self._dataUpdate(data)
         self.lock.release()
+    
+    
+    ##external functions - columns
+
+    def disableCol(self, colName):
+        self.lock.acquire()
+        self._disableCol(colName)
+        self.lock.release()
+        
+
+    def enableCol(self, colName):
+        self.lock.acquire()
+        self._enableCol(colName)
+        self.lock.release()
+        
+
+    def moveCol(self, colName, direction):
+        self.lock.acquire()
+        self._moveCol(colName, direction)
+        self.lock.release()
+        
+        
+    def resetCols(self):
+        self.lock.acquire()
+        self._resetColumns()
+        self.lock.release()
+         
+    
+    ##external functions - events
+
+    def OnColClick(self, event):
+        self.lock.acquire()
+        self._onColClick(event)
+        self.lock.release()
+        
+        
+    def OnColRightClick(self, event):
+        self.lock.acquire()
+        self._onColRightClick(event)
+        self.lock.release()
+        
+        
+    def OnColResize(self, event):
+        self.lock.acquire()
+        self._onColResize(event)
+        self.lock.release()
+        
+        
+    def OnGetItemText(self, rowIndex, columnIndex):
+        self.lock.acquire()
+        if columnIndex >= self.colNum or rowIndex >= len(self.colData[self.colMapper[0]]):
+            data = ''
+        else:
+            colName = self.colMapper[columnIndex]
+            data = self.colData[colName][rowIndex]
+            data = self.dataToStringFuncs[self.colInfo[colName]['dataType']](data)
+        self.lock.release()
+        return data
 
 
 
 
 class ColumnSelectionPopup(wx.Menu):
-    def __init__(self, cols, enableFunc, disableFunc, clickedCol, moveFunc, *args, **kwargs):
+    def __init__(self, cols, parentDiag, clickedCol, clickedColNum, maxColNum, *args, **kwargs):
         wx.Menu.__init__(self, *args, **kwargs)
         #static
-        self.enableCol = enableFunc
-        self.disableCol = disableFunc
+        self.parentDiag = parentDiag
         self.clickedCol = clickedCol
-        self.moveCol = moveFunc
+        self.clickedColNum = clickedColNum
+        self.maxColNum = maxColNum
+        
+        id = wx.NewId()
+        self.Append(id, 'Reset to defaults', 'Restore the default column ordering and size')
+        self.Bind(wx.EVT_MENU, self.OnColumnReset, id=id)
+        self.AppendSeparator()
 
         if clickedCol is not None:
-            #left/right
+            #move funcs
             id = wx.NewId()
             self.Append(id, 'Move to left', 'Moves column one step to the left')
             self.Bind(wx.EVT_MENU, self.OnMoveToLeft, id=id)
+            
+            id = wx.NewId()
+            self.Append(id, 'Move x steps', 'Moves column x steps')
+            self.Bind(wx.EVT_MENU, self.OnMoveToX, id=id)
             
             id = wx.NewId()
             self.Append(id, 'Move to right', 'Moves column one step to the right')
@@ -304,22 +426,102 @@ class ColumnSelectionPopup(wx.Menu):
     def OnClick(self, event):
         colName = self.idMapper[event.GetId()]
         if event.IsChecked() == True:
-            self.enableCol(colName)
+            self.parentDiag.enableCol(colName)
         else:
-            self.disableCol(colName)
+            self.parentDiag.disableCol(colName)
         #event.Skip(False)
         
 
     def OnMoveToLeft(self, event):
-        self.moveCol(self.clickedCol, -1)
+        self.parentDiag.moveCol(self.clickedCol, -1)
+        
+        
+    def OnMoveToX(self, event):
+        min = self.clickedColNum * -1
+        max = self.maxColNum - self.clickedColNum - 1
+        diag = wx.NumberEntryDialog(self.parentDiag, 'How many steps should the column be moved?', 'Steps (left = -, right = +):', 'Move Column', 0, min, max)
+        if diag.ShowModal() == wx.ID_OK:
+            self.parentDiag.moveCol(self.clickedCol, diag.GetValue())
         
 
     def OnMoveToRight(self, event):
-        self.moveCol(self.clickedCol, 1)
+        self.parentDiag.moveCol(self.clickedCol, 1)
+        
+    
+    def OnColumnReset(self, event):
+        self.parentDiag.resetCols()
+        
+        
+        
+
+class PersistentVirtualListCtrl(VirtualListCtrl):
+    def __init__(self, persister, persistPrefix, updateFunc, currentVersion, cols, dataFunc, parent, customDataToStringFuncs=[], rowIdCol=None,
+                 id=-1, pos=wx.DefaultPosition, size=wx.DefaultSize, style=wx.LC_REPORT | wx.LC_VIRTUAL | wx.LC_VRULES, **kwargs):
+        self.persister = persister
+        self.persistKey = persistPrefix + 'columnInfo'
+        self.updateFunc = updateFunc
+        self.currentVersion = currentVersion
+        
+        VirtualListCtrl.__init__(self, cols, dataFunc, parent, customDataToStringFuncs, rowIdCol, id, pos, size, style, **kwargs)
+        
+        
+    ##internal funcs - persisting
+        
+    def _initColumns(self, cols):
+        #initialises everything columns related
+        persColData = self.persister.get(self.persistKey, None)
+        if persColData is None:
+            #nothing persisted exists
+            colInfo, colMapper = self._createColumnInfo(cols)
+            self.sortColumn = 0
+            self.sortDirection = 'ASC'
+        else:
+            #managed to get persisted data
+            persColData = self.updateFunc(persColData, self.currentVersion)
+            colInfo = persColData['colInfo']
+            colMapper = persColData['colMapper']
+            self.sortColumn = persColData['sortColumn']
+            self.sortDirection = persColData['sortDirection']
             
+        self._createColumns(colInfo, colMapper)
         
         
-if __name__ == "__main__":
-    app = wx.App()
-    merk = Testframe()
-    app.MainLoop()
+    def _persist(self):
+        persColData = {'colInfo':self.colInfo,
+                       'colMapper':self.colMapper,
+                       'sortColumn':self.sortColumn,
+                       'sortDirection':self.sortDirection,
+                       'version':self.currentVersion}
+        self.persister.store(self.persistKey, persColData)
+        
+        
+    ##internal funcs - other
+    
+    def _resetColumns(self):
+        VirtualListCtrl._resetColumns(self)
+        self._persist()
+        
+
+    def _onColClick(self, event):
+        VirtualListCtrl._onColClick(self, event)
+        self._persist()
+        
+        
+    def _onColResize(self, event):
+        VirtualListCtrl._onColResize(self, event)
+        self._persist()
+        
+        
+    def _disableCol(self, colName):
+        VirtualListCtrl._disableCol(self, colName)
+        self._persist()
+        
+
+    def _enableCol(self, colName):
+        VirtualListCtrl._enableCol(self, colName)
+        self._persist()
+        
+
+    def _moveCol(self, colName, direction):
+        VirtualListCtrl._moveCol(self, colName, direction)
+        self._persist()

@@ -44,8 +44,6 @@ from PySamLib.I2PSocketManager import I2PSocketManager
 #DEBUG
 #import gc
 
-VERSION = '0.1.3'
-
 
 class MultiBtException(Exception):
     def __init__(self, reason, *args):
@@ -54,10 +52,11 @@ class MultiBtException(Exception):
 
 
 class MultiBt:
-    def __init__(self, config, persister, progPath):
+    def __init__(self, config, persister, progPath, version):
         self.config = config
         self.persister = persister
         self.progPath = progPath
+        self.version = version
         
         #DEBUG
         #gc.set_debug(gc.DEBUG_UNCOLLECTABLE)
@@ -68,7 +67,7 @@ class MultiBt:
         self.log = logging.getLogger('MultiBt')
         
         #generate peerid
-        versionDigits = VERSION.split('.')
+        versionDigits = self.version.split('.')
         self.peerId = '-PB' + shortIntToBinary(versionDigits[0]) + shortIntToBinary(versionDigits[1]) +\
                       shortIntToBinary(versionDigits[2]) + generateRandomBinary(14)
                     
@@ -168,7 +167,7 @@ class MultiBt:
             obj = {'queue':obj[0],
                    'version':obj[1]}
                 
-        currentVersion = tuple((int(digit) for digit in VERSION.split('.')))
+        currentVersion = tuple((int(digit) for digit in self.version.split('.')))
         objVersion = tuple((int(digit) for digit in obj['version'].split('.')))
         
         if objVersion < currentVersion:
@@ -205,7 +204,7 @@ class MultiBt:
     
         
     def _storeState(self):
-        self.persister.store('MultiBt-torrentQueue', {'queue':self.torrentQueue, 'version':VERSION})
+        self.persister.store('MultiBt-torrentQueue', {'queue':self.torrentQueue, 'version':self.version})
         
  
     ##internal functions - queue
@@ -223,7 +222,7 @@ class MultiBt:
         
     def _loadTorrentQueue(self):
         #load old queue from db and restore bt jobs
-        obj = self.persister.get('MultiBt-torrentQueue', ({'queue':[], 'version':VERSION}))
+        obj = self.persister.get('MultiBt-torrentQueue', ({'queue':[], 'version':self.version}))
         obj = self._updateStoredObj(obj)
         
         #add torrents to queue
@@ -328,7 +327,7 @@ class MultiBt:
                 
                 self.log.debug('Torrent %i: creating bt class', torrentId)
                 btObj = Bt(self.config, self.eventSched, self.httpRequester, self.ownAddrWatcher.getOwnAddr, self.peerId, self.persister, self.inRate, self.outRate,
-                           self.peerPool, self.connBuilder, self.connListener, self.connHandler, self.choker, torrent, 'Bt'+str(torrentId), torrentDataPath)
+                           self.peerPool, self.connBuilder, self.connListener, self.connHandler, self.choker, torrent, 'Bt'+str(torrentId), torrentDataPath, self.version)
                 
                 #add to queue
                 self.log.debug('Torrent %i: adding to queue', torrentId)
@@ -460,6 +459,20 @@ class MultiBt:
                 started = True
         self.lock.release()
         return started
+    
+    
+    def setFilePriority(self, torrentId, fileIds, priority):
+        self.lock.acquire()
+        if torrentId in self.torrentInfo:
+            self.torrentInfo[torrentId]['obj'].setFilePriority(fileIds, priority)
+        self.lock.release()
+        
+        
+    def setFileWantedFlag(self, torrentId, fileIds, wanted):
+        self.lock.acquire()
+        if torrentId in self.torrentInfo:
+            self.torrentInfo[torrentId]['obj'].setFileWantedFlag(fileIds, wanted)
+        self.lock.release()
         
         
     ##external functions - queue

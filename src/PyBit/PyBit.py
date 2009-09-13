@@ -18,6 +18,9 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+VERSION = '0.2.0'
+
+
 ##builtin
 from optparse import OptionParser
 import logging
@@ -25,7 +28,7 @@ import os
 import wx
 
 ##own
-from Bittorrent.MultiBt import MultiBt, MultiBtException, VERSION
+from Bittorrent.MultiBt import MultiBt, MultiBtException
 from Config import Config
 from Gui import showGui
 from Logger import LogController
@@ -34,8 +37,9 @@ from Utilities import logTraceback
 
 
 class PyBit:
-    def __init__(self, progPath):
+    def __init__(self, progPath, version):
         self.progPath = progPath
+        self.version = version
         self.log = logging.getLogger('PyBit')
         
         
@@ -92,7 +96,7 @@ class PyBit:
         self.persister.start()
         
         #creat torrent handler
-        self.torrentHandler = MultiBt(self.config, self.persister, self.progPath)
+        self.torrentHandler = MultiBt(self.config, self.persister, self.progPath, self.version)
         
         
     def _stop(self):
@@ -109,7 +113,7 @@ class PyBit:
         
     def run(self):
         self._start()
-        showGui(self.progPath, self.config, self.torrentHandler)
+        showGui(self.progPath, self.config, self.torrentHandler, self.persister, self.version)
         self._stop()
     
     
@@ -149,7 +153,7 @@ def main():
     else:
         #valid options
         currentPath = os.getcwdu()
-        prog = PyBit(currentPath)
+        prog = PyBit(currentPath, VERSION)
         
         if not options.profile:
             #no profiling, just show the gui

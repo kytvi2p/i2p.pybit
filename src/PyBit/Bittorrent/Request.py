@@ -17,8 +17,6 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import logging
-
 from Utilities import logTraceback
 
 
@@ -115,6 +113,25 @@ class Request:
                     self.minReqCount += 1
                     self._refillCurReqs()
         return conns
+    
+    
+    def _abortAllRequests(self):
+        #abort all requests, return conns which were affected
+        conns = set()
+        
+        #cancel all requests
+        for reqOffset, request in self.requests.iteritems():
+            request['reqCount'] = 0
+            for conn in request['reqConns']:
+                conn.cancelInRequest(self.pieceIndex, reqOffset, request['reqSize'])
+            conns.update(request['reqConns'])
+            request['reqConns'].clear()
+            
+        #reset global structs
+        self.neededReqs = set(self.requests.iterkeys())
+        self.curReqs = set(self.requests.iterkeys())
+        self.minReqCount = 0
+        return conns
 
 
     def _pushRequest(self, reqOffset, conn):
@@ -167,6 +184,13 @@ class Request:
         self.pieceStatus.setConcurrentRequestsCounter((self.pieceIndex,), self.minReqCount)
         self.pieceStatus.setFinishedRequestsCounter((self.pieceIndex,), len(self.requests) - len(self.neededReqs))
         return conns
+    
+    
+    def abortAllRequests(self):
+        conns = self._abortAllRequests()
+        self.pieceStatus.setConcurrentRequestsCounter((self.pieceIndex,), self.minReqCount)
+        self.pieceStatus.setFinishedRequestsCounter((self.pieceIndex,), len(self.requests) - len(self.neededReqs))
+        return conns
 
 
     def getMinReqCount(self):
@@ -187,3 +211,28 @@ class Request:
 
     def isFinished(self):
         return (len(self.neededReqs)==0)
+    
+    
+    def getStats(self):
+        stats = {}
+        
+        #general stats
+        stats['pieceIndex'] = self.pieceIndex
+        stats['pieceSize'] = self.pieceSize
+        stats['piecePriority'] = self.pieceStatus.getPriority(pieceIndex=self.pieceIndex)
+        stats['pieceAvailability'] = self.pieceStatus.getAvailability(self.pieceIndex)
+        stats['totalRequests'] = len(self.requests)
+        stats['neededRequests'] = len(self.neededReqs)
+        stats['finishedRequests'] = stats['totalRequests'] - stats['neededRequests']
+        
+        #conns
+        conns = []
+        for reqSet in self.requests.itervalues():
+            conns.extend([conn.fileno() for conn in reqSet['reqConns']])
+        stats['runningRequests'] = len(conns)
+        stats['filled'] = (stats['neededRequests'] <= stats['runningRequests'])
+        
+        conns = set(conns)
+        stats['assignedConnsNum'] = len(conns)
+        stats['assignedConnsList'] = ', '.join((str(connId) for connId in sorted(conns)))
+        return stats

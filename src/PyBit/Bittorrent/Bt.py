@@ -17,12 +17,13 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-import logging
 import threading
 
 from BtObjectPersister import BtObjectPersister
-from PieceStatus import PieceStatus
+from FilePriority import FilePriority
+from Logger import Logger
 from Measure import Measure
+from PieceStatus import PieceStatus
 from Requester import Requester
 from Storage import Storage, StorageException
 from TrackerRequester import TrackerRequester
@@ -31,9 +32,10 @@ from Utilities import logTraceback
 
 class Bt:
     def __init__(self, config, eventSched, httpRequester, ownAddrFunc, peerId, persister, pInMeasure, pOutMeasure,
-                 peerPool, connBuilder, connListener, connHandler, choker, torrent, torrentIdent, torrentDataPath):
+                 peerPool, connBuilder, connListener, connHandler, choker, torrent, torrentIdent, torrentDataPath, version):
         ##global stuff
         self.config = config
+        self.version = version
         self.peerPool = peerPool
         self.connBuilder = connBuilder
         self.connListener = connListener
@@ -41,7 +43,7 @@ class Bt:
         self.choker = choker
         
         ##own stuff
-        self.log = logging.getLogger(torrentIdent)
+        self.log = Logger('Bt', '%-6s - ', torrentIdent)
         self.torrent = torrent
         self.torrentIdent = torrentIdent
         
@@ -59,6 +61,10 @@ class Bt:
         
         self.log.debug("Creating global status class")
         self.pieceStatus = PieceStatus(self.torrent.getTotalAmountOfPieces())
+        
+        self.log.debug("Creating file priority class")
+        self.filePrio = FilePriority(self.btPersister, self.version, self.pieceStatus, self.storage.getStatus(),
+                                     self.torrent, torrentIdent)
         
         self.log.debug("Creating requester class")
         self.requester = Requester(self.config, self.torrentIdent, self.pieceStatus, self.storage, self.torrent)
@@ -101,7 +107,7 @@ class Bt:
             self.trackerRequester.stop()
         
         else:
-            #either pausing or stopping and still running or loading
+            #either stopping, removing or shutdown and still running or loading
             self.log.debug("Aborting storage loading just in case")
             self.storage.abortLoad()
             
@@ -159,7 +165,7 @@ class Bt:
                 self.outRate.start()
                 
                 self.log.debug("Adding us to connection handler")
-                self.connHandler.addTorrent(self.torrentIdent, self.torrent, self.pieceStatus, self.inRate, self.outRate, self.storage, self.requester)
+                self.connHandler.addTorrent(self.torrentIdent, self.torrent, self.pieceStatus, self.inRate, self.outRate, self.storage, self.filePrio, self.requester)
                 
                 self.log.debug("Adding us to connection listener")
                 self.connListener.addTorrent(self.torrentIdent, self.torrent.getTorrentHash())
@@ -222,7 +228,6 @@ class Bt:
         
     ##external functions - stats
         
-        
     def getStats(self, wantedStats):
         self.lock.acquire()
         stats = {}
@@ -230,25 +235,42 @@ class Bt:
         #connections
         if wantedStats.get('connections', False):
             stats['connections'] = self.connHandler.getStats(self.torrentIdent)
+            
+        #files
+        if wantedStats.get('files', False):
+            stats['files'] = self.filePrio.getStats()
         
         #peers
         if wantedStats.get('peers', False):
             stats.update(self.peerPool.getStats(self.torrentIdent))
             
+        #progress stats
+        if wantedStats.get('progress', False):
+            stats.update(self.storage.getStats())
+                    
+        #requests
+        if wantedStats.get('requests', False):
+            stats['requests'] = self.connHandler.getRequesterStats(self.torrentIdent)
+            
+        #tracker
+        if wantedStats.get('tracker', False):
+            stats['tracker'] = self.trackerRequester.getStats()
+            
         #transfer stats
         if wantedStats.get('transfer', False):
+            stats['inRawBytes'] = self.inRate.getTotalTransferedBytes()
+            stats['outRawBytes'] = self.outRate.getTotalTransferedBytes()
             stats['inPayloadBytes'] = self.inRate.getTotalTransferedPayloadBytes()
             stats['outPayloadBytes'] = self.outRate.getTotalTransferedPayloadBytes()
             stats['inRawSpeed'] = self.inRate.getCurrentRate()
             stats['outRawSpeed'] = self.outRate.getCurrentRate()
+            stats['protocolOverhead'] = (100.0 * (stats['inRawBytes'] + stats['outRawBytes'] - stats['inPayloadBytes'] - stats['outPayloadBytes'])) / max(stats['inPayloadBytes'] + stats['outPayloadBytes'], 1.0)
             
         if wantedStats.get('transferAverages', False):
             stats['avgInRawSpeed'] = self.inRate.getAverageRate() * 1024
             stats['avgOutRawSpeed'] = self.outRate.getAverageRate() * 1024
-            
-        #progress stats
-        if wantedStats.get('progress', False):
-            stats.update(self.storage.getStats())
+            stats['avgInPayloadSpeed'] = self.inRate.getAveragePayloadRate() * 1024
+            stats['avgOutPayloadSpeed'] = self.outRate.getAveragePayloadRate() * 1024
             
         #torrent stats
         if wantedStats.get('torrent', False):
@@ -256,3 +278,24 @@ class Bt:
             
         self.lock.release()
         return stats
+    
+    
+    ##external funcs - actions
+    
+    def setFilePriority(self, fileIds, priority):
+        self.lock.acquire()
+        for fileId in fileIds:
+            self.filePrio.setFilePriority(fileId, priority)
+        self.lock.release()
+        
+        
+    def setFileWantedFlag(self, fileIds, wanted):
+        self.lock.acquire()
+        if self.started:
+            #already running, need to go through the connection handler because of syncing issues
+            self.connHandler.setFileWantedFlag(self.torrentIdent, fileIds, wanted)
+        else:
+            #not running
+            for fileId in fileIds:
+                self.filePrio.setFileWantedFlag(fileId, wanted)
+        self.lock.release()
