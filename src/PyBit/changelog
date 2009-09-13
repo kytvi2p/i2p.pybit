@@ -1,3 +1,21 @@
+0.0.4 - 15.02.2009
+-----------------------
+Blub:
+- improved one of the basic elements of the GUI (lists) by using a virtual ListCtrl instead of a ListView, which should reduce CPU usage for large torrent/connection lists
+- actually disabled the old way of initialising the log system (caused PyBit to write another logfile)!
+- added "--profile" commandline switch, enables profiling of PyBit
+- added "PyBit.py", handles all the commandline parsing, profiling setup and printing of profiling statistics, starts the GUI from "Gui.py"
+- fixed bug in "Bt": Once a torrent was stopped, it was never again fully started
+- fixed bug in "Connection": data is now send without doing recursive calls to "_send" (with >~100 small messages queued this could cause RuntimeExceptions because the maximum recursion depth was reached)
+- fixed bug in "Requester": endgame mode (the same data may be requested from different peers at the same time) was activated to early: It got activated once requests for all missing pieces existed, not once all pieces were fully requested
+- fixed bug in "TrackerRequester": the raw byte count instead of the payload byte count got send to the tracker
+- made "ObjectPersister" threaded: should keep the GUI responsive even if queue changes are stored to disk during heavy disk activity (because these changes are now stored async and not by the GUI thread)
+- prevent two torrents with the same infohash to run at the same time: there is no point in downloading/seeding the same thing twice and it breaks things
+- fixed GUI refresh (Windows only): For some reason Windows requires an extra call compared to Linux to really refresh the GUI (which adds flickering for added fun). Else changes won't appear, until you click on a row of the list. 
+- fixed right-click popup menu (Windows only): For some reason Windows requires a different way of setup for the menu, without it an empty menu is displayed
+- fixed annoying log message formating error (tried to insert a string where a number was expected: %d vs %s)
+
+
 0.0.3 - 08.02.2009
 -----------------------
 Blub:

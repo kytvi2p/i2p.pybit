@@ -6,25 +6,32 @@ You don't need to install PyBit. Simply extract the archive somewhere (which you
 Requirements
 ----------------------- 
 PyBit needs the following:
-- Python >= 2.5 (only tested with 2.5 but 2.6 should also work. But python 3.0 is incompatible to python 2.x !)
-- wxPython >= 2.6 (only tested with 2.6.3.2)
+- Python >= 2.5 (tested with 2.5 and 2.6; Python 3.0 is incompatible to python 2.x !)
+- wxPython >= 2.6 (tested with 2.6.3.2, 2.8.7.1 and 2.8.9.1)
+- python-profiler (optional, only needed if you want to run PyBit with the "--profile" switch to generate profiling stats)
 
-PyBit should run on any platform for which both python and wxPython are available. I tested it on Linux, so other platforms are more likly to have bugs. Please report any which you encounter to "BlubMail@mail.i2p", I will try to fix them.
+PyBit should run on any platform for which both python and wxPython are available. I tested it mostly on Linux and only a bit on Windows, so Windows and other platforms are more likly to have bugs. Please report any which you encounter to "BlubMail@mail.i2p", I will try to fix them.
 
 
 Starting
 -----------------------
-To start PyBit, simply execute "Gui.py". On Linux "python Gui.py" should do the trick, on Windows a simple double-click on "Gui.py" is probably enough.
+To start PyBit, simply execute "PyBit.py". On Linux "python PyBit.py" should do the trick, on Windows a simple double-click on "PyBit.py" is probably enough.
+The first startup will take a bit longer because all python sourcecode files will have to be parsed and a few default files (config, state.db) have to be created.
+
+
+Configuration
+-----------------------
+All configuration can be done from within PyBit. The config dialog is reachable from the Menu (Config->Configuration).
+All changes are instantly active, restarts are not required.
 
 
 Known Problems
 -----------------------
 (these are only the most probable for anyone to stumble upon, look into the file "todo" for a more complete list)
-- once in a while a traceback of a failed logging will be printed to the console (if you started PyBit from one) => this is completely harmless
 - if the config dialog is opened, a few GTK warnings may be printed to the console => the cause is unknown but these warnings shouldn't cause any problems
-- the GUI can use quite a few CPU cycles => only select the "Connections"-tab if you really want to look at the connections; selecting the "General"-tab saves you ~80% of the overall CPU usage (without the GUI PyBit never exceeded 2% CPU usage on my system, with the gui its ~5%, with the connection-tab selected up to ~25% ...)
-- there are weird symbols displayed in the "General"-tab, following the description "Info Hash" => this is not a problem, what you see is the binary identifier for that torrent. It is displayed there as a placeholder for other statistics which will be displayed there in the future.
-- if I move a column sometimes nothing happens or the wrong one is moved => scroll as far left as possible before moving columns around, else weird stuff will happen
+- the torrent name is displayed twice in the "General"-tab, once in the box "Torrent" and once in the box "Other" => this is not a problem, the torrent name is displayed in the "Other" box as a placeholder for other statistics which will be displayed there in the future.
+- the GUI flickers => Should only occur if you use Windows. For some reason I need to do a full GUI refresh before Windows displays any changes to GUI windows. The full refresh causes flickering. I don't know of any fix, not even if it is my fault or wxPythons/Windows. Without the call which invokes a full refresh, the GUI objects do ask me for the current data, but it still is not displayed. Weird behaviour.
+- PyBit doesn't seem to get any peer from the tracker => some http responses from the tracker are currently not supported (if many peers exist, the response will use a different encoding), this will be fixed soon. PyBit should still get incomming connections because the announce to the tracker does still work.
 
 
 Special Files
@@ -40,6 +47,10 @@ config.conf
 copying
 - license of PyBit, not accessed from PyBit
 
+profilingStats
+- only present if PyBit was run with the "--profile" commandline argument
+- contains the statistic data which was gathered
+
 readme
 - this file
 
@@ -48,13 +59,13 @@ state.db
 - if this file is deleted, all torrents will have to be readded manually
 
 todo
-- a simple list of things which need fixing, not used by PyBit
+- a simple list of things which need fixing and other development related notes, not used by PyBit
 
 
 Folders
 -----------------------
 Bittorrent and Bittorrent/PySamLib
-- contain additional program files
+- contains additional python source files
 
 Icons
 - contains the icons which are used within PyBit
@@ -63,9 +74,9 @@ Logs
 - contains all logfiles
 - once a logfile reaches 10MB, it is moved to "log.x", "x" being a number, and a new one is created
 - 5 old logfiles are kept, older ones are deleted
-- neither the maximum size (10MB) nor the number of kept logs (5 including the current one) is configurable right now
+- neither the maximum size (10MB) nor the number of kept logs (5 including the current one) is currently configurable
 - the logfile called "log" (the current logfile) should only be deleted after PyBit terminated
 
 Torrents
-- contains copies of the torrents which are currently queued in PyBit
+- contains copies of the torrents which are currently queued in PyBit (this also means that PyBit never accesses the original torrent file after creating the copy btw)
 - do not delete these manually, these files will be deleted if you remove the corresponding torrent from PyBits queue

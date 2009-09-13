@@ -44,7 +44,7 @@ class Requester:
     ##internal functions - requestable pieces
 
     def _endgame(self):
-        return len(self.requestablePieces[-1])==0
+        return len(self.requestablePieces[-1])==0 and len(self.requestablePieces[0])==0
 
 
     def _removeRequestablePiece(self, pieceIndex, fromCount):
@@ -165,7 +165,7 @@ class Requester:
     
     def _tryPieceWithWaitingConns(self, pieceIndex):
         #called if a whole piece failed, checks if some of the waiting conns may process this piece
-        endgame = len(self.requestablePieces[-1])<=1 #if 1 then its this piece
+        endgame = len(self.requestablePieces[-1]) <= 1 and len(self.requestablePieces[0]) == 0#if 1 then its this piece
         
         for conn in self.waitingConns.copy():
             #try one conn

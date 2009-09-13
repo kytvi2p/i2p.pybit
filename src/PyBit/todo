@@ -1,10 +1,9 @@
 General
 -----------------------
+- fix flickering problem which occurs if PyBit is run with Windows
 - fix CPU-usage bugs (Requester and some places in ConnectionHandler for example)
-- fix strange log errors (used "%i" or "%d" instead of "%s" in a log message somewhere? Or is the wrong data getting logged somewhere?)
 - don't generate different loggers for instances of the same class
 - add a few more tabs (logs, block/pieces, tracker, files)
-- prevent adding the same torrent twice?
 - more exception handling/logging in the GUIs
 - add support for bob
 - webinterface? (with support to only start the webinterface = headless mode?)
@@ -19,17 +18,25 @@ Bittorrent.Bt:
 
 Bittorrent.ConnectionBuilder:
 - timeout
+- maximum connection limit per torrent
+- maximum connection limit per torrent, calculated from a global limit (and shared, like the bandwidth limit)
 
 Bittorrent.ConnectionHandler:
 - send "completed" event to tracker, once we completed a torrent (execute callback, probably some function in Bittorrent.Bt)
 
 Bittorrent.ConnectionListener:
 - timeout
+- maximum connection limit per torrent, calculated from a global limit (and shared, like the bandwidth limit)
 
 Bittorrent.ConnectionPool:
 - rename to "PeerPool": this class is more about having an overview over existing peers, not that much about connections
+- some kind of backoff if a connect attempt fails (first retry in 1 minute, then 2 minutes, 4, 16, ...)
+
+Bittorrent.Choker:
+- don't just unchoke a fixed (currently 5) number of peers but share a global maximum across all instances
 
 Bittorrent.HttpRequester:
+- add support for chunked encoding
 - add another timeout for the whole request (trigger after the entire request took a certain time, regardless of transfer activity)
 - don't generate a general "invalid header received" error for 404-responses (and other such failures)!
 
@@ -44,7 +51,18 @@ Bittorrent.Tracker Requester:
 - prevent us from adding ourselve as a possible peer
 
 
-SorteableList:
-- fix column moving (doesn't work if scrolled to the right)
-- virtualise list to reduce CPU usage, try to use Mixins for things like sorting
+Gui:
+- show some kind of popup if adding a torrent fails
+
+TorrentConnectionList:
+- add columns (peer client, score, raw byte counts, ...) => should probably only be done after persisting GUI changes
  
+
+Won't fix
+-----------------------
+1. Setting and clearing the "interest" flag:
+PyBit doesn't adjust the interest flag upon reguesting things. So if the only block, which peer A has but we don't, is block 40, we will leave the interested flag on (which means that we request an unchoke from peer A), regardless if all parts of block 40 are already requested from another peer (or even peer A).
+This does mean, that if peer A unchokes us, that we don't have anything to request from it. The alternative would be to unset the interest flag in such situations. But this would require way more checking to determine for each connection if the flag should be unset whenever a full block is requested, and it would require another full round of checking once someone chokes us or once a connection fails.
+So this would increase CPU usage and cause lots of small messages to be send, especially because many clients send unchoke and choke messages directly after each other (either the clients are buggy or i2ps latency causes this, probably the later).
+Another problem is, that at least PyBit expects peers to keep the interest flag set, until all requests are actually send! So setting the interest flag based upon what we can request, instead of the current version (based upon what we have), would break things (the outrequest list gets cleared, once the remote interest flag gets unset).
+So it is probably not worth the cost and would probably cause problems to no end.

@@ -131,8 +131,8 @@ class TrackerRequester:
     ##internal functions - tracker requests
         
     def _createAnnounceUrl(self, baseUrl):
-        downloadedBytes = self.inMeasure.getTotalTransferedBytes()
-        uploadedBytes = self.outMeasure.getTotalTransferedBytes()
+        downloadedBytes = self.inMeasure.getTotalTransferedPayloadBytes()
+        uploadedBytes = self.outMeasure.getTotalTransferedPayloadBytes()
         missingBytes = self.storage.getAmountOfMissingBytes()
         ownAddr = self.ownAddrFunc()
         self.log.debug("Own addr: %s", ownAddr)

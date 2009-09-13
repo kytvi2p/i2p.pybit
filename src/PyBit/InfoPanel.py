@@ -69,9 +69,9 @@ class InfoPanel(wx.Panel):
     def manualUpdate(self):
         stats = self.upFunc()
         if stats is not None:
-            for boxName in self.data.keys():
+            for boxName in self.data.iterkeys():
                 box = self.data[boxName]
-                for itemName in box.keys():
+                for itemName in box.iterkeys():
                     item = box[itemName]
                     data = stats[item['itemStatsName']]
                     item['itemObject'].SetLabel(self.dataToStringFuncs[item['itemType']](data))

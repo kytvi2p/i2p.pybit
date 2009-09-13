@@ -44,7 +44,7 @@ class TorrentStats(InfoPanel):
                        ('Connected Peers:','connectedPeers','int',0))
                     
         
-        other = (('Info Hash:','torrentHash','str',0),)
+        other = (('Name:','torrentName','native',''),)
         
         
         content = (('Transfer',transfer),\

@@ -26,17 +26,15 @@ from TorrentList import TorrentList
 from TorrentStats import TorrentStats
 from StatusBar import StatusBar
 from StatusPanel import StatusPanel
-from SortableList import SortableList
 
 ##own - other
-from Bittorrent.MultiBt import MultiBt, VERSION
+from Bittorrent.MultiBt import MultiBt, MultiBtException, VERSION
 from Config import Config
 from Logger import LogController
-from ObjectPersister import ObjectPersister
+from ObjectPersister import ThreadedObjectPersister
 from Utilities import logTraceback, encodeStrForPrinting, FunctionCallConverter
 
 ##other
-from time import time, sleep
 import logging
 import os
 import wx
@@ -74,7 +72,8 @@ class Gui(wx.Frame):
         
         #create persister
         self.log.info("Creating object persister instance")
-        self.persister = ObjectPersister(os.path.join(progPath, u'state.db'), log='ObjectPersister')
+        self.persister = ThreadedObjectPersister(os.path.join(progPath, u'state.db'), log='ObjectPersister')
+        self.persister.start()
         
         #creat torrent handler
         self.torrentHandler = MultiBt(self.config, self.persister, self.progPath)
@@ -185,6 +184,12 @@ class Gui(wx.Frame):
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.OnTimer, self.timer)
         self.timer.Start(1000)
+        
+        
+    def __del__(self):
+        self.torrentHandler.stop()
+        self.persister.stop()
+        self.logController.shutdown()
 
 
     def OnTimer(self, event):
@@ -237,7 +242,10 @@ class Gui(wx.Frame):
                 else:
                     #worked
                     self.log.info('Adding torrent with data path "%s"', encodeStrForPrinting(savePath))
-                    self.torrentList.addTorrent(data, savePath)
+                    try:
+                        self.torrentList.addTorrent(data, savePath)
+                    except MultiBtException, e:
+                        self.log.error('Failed to add torrent, reason: %s"', e.reason)
             del saveDiag
         del diag
 
@@ -260,19 +268,13 @@ class Gui(wx.Frame):
     def OnClose(self, event):
         self.stopFlag = True
         self.Destroy()
-        self.torrentHandler.stop()
-        self.logController.shutdown()
 
 
-if __name__=="__main__":
-    import logging
-    logging.basicConfig(level=logging.DEBUG,
-                        filename="log",
-                        format='%(asctime)s %(levelname)-8s %(name)-22s - %(message)s')
 
-    log = logging.getLogger('main')    
+
+def showGui(path):
     app = wx.App()
-    test = Gui(os.getcwdu())
+    test = Gui(path)
     try:
         app.MainLoop()
     except:

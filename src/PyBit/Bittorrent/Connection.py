@@ -151,39 +151,38 @@ class Connection:
         #really send the buffered data - or at least try to
         self.sched.rescheduleEvent(self.sendTimeoutEvent, timedelta=300)
         self.sched.rescheduleEvent(self.keepaliveEvent, timedelta=100)
-
-        message = self.outBuffer.popleft()
-        messageLen = len(message[1])
-        wantedBytes = min(messageLen, self.conn.getFreeOutBufferSpace())
-        allowedBytes = self.outLimiter.claimUnits(self.connIdent, wantedBytes)
         
-        if allowedBytes == 0:
-            #must not send a single byte ...
-            self.outBuffer.appendleft(message)
-        else:
-            #at least something may be send        
-            sendBytes = self.conn.send(message[1][:allowedBytes])
-            self.outRate.updateRate(sendBytes)
-                
-            if sendBytes < messageLen:
-                #but not all was send
-                message[1] = message[1][sendBytes:]
+        while len(self.outBuffer) > 0:
+            message = self.outBuffer.popleft()
+            messageLen = len(message[1])
+            wantedBytes = min(messageLen, self.conn.getFreeOutBufferSpace())
+            allowedBytes = self.outLimiter.claimUnits(self.connIdent, wantedBytes)
+            
+            if allowedBytes == 0:
+                #must not send a single byte ...
                 self.outBuffer.appendleft(message)
-                
+                break
             else:
-                #all was send
-                if len(self.outBuffer) == 0:
-                    #nothing to send anymore, notify
-                    self.connStatus.wantsToSend(False, self.connIdent)
+                #at least something may be send        
+                sendBytes = self.conn.send(message[1][:allowedBytes])
+                self.outRate.updateRate(sendBytes)
                     
-                if message[0] == 'outrequest':
-                    #was a outrequest
-                    self._outRequestGotSend()
+                if sendBytes < messageLen:
+                    #but not all was send
+                    message[1] = message[1][sendBytes:]
+                    self.outBuffer.appendleft(message)
+                    break
                     
-                if len(self.outBuffer) > 0:
-                    #still other stuff to send
-                    self._send()
-
+                else:
+                    #all was send
+                    if len(self.outBuffer) == 0:
+                        #nothing to send anymore, notify
+                        self.connStatus.wantsToSend(False, self.connIdent)
+                        
+                    if message[0] == 'outrequest':
+                        #was a outrequest
+                        self._outRequestGotSend()
+                        
 
     def _queueSend(self, data, dataType='normal'):
         if len(self.outBuffer)==0:

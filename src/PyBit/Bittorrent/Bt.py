@@ -76,6 +76,7 @@ class Bt:
         try:
             loaded = False
             if self.storage.isLoaded():
+                loaded = True
                 self.log.debug("Storage already loaded, skipping hashing")
             else:
                 try:

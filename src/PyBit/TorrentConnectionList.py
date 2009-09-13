@@ -19,9 +19,9 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 
 import wx
 
-from SortableList import SortableList
+from VirtualListCtrl import VirtualListCtrl
 
-class TorrentConnectionList(SortableList):
+class TorrentConnectionList(VirtualListCtrl):
     def __init__(self, updateFunc, parent, **kwargs):
         self.torrentId = None
         
@@ -31,23 +31,23 @@ class TorrentConnectionList(SortableList):
             else:
                 return updateFunc(wantedStats={'bt':self.torrentId}, wantedTorrentStats={'connections':True})['bt']['connections']
             
-        #Syntax: NameOfColumn, NameOfStat, DataType, ShouldWatch
-        cols = [('Addr','addr', 'native', False, 125),\
-                ('Direction','direction','native', False, 75),\
-                ('Connected', 'connectedInterval', 'timeInterval', False, 75),\
-                ('Progress', 'peerProgress', 'percent', False, 75),\
-                ('Downloaded', 'inPayloadBytes', 'dataAmount', False, 75),\
-                ('DownSpeed', 'inRawSpeed', 'transferSpeed', False, 75),\
-                ('Uploaded', 'outPayloadBytes', 'dataAmount', False, 75),\
-                ('UpSpeed', 'outRawSpeed', 'transferSpeed', False, 75),\
-                ('I', 'localInterest', 'bool', False, 20),\
-                ('C', 'localChoke', 'bool', False, 20),\
-                ('RI', 'remoteInterest', 'bool', False, 30),\
-                ('RC', 'remoteChoke', 'bool', False, 30),\
-                ('lReq', 'localRequestCount', 'int', False, 50),\
-                ('rReq', 'remoteRequestCount', 'int', False, 50)]
+        #Syntax: NameOfColumn, NameOfStat, DataType
+        cols = [('Addr','addr', 'native', 125),\
+                ('Direction','direction','native', 75),\
+                ('Connected', 'connectedInterval', 'timeInterval', 75),\
+                ('Progress', 'peerProgress', 'percent', 75),\
+                ('Downloaded', 'inPayloadBytes', 'dataAmount', 75),\
+                ('DownSpeed', 'inRawSpeed', 'transferSpeed', 75),\
+                ('Uploaded', 'outPayloadBytes', 'dataAmount', 75),\
+                ('UpSpeed', 'outRawSpeed', 'transferSpeed', 75),\
+                ('I', 'localInterest', 'bool', 20),\
+                ('C', 'localChoke', 'bool', 20),\
+                ('RI', 'remoteInterest', 'bool', 30),\
+                ('RC', 'remoteChoke', 'bool', 30),\
+                ('lReq', 'localRequestCount', 'int', 50),\
+                ('rReq', 'remoteRequestCount', 'int', 50)]
                 
-        SortableList.__init__(self, cols, upFunc, parent, **kwargs)
+        VirtualListCtrl.__init__(self, cols, upFunc, parent, **kwargs)
         
 
     def changeTorrentId(self, torrentId):

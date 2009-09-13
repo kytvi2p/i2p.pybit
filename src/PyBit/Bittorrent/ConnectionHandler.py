@@ -204,7 +204,7 @@ class ConnectionHandler:
                 self.log.info('bitfield from "%s" has the wrong size! (Wanted: %d Got: %d)',
                               conn.getShortRemotePeerAddr(), normalLength, len(message[1]))
                             
-            elif msgNum>1:
+            elif msgNum > 1:
                 self.log.info('bitfield from "%s" was received as the %dth message!',
                               conn.getShortRemotePeerAddr(), msgNum)
 
@@ -240,7 +240,7 @@ class ConnectionHandler:
             #got data
             if not conn.hasThisInRequest(message[1][0], message[1][1], len(message[1][2])):
                 self.log.info('Got data from "%s": for piece "%d" with offset "%d" and length "%d" but thats not what we requested - probably just normal sync issues',
-                              conn.getShortRemotePeerAddr(), message[1][0], message[1][1], message[1][2])
+                              conn.getShortRemotePeerAddr(), message[1][0], message[1][1], len(message[1][2]))
                             
             else:
                 shouldProcess = True

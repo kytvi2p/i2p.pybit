@@ -41,11 +41,13 @@ from PySamLib.SamSocketManager import SamSocketManager
 #DEBUG
 #import gc
 
-VERSION = '0.0.3'
+VERSION = '0.0.4'
 
 
 class MultiBtException(Exception):
-    pass
+    def __init__(self, reason, *args):
+        self.reason = reason % args
+        Exception.__init__(self, self.reason)
 
 
 class MultiBt:
@@ -161,11 +163,61 @@ class MultiBt:
         #queue related structures
         self.torrentId = 1
         self.torrentQueue = []
-        self.torrents = {}
+        self.torrentHashes = set()
+        self.torrentInfo = {}
         self._loadTorrentQueue()
         
         #lock
         self.lock = threading.Lock()
+        
+        
+    ##internal functions - state
+    
+    def _updateStoredObj(self, obj):
+        if type(obj)==tuple:
+            #pre 0.0.4
+            self.log.info('Changing type of saved state obj from tuple to dict')
+            obj = {'queue':obj[0],
+                   'version':obj[1]}
+                
+        currentVersion = VERSION.split('.')
+        objVersion = obj['version'].split('.')
+        
+        if objVersion < currentVersion:
+            #need to do some updates
+            if objVersion < (0,0,4):
+                #pre 0.0.4, add infohash set
+                self.log.info('Updating state obj to the v0.0.4+ format')
+                newQueue = []
+                infohashes = set()
+                for queueElement in obj['queue']:
+                    #process on old queue job
+                    failureMsg, torrent = self._getTorrentObj(queueElement['id'])
+                    if failureMsg is not None:
+                        #failure reading or parsing torrent file
+                        self.log.warn("Failed to add torrent %i, reason: %s", queueElement['id'], failureMsg)
+                    else:
+                        #ok so far
+                        infohash = torrent.getTorrentHash()
+                        if infohash in infohashes:
+                            #duplicate
+                            self.log.warn("Torrent %i is a duplicate, ignoring it!")
+                        else:
+                            #go on
+                            infohashes.add(infohash)
+                            newQueue.append(queueElement)
+                
+                #adapt obj
+                obj['queue'] = newQueue
+                obj['version'] = '0.0.4'
+                objVersion = (0,0,4)
+            
+            self.persister.store('MultiBt-torrentQueue', obj)
+        return obj
+    
+        
+    def _storeState(self):
+        self.persister.store('MultiBt-torrentQueue', {'queue':self.torrentQueue, 'version':VERSION})
         
  
     ##internal functions - queue
@@ -183,7 +235,9 @@ class MultiBt:
         
     def _loadTorrentQueue(self):
         #load old queue from db and restore bt jobs
-        oldQueue, version = self.persister.get('MultiBt-torrentQueue', ([], VERSION))
+        obj = self.persister.get('MultiBt-torrentQueue', ({'queue':[], 'version':VERSION}))
+        obj = self._updateStoredObj(obj)
+        oldQueue = obj['queue']
         while len(oldQueue) > 0:
             #not empty, process next queue element
             queueElement = oldQueue[0]
@@ -194,15 +248,10 @@ class MultiBt:
                 self.torrentId = queueElement['id'] + 1
             
             #add torrent to queue
-            success, failureMsg = self._addTorrent(queueElement['id'], queueElement['dataPath'])
-#            if success:
-#                #torrent is added, now start it, if it was running before
-#                if queueElement['state'] == 'running':
-#                    self._startTorrent(queueElement['id'])
-    
-    
-    def _storeTorrentQueue(self):
-        self.persister.store('MultiBt-torrentQueue', (self.torrentQueue, VERSION))
+            failureMsg = self._addTorrent(queueElement['id'], queueElement['dataPath'])
+            if failureMsg is not None:
+                #failed to add
+                self.log.warn("Failed to add torrent %i, reason: %s", queueElement['id'], failureMsg)
                     
                     
     def _moveUp(self, torrentIndex):
@@ -210,7 +259,7 @@ class MultiBt:
             queueElement = self.torrentQueue[torrentIndex]
             del self.torrentQueue[torrentIndex]
             self.torrentQueue.insert(torrentIndex-1, queueElement)
-            self._storeTorrentQueue()
+            self._storeState()
             
             
     def _moveDown(self, torrentIndex):
@@ -218,7 +267,7 @@ class MultiBt:
             queueElement = self.torrentQueue[torrentIndex]
             del self.torrentQueue[torrentIndex]
             self.torrentQueue.insert(torrentIndex+1, queueElement)
-            self._storeTorrentQueue()
+            self._storeState()
     
     
     ##internal functions - torrent
@@ -226,10 +275,10 @@ class MultiBt:
     def _getTorrentFilePath(self, torrentId):
         return os.path.join(self.progPath, 'Torrents', str(torrentId)+'.torrent')
     
-
-    def _addTorrent(self, torrentId, torrentDataPath):
-        success = True
+    
+    def _getTorrentObj(self, torrentId):
         failureMsg = None
+        torrent = None
         
         #try to load torrent data from the usual place
         torrentFilePath = self._getTorrentFilePath(torrentId)
@@ -239,71 +288,89 @@ class MultiBt:
             torrentFileData = fl.read()
             fl.close()
         except:
-            success = False
             failureMsg = 'Could not read torrent file from "%s"' % encodeStrForPrinting(torrentFilePath)
     
-        if success:
+        if failureMsg is None:
             #successfully read the torrent data
             self.log.debug('Torrent %i: trying to parse read torrent data', torrentId)
             torrent = Torrent()
             try:
                 torrent.load(torrentFileData)
             except:
-                success = False
                 failureMsg = 'Failed to parse torrent file "%s"!\nTraceback: %s' % (encodeStrForPrinting(torrentFilePath), logTraceback())
+        
+        return failureMsg, torrent
+    
+
+    def _addTorrent(self, torrentId, torrentDataPath):
+        failureMsg, torrent = self._getTorrentObj(torrentId)
+        if failureMsg is None:
+            #valid torrent data
+            infohash = torrent.getTorrentHash()
+            if infohash in self.torrentHashes:
+                #torrent is already on the queue
+                failureMsg = 'torrent is already queued'
+            else:
+                #torrent is not on the queue
+                self.torrentHashes.add(infohash)
                 
-            if success:
-                #valid torrent data
                 self.log.debug('Torrent %i: creating bt class', torrentId)
                 btObj = Bt(self.config, self.eventSched, self.httpRequester, self.ownAddrWatcher.getOwnAddr, self.peerId, self.inRate, self.outRate,
                            self.connPool, self.connBuilder, self.connListener, self.connHandler, torrent, 'Bt'+str(torrentId), torrentDataPath)
                 
                 #add to queue
                 self.log.debug('Torrent %i: adding to queue', torrentId)
-                self.torrents[torrentId] = btObj
+                self.torrentInfo[torrentId] = {'obj':btObj,
+                                               'hash':infohash}
+                                            
                 self.torrentQueue.append({'id':torrentId,
                                           'state':'stopped',
                                           'dataPath':torrentDataPath})
                 
                 #save updated queue to disk
                 self.log.debug('Torrent %i: saving queue to disk', torrentId)
-                self._storeTorrentQueue()
+                self._storeState()
                 
-        if not success:
+        if failureMsg is not None:
             self.log.info("Failed to add torrent, reason: %s", failureMsg)
                 
-        return success, failureMsg
+        return failureMsg
     
     
     def _startTorrent(self, torrentId):
         #start torrent
-        self.torrents[torrentId].start()
+        self.torrentInfo[torrentId]['obj'].start()
         
         #adapt queue
         queueIndex = self._getQueueIndex(torrentId)
         self.torrentQueue[queueIndex]['state'] = 'running'
-        self._storeTorrentQueue()
+        self._storeState()
         
         
     def _stopTorrent(self, torrentId):
         #really stop torrent
-        self.torrents[torrentId].pause()
+        self.torrentInfo[torrentId]['obj'].pause()
         
         #adapt queue
         queueIndex = self._getQueueIndex(torrentId)
         self.torrentQueue[queueIndex]['state'] = 'stopped'
-        self._storeTorrentQueue()
+        self._storeState()
         
         
     def _removeTorrent(self, torrentId):
-        #stop torrent then delete entry
-        self.torrents[torrentId].stop()
-        del self.torrents[torrentId]
+        #stop torrent
+        self.torrentInfo[torrentId]['obj'].stop()
+        
+        #remove from hash set
+        self.torrentHashes.remove(self.torrentInfo[torrentId]['hash'])
+        
+        #delete torrent entry
+        del self.torrentInfo[torrentId]
         
         #remove from queue
         queueIndex = self._getQueueIndex(torrentId)
         del self.torrentQueue[queueIndex]
-        self._storeTorrentQueue()
+        self._storeState()
         
         #remove internal torrent file
         try:
@@ -339,34 +406,34 @@ class MultiBt:
             fl.close()
         except:
             self.lock.release()
-            raise MultiBtException('Failed to save torrent data to "%s"' % encodeStrForPrinting(torrentFilePath))
+            raise MultiBtException('Failed to save torrent data to "%s"', encodeStrForPrinting(torrentFilePath))
         
         #add to queue
-        success, failureMsg = self._addTorrent(torrentId, torrentDataPath)
+        failureMsg = self._addTorrent(torrentId, torrentDataPath)
         self.lock.release()
-        if not success:
-            raise MultiBtException('Failed to add torrent: "%s"' % failureMsg)
+        if failureMsg is not None:
+            raise MultiBtException('Failed to add torrent: "%s"', failureMsg)
         else:
             return torrentId
         
         
     def startTorrent(self, torrentId):
         self.lock.acquire()
-        if torrentId in self.torrents:
+        if torrentId in self.torrentInfo:
             self._startTorrent(torrentId)
         self.lock.release()
     
     
     def stopTorrent(self, torrentId):
         self.lock.acquire()
-        if torrentId in self.torrents:
+        if torrentId in self.torrentInfo:
             self._stopTorrent(torrentId)
         self.lock.release()
     
     
     def removeTorrent(self, torrentId):
         self.lock.acquire()
-        if torrentId in self.torrents:
+        if torrentId in self.torrentInfo:
             self._removeTorrent(torrentId)
         self.lock.release()
         
@@ -374,7 +441,7 @@ class MultiBt:
     def isTorrentStarted(self, torrentId):
         self.lock.acquire()
         started = False
-        if torrentId in self.torrents:
+        if torrentId in self.torrentInfo:
             torrentIndex = self._getQueueIndex(torrentId)
             if self.torrentQueue[torrentIndex]['state'] == 'running':
                 started = True
@@ -386,7 +453,7 @@ class MultiBt:
     
     def moveUp(self, torrentId):
         self.lock.acquire()
-        if torrentId in self.torrents:
+        if torrentId in self.torrentInfo:
             torrentIndex = self._getQueueIndex(torrentId)
             self._moveUp(torrentIndex)
         self.lock.release()
@@ -394,7 +461,7 @@ class MultiBt:
     
     def moveDown(self, torrentId):
         self.lock.acquire()
-        if torrentId in self.torrents:
+        if torrentId in self.torrentInfo:
             torrentIndex = self._getQueueIndex(torrentId)
             self._moveDown(torrentIndex)
         self.lock.release()
@@ -419,7 +486,7 @@ class MultiBt:
             #wants some bt stats
             if type(btStats) == int:
                 #single bt stats
-                stats['bt'] = self.torrents[btStats].getStats(wantedTorrentStats)
+                stats['bt'] = self.torrentInfo[btStats]['obj'].getStats(wantedTorrentStats)
                 if wantedTorrentStats.get('queue', False):
                     #queue stats
                     stats['bt'].update(self._getTorrentStats(btStats))
@@ -427,9 +494,9 @@ class MultiBt:
             else:
                 #wants all
                 statList = []
-                for torrentId in self.torrents.iterkeys():
+                for torrentId in self.torrentInfo.iterkeys():
                     #get stats for each torrent
-                    statItem = self.torrents[torrentId].getStats(wantedTorrentStats)
+                    statItem = self.torrentInfo[torrentId]['obj'].getStats(wantedTorrentStats)
                     if wantedTorrentStats.get('queue', False):
                         #queue stats
                         statItem.update(self._getTorrentStats(torrentId))
@@ -449,8 +516,8 @@ class MultiBt:
         
         #stop all bt jobs without modifying the queue
         self.log.info("Stopping all bt jobs")
-        for btJob in self.torrents.itervalues():
-            btJob.stop()
+        for btInfo in self.torrentInfo.itervalues():
+            btInfo['obj'].stop()
         
         #stop http requester
         self.log.info("Stopping http requester")
