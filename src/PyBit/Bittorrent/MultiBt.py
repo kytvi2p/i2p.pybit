@@ -261,21 +261,15 @@ class MultiBt:
             else:
                 self.log.info('Key "%s" belongs to an inactive torrent, removing it', key)
                 self.persister.remove(key, strict=False)
-                    
-                    
-    def _moveUp(self, torrentIndex):
-        if not torrentIndex == 0:
+                
+                
+    def _moveTorrent(self, torrentId, steps):
+        torrentIndex = self._getQueueIndex(torrentId)
+        newTorrentIndex = torrentIndex + steps
+        if (newTorrentIndex >= 0 and newTorrentIndex < len(self.torrentQueue)):
             queueElement = self.torrentQueue[torrentIndex]
             del self.torrentQueue[torrentIndex]
-            self.torrentQueue.insert(torrentIndex-1, queueElement)
-            self._storeState()
-            
-            
-    def _moveDown(self, torrentIndex):
-        if not torrentIndex == len(self.torrentQueue)-1:
-            queueElement = self.torrentQueue[torrentIndex]
-            del self.torrentQueue[torrentIndex]
-            self.torrentQueue.insert(torrentIndex+1, queueElement)
+            self.torrentQueue.insert(newTorrentIndex, queueElement)
             self._storeState()
     
     
@@ -459,7 +453,9 @@ class MultiBt:
                 started = True
         self.lock.release()
         return started
-    
+        
+        
+    ##external functions - torrent actions
     
     def setFilePriority(self, torrentId, fileIds, priority):
         self.lock.acquire()
@@ -475,21 +471,19 @@ class MultiBt:
         self.lock.release()
         
         
+    def setSuperSeeding(self, torrentId, enabled):
+        self.lock.acquire()
+        if torrentId in self.torrentInfo:
+            self.torrentInfo[torrentId]['obj'].setSuperSeeding(enabled)
+        self.lock.release()
+        
+        
     ##external functions - queue
     
-    def moveUp(self, torrentId):
+    def moveTorrent(self, torrentId, steps):
         self.lock.acquire()
         if torrentId in self.torrentInfo:
-            torrentIndex = self._getQueueIndex(torrentId)
-            self._moveUp(torrentIndex)
-        self.lock.release()
-    
-    
-    def moveDown(self, torrentId):
-        self.lock.acquire()
-        if torrentId in self.torrentInfo:
-            torrentIndex = self._getQueueIndex(torrentId)
-            self._moveDown(torrentIndex)
+            self._moveTorrent(torrentId, steps)
         self.lock.release()
         
     

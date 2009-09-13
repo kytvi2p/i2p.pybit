@@ -1,3 +1,16 @@
+0.2.1 - 30.08.2009
+-----------------------
+Blub:
+- fixed bug in "Gui": Minimum window size for the splitter wasn't set, thus you could completly hide the main torrent list or the status panels below, without any chance to get them back without restarting PyBit.
+- fixed inconsistency in "ConfigDialog" and "Conversion": Sometimes bytes/kilobytes/megabytes/... were reffered to as b/kb/mb, sometimes as B/Kb/Mb and so on. Now its B/KB/MB everywhere.
+- added "Bittorrent.SuperSeedingHandler": This class handles the assignment of pieces to peers when superseeding. To add support for superseeding I also changed some things in "Bittorrent.ConnectionHandler", "Bittorrent.PieceStatus", "Bittorrent.Choker" and in a few other classes.
+- changed "Gui": Removed the "Torrent" menu item, moved the "Add from file" and "Create torrent" items to the "File" menu item. Added support for adding multiple torrents at once (by selecting multiple torrents in the "Add from file" dialog).
+- changed "TorrentConnectionList": Added the column "Offered Pieces" which shows the pieces which are currently available to a peer (when superseeding).
+- changed "TorrentList": Added the column "Superseeding" which simply shows if superseeding is activated for a torrent. Also added an right-click menu with the usual options from the old "Torrent" menu item and with a new option to enable/disable superseeding.
+- improved "VirtualListCtrl": When adding a torrent via the right-click menu, it appears to the right side of the column on which the right-click menu was opened.
+- updated PySamLib from v0.2.4 to v0.2.5
+
+
 0.2.0 - 09.08.2009
 -----------------------
 Blub:

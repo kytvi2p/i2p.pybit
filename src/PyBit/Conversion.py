@@ -22,7 +22,7 @@ from time import localtime, mktime, strptime
 ##string - specific convert funcs
 
 def stringToDataAmount(string):
-    t = {'B ':1,'Kb':1024,'Mb':1048576,'Gb':1073741824}
+    t = {'B ':1,'KB':1024,'MB':1048576,'GB':1073741824}
     if not string[-2:] in t:
         amount = 0
     else:
@@ -106,7 +106,7 @@ def stringToData(dataType, string):
 
 
 def dataAmountToString(dataAmount, roundToDigits=2):
-    t = [['Kb', 1024.0], ['Mb', 1024.0], ['Gb', 1024.0]]
+    t = [['KB', 1024.0], ['MB', 1024.0], ['GB', 1024.0]]
     end = 'B '
     while dataAmount/t[0][1] > 1:
         dataAmount = dataAmount / t[0][1]

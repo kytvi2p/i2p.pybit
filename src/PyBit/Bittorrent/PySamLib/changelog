@@ -1,3 +1,9 @@
+0.2.5 - 30.08.2009
+-----------------------
+Blub:
+- changed "SamTcpDestination": changed assertion slightly so that it still guards against duplicate inbound sam ids but doesn't get triggered if one message for a new inbound connection gets lost (essentially a cheap workaround for weird SAM messages with blanks in front)
+
+
 0.2.4 - 01.04.2009
 -----------------------
 Blub:

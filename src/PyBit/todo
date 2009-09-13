@@ -5,10 +5,14 @@ General
 - add support for bob and/or SAMv3
 - webinterface (with support to only start the webinterface = headless mode)
 - improve peer handling (for example reconnect to known seeds if we switch from seed to leech when another file gets selected for download)
-
+- support forcing the GUI to use B/KB/MB/... (both size and speed)
+- add support for adding torrents from an url
 
 Classes
 -----------------------
+
+Gui:
+- if multiple torrents get added and a few ones fail, show one message with the information for all failures, not one message per failure
 
 Bittorrent.Bt:
 - report status changes (loading/running/completed/error) back to MultiBt (for status changes and such)

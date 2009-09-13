@@ -31,16 +31,22 @@ class PieceStatus:
     def __init__(self, pieceAmount):
         self.pieceAmount = pieceAmount
         
-        #piece status
+        #piece status - requests
         self.priority = {}           #piece priority
         self.availability = {}       #piece availability
         self.concurrentRequests = {} #number of concurrent requests of the same data within a piece (minimum!), -2 = ignore
         self.finishedRequests = {}   #number of finished piece parts
         
-        #groups
+        #piece status - uploads
+        self.assignedUploads = {}    #assigned uploads (=pieces available to peers who need them, super seeding)
+        
+        #groups - requests
         self.maxConcReqs = -1                                      #highest concurrent request count
         self.concReqGroups = defaultdict(int)                      #groups of pieces which share the same concurrent request count
         self.pieceGroups = defaultdict(set)                        #groups of pieces which share the same priority, availability, concurrent requests count and finished request count (meaning the have the same overall priority)
+        
+        #groups - uploads
+        self.upPieceGroups = defaultdict(set)
         
         #freezing
         self.freezed = 0               #updating of self.concReqGroups and/or self.pieceGroups allowed?
@@ -61,8 +67,10 @@ class PieceStatus:
             self.availability[pieceIndex] = 0
             self.concurrentRequests[pieceIndex] = 0
             self.finishedRequests[pieceIndex] = 0
+            self.assignedUploads[pieceIndex] = 0
         self.pieceGroups[(0,0,0,0)] = set(xrange(0, self.pieceAmount))
         self.concReqGroups[0] = self.pieceAmount
+        self.upPieceGroups[0] = set(xrange(0, self.pieceAmount))
 
 
     ##internal functions - piece groups
@@ -80,18 +88,18 @@ class PieceStatus:
             
     def _commitChanges(self):
         #commit queued changes
-        for pieceIndex, oldGroupIdent, newGroupIdent in self.queuedChanges:
-            if not oldGroupIdent == newGroupIdent:
-                #print pieceIndex, oldGroupIdent, newGroupIdent
+        for pieceIndex, oldReqGroupIdent, newReqGroupIdent, oldUpGroupIdent, newUpGroupIdent in self.queuedChanges:
+            if not oldReqGroupIdent == newReqGroupIdent:
+                #print pieceIndex, oldReqGroupIdent, newReqGroupIdent
                 #move piece index between piece groups
-                self.pieceGroups[newGroupIdent].add(pieceIndex)
-                self.pieceGroups[oldGroupIdent].remove(pieceIndex)
-                if len(self.pieceGroups[oldGroupIdent]) == 0:
-                    del self.pieceGroups[oldGroupIdent]
+                self.pieceGroups[newReqGroupIdent].add(pieceIndex)
+                self.pieceGroups[oldReqGroupIdent].remove(pieceIndex)
+                if len(self.pieceGroups[oldReqGroupIdent]) == 0:
+                    del self.pieceGroups[oldReqGroupIdent]
                     
                 #update concurrent request stuff
-                oldConcReqs = oldGroupIdent[2]
-                newConcReqs = newGroupIdent[2]
+                oldConcReqs = oldReqGroupIdent[2]
+                newConcReqs = newReqGroupIdent[2]
                 
                 if not oldConcReqs == newConcReqs:
                     deletedOld = False
@@ -104,49 +112,75 @@ class PieceStatus:
                     #update max concurrent requests
                     if newConcReqs > oldConcReqs or (deletedOld and self.maxConcReqs == oldConcReqs and newConcReqs < oldConcReqs):
                         self.maxConcReqs = newConcReqs
+                        
+                        
+            if not oldUpGroupIdent == newUpGroupIdent:
+                #print pieceIndex, oldUpGroupIdent, newUpGroupIdent
+                #move piece index between piece groups
+                self.upPieceGroups[newUpGroupIdent].add(pieceIndex)
+                self.upPieceGroups[oldUpGroupIdent].remove(pieceIndex)
+                if len(self.upPieceGroups[oldUpGroupIdent]) == 0:
+                    del self.upPieceGroups[oldUpGroupIdent]
         
         self.queuedChanges.clear()
         
         
     def _updatePieceGroups(self, pieces, newPriority=None, availabilityChange=None, newConcurrentRequests=None,
-                           newFinishedRequests=None):
+                           newFinishedRequests=None, assignedUploadsChange=None):
         for pieceIndex in pieces:
             #create groups
-            oldGroupIdent = (self.priority[pieceIndex], self.availability[pieceIndex], self.concurrentRequests[pieceIndex], self.finishedRequests[pieceIndex])
+            priority = self.priority[pieceIndex]
+            availability = self.availability[pieceIndex]
+            concurrentRequests = self.concurrentRequests[pieceIndex]
+            finishedRequests = self.finishedRequests[pieceIndex]
+            assignedUploads = self.assignedUploads[pieceIndex]
             
+            #remember old groups
+            oldReqGroupIdent = (priority, availability, concurrentRequests, finishedRequests)
+            oldUpGroupIdent = availability + assignedUploads
+            
+            #make changes
             if newPriority is not None:
                 self.priority[pieceIndex] = newPriority
-                newGroupIdent = (newPriority, self.availability[pieceIndex], self.concurrentRequests[pieceIndex], self.finishedRequests[pieceIndex])
+                priority = newPriority
                 
             elif availabilityChange is not None:
                 self.availability[pieceIndex] += availabilityChange
-                newGroupIdent = (self.priority[pieceIndex], self.availability[pieceIndex], self.concurrentRequests[pieceIndex], self.finishedRequests[pieceIndex])
+                availability += availabilityChange
                 
             elif newConcurrentRequests is not None:
                 self.concurrentRequests[pieceIndex] = newConcurrentRequests
-                newGroupIdent = (self.priority[pieceIndex], self.availability[pieceIndex], newConcurrentRequests, self.finishedRequests[pieceIndex])
+                concurrentRequests = newConcurrentRequests
                 
             elif newFinishedRequests is not None:
                 self.finishedRequests[pieceIndex] = newFinishedRequests
-                newGroupIdent = (self.priority[pieceIndex], self.availability[pieceIndex], self.concurrentRequests[pieceIndex], newFinishedRequests)
+                finishedRequests = newFinishedRequests
+                
+            elif assignedUploadsChange is not None:
+                self.assignedUploads[pieceIndex] += assignedUploadsChange
+                assignedUploads += assignedUploadsChange
+            
+            #build new groups
+            newReqGroupIdent = (priority, availability, concurrentRequests, finishedRequests)
+            newUpGroupIdent = availability + assignedUploads
             
             #update state if possible
             if self.freezed:
                 #not allowed to do the change right now
-                self.queuedChanges.append((pieceIndex, oldGroupIdent, newGroupIdent))
+                self.queuedChanges.append((pieceIndex, oldReqGroupIdent, newReqGroupIdent, oldUpGroupIdent, newUpGroupIdent))
             else:
                 #allowed
-                if not oldGroupIdent == newGroupIdent:
-                    #print pieceIndex, oldGroupIdent, newGroupIdent
+                if not oldReqGroupIdent == newReqGroupIdent:
+                    #print pieceIndex, oldReqGroupIdent, newReqGroupIdent
                     #move piece index between piece groups
-                    self.pieceGroups[newGroupIdent].add(pieceIndex)
-                    self.pieceGroups[oldGroupIdent].remove(pieceIndex)
-                    if len(self.pieceGroups[oldGroupIdent]) == 0:
-                        del self.pieceGroups[oldGroupIdent]
+                    self.pieceGroups[newReqGroupIdent].add(pieceIndex)
+                    self.pieceGroups[oldReqGroupIdent].remove(pieceIndex)
+                    if len(self.pieceGroups[oldReqGroupIdent]) == 0:
+                        del self.pieceGroups[oldReqGroupIdent]
                         
                     #update concurrent request stuff
-                    oldConcReqs = oldGroupIdent[2]
-                    newConcReqs = newGroupIdent[2]
+                    oldConcReqs = oldReqGroupIdent[2]
+                    newConcReqs = newReqGroupIdent[2]
                     
                     if not oldConcReqs == newConcReqs:
                         deletedOld = False
@@ -159,6 +193,14 @@ class PieceStatus:
                         #update max concurrent requests
                         if newConcReqs > oldConcReqs or (deletedOld and self.maxConcReqs == oldConcReqs and newConcReqs < oldConcReqs):
                             self.maxConcReqs = newConcReqs
+                            
+                if not oldUpGroupIdent == newUpGroupIdent:
+                    #print pieceIndex, oldUpGroupIdent, newUpGroupIdent
+                    #move piece index between piece groups
+                    self.upPieceGroups[newUpGroupIdent].add(pieceIndex)
+                    self.upPieceGroups[oldUpGroupIdent].remove(pieceIndex)
+                    if len(self.upPieceGroups[oldUpGroupIdent]) == 0:
+                        del self.upPieceGroups[oldUpGroupIdent]
 
 
     ##external functions - status
@@ -233,7 +275,18 @@ class PieceStatus:
         newFinishedRequests *= -1
         self._updatePieceGroups((pieceIndex for pieceIndex in pieces if not self.finishedRequests[pieceIndex] == newFinishedRequests), newFinishedRequests=newFinishedRequests)
         self.lock.release()
+        
+        
+    def increaseAssignedUploads(self, pieceIndex):
+        self.lock.acquire()
+        self._updatePieceGroups((pieceIndex,), assignedUploadsChange=1)
+        self.lock.release()
 
+
+    def decreaseAssignedUploads(self, pieceIndex):
+        self.lock.acquire()
+        self._updatePieceGroups((pieceIndex,), assignedUploadsChange=-1)
+        self.lock.release()
 
     ##external functions - info
 
@@ -286,6 +339,22 @@ class PieceStatus:
         iterator = PieceIterator(self.thaw, pieceGroups)
         self.lock.release()
         return iterator
+    
+    
+    ##external functions - uploading
+    
+    def getUpPieces(self, possiblePieces, count):
+        self.lock.acquire()
+        pieceGroups = (list(self.upPieceGroups[groupIdent].intersection(possiblePieces)) for groupIdent in sorted(self.upPieceGroups.iterkeys()))
+        iterator = PieceIterator(None, pieceGroups)
+        upPieces = []
+        for piece in iterator:
+            upPieces.append(piece)
+            if len(upPieces) == count:
+                break
+        self._updatePieceGroups(upPieces, assignedUploadsChange=1)
+        self.lock.release()
+        return set(upPieces)
 
 
 
@@ -299,7 +368,8 @@ class PieceIterator:
 
     def __del__(self):
         try:
-            self.finishIterFunc()
+            if self.finishIterFunc is not None:
+                self.finishIterFunc()
         except:
             log = logging.getLogger('PieceIterator')
             log.error('Error in __del__:\n%s', logTraceback())

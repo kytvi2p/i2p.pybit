@@ -50,7 +50,8 @@ class TorrentConnectionList(PersistentVirtualListCtrl):
                 ('Avg. Upspeed (P)', 'avgOutPayloadSpeed', 'transferSpeed', 125, False),\
                 ('Score', 'score', 'float', 75, False),\
                 ('Payload Ratio', 'payloadRatio', 'float', 125, False),
-                ('Protocol Overhead', 'protocolOverhead', 'percent', 150, False)]
+                ('Protocol Overhead', 'protocolOverhead', 'percent', 150, False),
+                ('Offered Pieces', 'offeredPieces', 'native', 100, False)]
        
         self.rawUpdateFunc = rawUpdateFunc
         PersistentVirtualListCtrl.__init__(self, persister, 'TorrentConnectionList-', self._updatePerstData, version,

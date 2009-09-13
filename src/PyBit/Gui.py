@@ -64,21 +64,12 @@ class Gui(wx.Frame):
         #Menu
         menubar = wx.MenuBar()
         
-        file = wx.Menu()        
-        file.Append(101, 'Quit', 'Terminates the program, this could take a few seconds')
+        file = wx.Menu()
+        file.Append(101, 'Add from file', 'Opens a torrent from your harddisk')
+        file.Append(102, 'Create torrent', 'Creates a new torrent')
+        file.AppendSeparator()
+        file.Append(103, 'Quit', 'Terminates the program, this could take a few seconds')
         menubar.Append(file, '&File')
-
-        torrents = wx.Menu()
-        torrents.Append(111, 'Create Torrent', 'Creates a new torrent')
-        torrents.Append(112, 'Add from File', 'Opens a torrent from your harddisk')
-        torrents.AppendSeparator()
-        torrents.Append(113, 'Start selected', 'Starts all selected torrents')
-        torrents.Append(114, 'Stop selected', 'Stops all selected torrents')
-        torrents.Append(115, 'Remove selected', 'Removes all selected torrents')
-        torrents.AppendSeparator()
-        torrents.Append(116, 'Move selected up', 'Moves all selected torrents one row up')
-        torrents.Append(117, 'Move selected down', 'Moves all selected torrents one row down')
-        menubar.Append(torrents, '&Torrent')
 
         config = wx.Menu()
         config.Append(121, 'Configuration', 'Opens a configuration dialog')
@@ -90,26 +81,10 @@ class Gui(wx.Frame):
         menubar.Append(about, '&About')
         
         self.SetMenuBar(menubar)
-
-        #Toolbar
-        #wx.ToolBar(self, -1, style=wx.TB_HORIZONTAL | wx.NO_BORDER)
-        toolbar = self.CreateToolBar()
-        toolbar.SetToolBitmapSize(wx.Size(22,22))
-        toolbar.AddLabelTool(201, 'New', wx.BitmapFromImage(wx.Image('Icons/newFile.png', wx.BITMAP_TYPE_PNG)), shortHelp='Create Torrentfile', longHelp='Use to create a new torrent file')
-        toolbar.AddLabelTool(202, 'Open', wx.BitmapFromImage(wx.Image('Icons/openFile.png', wx.BITMAP_TYPE_PNG)), shortHelp='Open Torrentfile', longHelp='Use to open a torrent file')
-        toolbar.AddSeparator()
-        toolbar.AddLabelTool(211, 'Start',wx.BitmapFromImage(wx.Image('Icons/start.png', wx.BITMAP_TYPE_PNG)), shortHelp='Start', longHelp='Starts all selected torrents')
-        toolbar.AddLabelTool(212, 'Stop',wx.BitmapFromImage(wx.Image('Icons/stop.png', wx.BITMAP_TYPE_PNG)), shortHelp='Stop', longHelp='Stops all selected torrents')
-        toolbar.AddLabelTool(213, 'Remove',wx.BitmapFromImage(wx.Image('Icons/remove.png', wx.BITMAP_TYPE_PNG)), shortHelp='Remove', longHelp='Removes all selected torrents')
-        toolbar.AddSeparator()
-        toolbar.AddLabelTool(221, 'Up',wx.BitmapFromImage(wx.Image('Icons/up.png', wx.BITMAP_TYPE_PNG)), shortHelp='Up', longHelp='Moves all selected torrents one row up')
-        toolbar.AddLabelTool(222, 'Down',wx.BitmapFromImage(wx.Image('Icons/down.png', wx.BITMAP_TYPE_PNG)), shortHelp='Down', longHelp='Moves all selected torrents one row down')
-        toolbar.AddSeparator()
-        toolbar.AddLabelTool(231, 'Quit', wx.BitmapFromImage(wx.Image('Icons/quit.png', wx.BITMAP_TYPE_PNG)), shortHelp='Quit', longHelp='Quits the application, this could take a moment.')
-        toolbar.Realize()
         
         #Windows
-        self.splitter = wx.SplitterWindow(self)
+        self.splitter = wx.SplitterWindow(self, style=wx.CLIP_CHILDREN)
+        self.splitter.SetMinimumPaneSize(50)
         
         #Child Windows
         self.childWindows = StatusPanel(self.splitter)        
@@ -135,16 +110,27 @@ class Gui(wx.Frame):
                                            resultFilter=['inRawSpeed', 'outRawSpeed'], resultFilterFormat='list')
         self.sb = StatusBar(funcCaller.callForValue, self)
         self.SetStatusBar(self.sb)
+        
+        #Toolbar
+        toolbar = self.CreateToolBar()
+        toolbar.SetToolBitmapSize(wx.Size(22,22))
+        toolbar.AddLabelTool(201, 'New', wx.BitmapFromImage(wx.Image('Icons/newFile.png', wx.BITMAP_TYPE_PNG)), shortHelp='Create Torrentfile', longHelp='Use to create a new torrent file')
+        toolbar.AddLabelTool(202, 'Open', wx.BitmapFromImage(wx.Image('Icons/openFile.png', wx.BITMAP_TYPE_PNG)), shortHelp='Open Torrentfile', longHelp='Use to open a torrent file')
+        toolbar.AddSeparator()
+        toolbar.AddLabelTool(211, 'Start',wx.BitmapFromImage(wx.Image('Icons/start.png', wx.BITMAP_TYPE_PNG)), shortHelp='Start', longHelp='Starts all selected torrents')
+        toolbar.AddLabelTool(212, 'Stop',wx.BitmapFromImage(wx.Image('Icons/stop.png', wx.BITMAP_TYPE_PNG)), shortHelp='Stop', longHelp='Stops all selected torrents')
+        toolbar.AddLabelTool(213, 'Remove',wx.BitmapFromImage(wx.Image('Icons/remove.png', wx.BITMAP_TYPE_PNG)), shortHelp='Remove', longHelp='Removes all selected torrents')
+        toolbar.AddSeparator()
+        toolbar.AddLabelTool(221, 'Up',wx.BitmapFromImage(wx.Image('Icons/up.png', wx.BITMAP_TYPE_PNG)), shortHelp='Up', longHelp='Moves all selected torrents one row up')
+        toolbar.AddLabelTool(222, 'Down',wx.BitmapFromImage(wx.Image('Icons/down.png', wx.BITMAP_TYPE_PNG)), shortHelp='Down', longHelp='Moves all selected torrents one row down')
+        toolbar.AddSeparator()
+        toolbar.AddLabelTool(231, 'Quit', wx.BitmapFromImage(wx.Image('Icons/quit.png', wx.BITMAP_TYPE_PNG)), shortHelp='Quit', longHelp='Quits the application, this could take a moment.')
+        toolbar.Realize()
 
         #menu events
-        self.Bind(wx.EVT_MENU, self.OnClose, id=101)
-        self.Bind(wx.EVT_MENU, self.OnCreateTorrent, id=111)
-        self.Bind(wx.EVT_MENU, self.OnAddFromFile, id=112)
-        self.Bind(wx.EVT_MENU, self.torrentList.OnStart, id=113)
-        self.Bind(wx.EVT_MENU, self.torrentList.OnStop, id=114)
-        self.Bind(wx.EVT_MENU, self.torrentList.OnRemove, id=115)
-        self.Bind(wx.EVT_MENU, self.torrentList.OnUp, id=116)
-        self.Bind(wx.EVT_MENU, self.torrentList.OnDown, id=117)
+        self.Bind(wx.EVT_MENU, self.OnAddFromFile, id=101)
+        self.Bind(wx.EVT_MENU, self.OnCreateTorrent, id=102)
+        self.Bind(wx.EVT_MENU, self.OnClose, id=103)
         self.Bind(wx.EVT_MENU, self.OnConfig, id=121)
         self.Bind(wx.EVT_MENU, self.OnAbout, id=131)
         self.Bind(wx.EVT_MENU, self.OnChangelog, id=132)
@@ -192,11 +178,11 @@ class Gui(wx.Frame):
         #let user select a torrent
         diag = wx.FileDialog(self, message='Select the torrent to open',defaultDir=torrentDefaultDir,\
                              wildcard='Torrent files (*.torrent)|*.torrent|All files (*.*)|*.*',\
-                             style=wx.OPEN)
+                             style=wx.OPEN | wx.MULTIPLE)
         
         if diag.ShowModal() == wx.ID_OK:
             #user did select something
-            torrentPath = diag.GetPath()
+            torrentPaths = diag.GetPaths()
             
             #directory in which the download data should be stored
             saveDiag = wx.DirDialog(self, message='Select the directory in which the downloaded data should be stored',\
@@ -205,30 +191,31 @@ class Gui(wx.Frame):
                 #user selected something
                 savePath = saveDiag.GetPath()
                 
-                #try to load torrent
-                self.log.info('Trying to read torrent file from "%s"', encodeStrForPrinting(torrentPath))
-                try:
-                    fl = open(torrentPath, 'rb')
-                    with fl:
-                        data = fl.read()
-                except:
-                    data = None
-                
-                if data is None:
-                    #failed to read file
-                    self.log.error('Failed to read torrent file from "%s", torrent not added', encodeStrForPrinting(torrentPath))
-                    showErrorMessage(self, 'Failed to read torrent file from "%s".', torrentPath)
-                else:
-                    #worked
-                    self.log.info('Adding torrent with data path "%s"', encodeStrForPrinting(savePath))
+                #load torrents one by one
+                for torrentPath in torrentPaths:
+                    self.log.info('Trying to read torrent file from "%s"', encodeStrForPrinting(torrentPath))
                     try:
-                        self.torrentList.addTorrent(data, savePath)
-                    except MultiBtException, e:
-                        self.log.error('Failed to add torrent, reason: %s', e.reason)
-                        showErrorMessage(self, '%s.', e.reason)
-                    except Exception, e:
-                        self.log.critical('Internal error while adding torrent:\n%s', str(logTraceback()))
-                        showErrorMessage(self, 'Internal error, torrent not added.\n%s.', str(logTraceback()))
+                        fl = open(torrentPath, 'rb')
+                        with fl:
+                            data = fl.read()
+                    except:
+                        data = None
+                    
+                    if data is None:
+                        #failed to read file
+                        self.log.error('Failed to read torrent file from "%s", torrent not added', encodeStrForPrinting(torrentPath))
+                        showErrorMessage(self, 'Failed to read torrent file from "%s".', torrentPath)
+                    else:
+                        #worked
+                        self.log.info('Adding torrent with data path "%s"', encodeStrForPrinting(savePath))
+                        try:
+                            self.torrentList.addTorrent(data, savePath)
+                        except MultiBtException, e:
+                            self.log.error('Failed to add torrent, reason: %s', e.reason)
+                            showErrorMessage(self, '%s.', e.reason)
+                        except Exception, e:
+                            self.log.critical('Internal error while adding torrent:\n%s', str(logTraceback()))
+                            showErrorMessage(self, 'Internal error, torrent not added.\n%s.', str(logTraceback()))
             del saveDiag
         del diag
         

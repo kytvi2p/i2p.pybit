@@ -28,7 +28,7 @@ import Conversion
 
 class VirtualListCtrl(wx.ListCtrl):
     def __init__(self, cols, dataFunc, parent, customDataToStringFuncs=[], rowIdCol=None, id=-1,
-                 pos=wx.DefaultPosition, size=wx.DefaultSize, style=wx.LC_REPORT | wx.LC_VIRTUAL | wx.LC_VRULES, **kwargs):
+                 pos=wx.DefaultPosition, size=wx.DefaultSize, style=wx.LC_REPORT | wx.LC_VIRTUAL | wx.LC_VRULES | wx.CLIP_CHILDREN, **kwargs):
         wx.ListCtrl.__init__(self, parent, id, pos, size, style, **kwargs)
         """
         cols:
@@ -218,11 +218,21 @@ class VirtualListCtrl(wx.ListCtrl):
         self.Refresh()
         
 
-    def _enableCol(self, colName):
-        self.InsertColumn(self.colNum, colName)
-        self.SetColumnWidth(self.colNum, self.colInfo[colName]['columnWidth'])
-        self.colMapper.append(colName)
+    def _enableCol(self, colName, colPos):
+        if colPos is None:
+            colPos = self.colNum
+            
+        #add col
+        self.InsertColumn(colPos, colName)
+        self.SetColumnWidth(colPos, self.colInfo[colName]['columnWidth'])
+        self.colMapper.insert(colPos, colName)
         self.colNum += 1
+        
+        #cleanup sorting
+        if self.sortColumn >= colPos:
+            #we added a row before or at the position of the sorting column
+            self.sortColumn += 1
+            
         self.dataUpdate()
         
         
@@ -289,6 +299,9 @@ class VirtualListCtrl(wx.ListCtrl):
                 
     
     ##internal functions - other
+    
+    def _getRowCount(self):
+        return len(self.colData[self.colMapper[0]])
         
     def _getRawData(self, colName, rowIndex):
         return self.colData[colName][rowIndex]
@@ -326,9 +339,9 @@ class VirtualListCtrl(wx.ListCtrl):
         self.lock.release()
         
 
-    def enableCol(self, colName):
+    def enableCol(self, colName, colPos=None):
         self.lock.acquire()
-        self._enableCol(colName)
+        self._enableCol(colName, colPos)
         self.lock.release()
         
 
@@ -426,7 +439,10 @@ class ColumnSelectionPopup(wx.Menu):
     def OnClick(self, event):
         colName = self.idMapper[event.GetId()]
         if event.IsChecked() == True:
-            self.parentDiag.enableCol(colName)
+            if self.clickedColNum is not None:
+                self.parentDiag.enableCol(colName, colPos=self.clickedColNum + 1)
+            else:
+                self.parentDiag.enableCol(colName, colPos=None)
         else:
             self.parentDiag.disableCol(colName)
         #event.Skip(False)
@@ -476,12 +492,22 @@ class PersistentVirtualListCtrl(VirtualListCtrl):
             self.sortColumn = 0
             self.sortDirection = 'ASC'
         else:
-            #managed to get persisted data
+            #managed to get persisted data, update
             persColData = self.updateFunc(persColData, self.currentVersion)
+            
+            #restore
             colInfo = persColData['colInfo']
             colMapper = persColData['colMapper']
             self.sortColumn = persColData['sortColumn']
             self.sortDirection = persColData['sortDirection']
+            
+            #check for new cols
+            for colSet in cols:
+                if colSet[0] not in colInfo:
+                    colInfo[colSet[0]] = {'dataKeyword':colSet[1],
+                                          'dataType':colSet[2],
+                                          'columnWidth':colSet[3]}
+            
             
         self._createColumns(colInfo, colMapper)
         
@@ -517,8 +543,8 @@ class PersistentVirtualListCtrl(VirtualListCtrl):
         self._persist()
         
 
-    def _enableCol(self, colName):
-        VirtualListCtrl._enableCol(self, colName)
+    def _enableCol(self, colName, colPos):
+        VirtualListCtrl._enableCol(self, colName, colPos)
         self._persist()
         
 

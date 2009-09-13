@@ -111,6 +111,7 @@ Avg. Downspeed (P): How much was received on average up to know, ignoring period
 Avg. Upspeed (R): How much was send on average up to know, ignoring periods when the torrent was stopped ('raw' byte count, including protocol messages)
 Avg. Upspeed (P): How much was send on average up to know, ignoring periods when the torrent was stopped (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
 Protocol Overhead: Overhead caused by protocol message. A value of 50% would for example mean, that on average 15kb of raw data need to be transfered to transfer 10kb of payload data. This stat is not entirely accurate because payload data and raw data get counted at different places (payload data when it is placed or retrieved in/out of the connection buffer, raw data when it is really send/received), but it should get more accurate with increasing transfer sizes.
+Superseeding: If superseeding is enabled (=true, marked with a '*') or not. Superseeding helps during initial torrent seeding by forcing peers to download different pieces (to get each piece uplaoded to at least one peer as fast as possible). It shouldn't be enabled when many seeders are present and certainly not when still downloading.
 
 connections panel:
 Id: The unique id of this connection, for example referenced in the "Used Conns (List)"-column of the "Requests"-panel and in some log messages.
@@ -137,7 +138,7 @@ Avg. Upspeed (R): How much was send on average up to know ('raw' byte count, inc
 Avg. Upspeed (P): How much was send on average up to know (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
 Score: The score is used by the choker to decide to which peers we should upload. Higher values are better. The value is calculated from the payload ratio and the average download speed of a connection. If we are seeding, then values lower 1.0 are considered as 1.0.
 Payload Ratio: The ratio between downloaded and uploaded data. It tells how many payload bytes we get from a peer for each uploaded byte. So a value of 0.5 would mean that we would need to upload 20kb to get 10kb (on average).
-Protocol Overhead: Overhead caused by protocol message. A value of 50% would for example mean, that on average 15kb of raw data need to be transfered to transfer 10kb of payload data. This stat is not entirely accurate because payload data and raw data get counted at different places (payload data when it is placed or retrieved in/out of the connection buffer, raw data when it is really send/received), but it should get more accurate with increasing transfer sizes.
+Protocol Overhead: Overhead caused by protocol message. A value of 50% would for example mean, that on average 15kb of raw data need to be transfered to transfer 10kb of payload data. This stat is not entirely accurate because payload data and raw data get counted at different places (payload data when it is placed or retrieved in/out of the connection buffer, raw data when it is really send/received), but it should get more accurate with increasing transfer sizes. (Thats the theory, because frequent connection disconnects are currently normal for I2P, this stat is currently extremly inaccurate. :|)
 
 files panel:
 Id: The unique id of this file, only used internaly.

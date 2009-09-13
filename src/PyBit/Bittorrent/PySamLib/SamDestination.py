@@ -654,8 +654,8 @@ class SamTcpDestination(SamExtendedDestination):
         connId = self.i2pSockStatus.addConn(self.destId, 'tcpIn', 'in')
         
         #increment samId counter
-        assert self.nextSamInId == samId , 'Wrong assumption about sam id?!'
-        self.nextSamInId -= 1
+        assert self.nextSamInId >= samId , 'Wrong assumption about sam id?!'
+        self.nextSamInId = samId - 1
         
         #add to mapper
         self.connIdToSamId[connId] = samId

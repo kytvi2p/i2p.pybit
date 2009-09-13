@@ -18,10 +18,11 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from collections import deque
+#builtin
 import logging
 import threading
 
+#own
 from Connection import BtConnection
 from ConnectionStatus import ConnectionStatus
 import Messages
@@ -46,12 +47,40 @@ class ConnectionHandler:
         
         self.log = logging.getLogger('ConnectionHandler')
         
-        self.lock = threading.Lock()        
+        self.lock = threading.Lock()
         self.shouldStop = False
         self.thread = None
         self._start()
         
-   
+    
+    ##internal functions - torrents
+    
+    def _addTorrent(self, torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, filePriority, requester, superSeedingHandler):
+        assert torrentIdent not in self.torrents
+        self.torrents[torrentIdent] = {'torrent':torrent,
+                                       'pieceStatus':pieceStatus,
+                                       'inMeasure':inMeasure,
+                                       'outMeasure':outMeasure,
+                                       'storage':storage,
+                                       'ownStatus':storage.getStatus(),
+                                       'filePriority':filePriority,
+                                       'requester':requester,
+                                       'superSeedingEnabled':superSeedingHandler.isEnabled(),
+                                       'superSeedingHandler':superSeedingHandler,
+                                       'connIds':set(),
+                                       'connPeerIds':set(),
+                                       'connRemoteAddrs':set()}
+                                    
+                                    
+    def _getTorrentInfo(self, conn):
+        return self.torrents[conn.getTorrentIdent()]
+                                
+                                
+    def _removeTorrent(self, torrentIdent):
+        self._removeAllConnectionsOfTorrent(torrentIdent, "removing torrent")
+        del self.torrents[torrentIdent]
+        
+        
     ##internal functions - connections
     
     def _addConnection(self, torrentIdent, connSock, direction, remotePeerId):
@@ -76,8 +105,12 @@ class ConnectionHandler:
             torrent['connPeerIds'].add(remotePeerId)
             torrent['connRemoteAddrs'].add(remoteAddr)
             
-            #send bitfield
-            conn.send(Messages.generateBitfield(torrent['ownStatus'].getBitfield()))
+            if torrent['superSeedingEnabled']:
+                #add to handler
+                torrent['superSeedingHandler'].addConn(connId, conn)
+            else:
+                #send bitfield
+                conn.send(Messages.generateBitfield(torrent['ownStatus'].getBitfield()))
             
             
     def _getAllConnections(self, torrentIdent):
@@ -100,12 +133,15 @@ class ConnectionHandler:
         torrent['requester'].connGotClosed(conn)
         conn.close()
         
+        if torrent['superSeedingEnabled']:
+            torrent['superSeedingHandler'].removeConn(connId)
+            
         self.peerPool.lostConnection(torrentIdent, remoteAddr, keepInPool)
         
     
-    def _removeAllConnectionsOfTorrent(self, torrentIdent):
+    def _removeAllConnectionsOfTorrent(self, torrentIdent, reason):
         for connId in self.torrents[torrentIdent]['connIds'].copy():
-            self._removeConnection(connId, "removing torrent")
+            self._removeConnection(connId, reason)
             
         
     ##internal functions - other
@@ -153,31 +189,11 @@ class ConnectionHandler:
         self._recheckConnLocalInterest(torrentSet)
     
     
-    ##internal functions - torrents
+    def _setSuperSeeding(self, torrentIdent, enabled):
+        self._removeAllConnectionsOfTorrent(torrentIdent, "Switching SuperSeeding to " + str(enabled))
+        self.torrents[torrentIdent]['superSeedingEnabled'] = enabled
+        self.torrents[torrentIdent]['superSeedingHandler'].setEnabled(enabled)
     
-    def _addTorrent(self, torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, filePriority, requester):
-        assert torrentIdent not in self.torrents
-        self.torrents[torrentIdent] = {'torrent':torrent,
-                                       'pieceStatus':pieceStatus,
-                                       'inMeasure':inMeasure,
-                                       'outMeasure':outMeasure,
-                                       'storage':storage,
-                                       'ownStatus':storage.getStatus(),
-                                       'filePriority':filePriority,
-                                       'requester':requester,
-                                       'connIds':set(),
-                                       'connPeerIds':set(),
-                                       'connRemoteAddrs':set()}
-                                    
-                                    
-    def _getTorrentInfo(self, conn):
-        return self.torrents[conn.getTorrentIdent()]
-                                
-                                
-    def _removeTorrent(self, torrentIdent):
-        self._removeAllConnectionsOfTorrent(torrentIdent)
-        del self.torrents[torrentIdent]
-
     
     ##internal functions - messages
     
@@ -258,7 +274,9 @@ class ConnectionHandler:
                 
         elif message[0] == 6:
             #remote request
-            if not self._getTorrentInfo(conn)['torrent'].isValidRequest(message[1][0], message[1][1], message[1][2]):
+            torrentInfo = self._getTorrentInfo(conn)
+            
+            if not torrentInfo['torrent'].isValidRequest(message[1][0], message[1][1], message[1][2]):
                 self.log.warning('Conn %i: Got request for piece %i with offset %i and length %i - which is insane ...',
                                  conn.fileno(), message[1][0], message[1][1], message[1][2])
                             
@@ -281,7 +299,15 @@ class ConnectionHandler:
             elif conn.hasThisOutRequest(message[1][0], message[1][1], message[1][2]):
                 self.log.warning('Conn %i: Got request for piece %i with offset %i and length %i but a request for exactly this is alreaqdy queued!',
                                  conn.fileno(), message[1][0], message[1][1], message[1][2])
-                            
+                
+            elif not torrentInfo['ownStatus'].hasPiece(message[1][0]):
+                self.log.warning('Conn %i: Got request for piece %i with offset %i and length %i but we do not have that piece!',
+                                 conn.fileno(), message[1][0], message[1][1], message[1][2])
+                                 
+            elif torrentInfo['superSeedingEnabled'] and not torrentInfo['superSeedingHandler'].didOfferPiece(conn.fileno(), message[1][0]):
+                self.log.warning('Conn %i: Got request for piece %i with offset %i and length %i but we did not offer that piece!',
+                                 conn.fileno(), message[1][0], message[1][1], message[1][2])
+                
             else:
                 shouldProcess = True
             
@@ -350,6 +376,11 @@ class ConnectionHandler:
                 self._removeConnection(connId, "we are finished downloading and this peer has already all pieces which we have", False)
             
             else:
+                #inform superseeding handler if needed
+                if torrent['superSeedingEnabled']:
+                    torrent['superSeedingHandler'].connGotPiece(connId, message[1])
+                    
+                #check if we are again interested in that peer
                 if (not conn.localInterested()) and torrent['ownStatus'].needsPiece(message[1]):
                     #we were not interested, but now this peer got a piece we need, so we are interested
                     self.log.debug('Conn %i: Interested in peer after he got piece %i', connId, message[1])
@@ -372,6 +403,10 @@ class ConnectionHandler:
                 self._removeConnection(connId, "we are finished downloading and this peer has already all pieces which we have", False)
             
             else:
+                #inform superseeding handler if needed
+                if torrent['superSeedingEnabled']:
+                    torrent['superSeedingHandler'].connGotBitfield(connId)
+                    
                 #check if the peer has something interesting
                 if status.hasMatchingGotPieces(torrent['ownStatus'].getNeededPieces()):
                     #yep he has
@@ -399,15 +434,19 @@ class ConnectionHandler:
                 #finished to retrieve a whole piece
                 self.log.debug('Piece %i is finished', message[1][0])
                 
-                #send have messages
+                #deal with peers
                 gotPieces = torrent['ownStatus'].getGotPieces()
                 neededPieces = torrent['ownStatus'].getNeededPieces()
                 weAreFinished = torrent['ownStatus'].isFinished()
+                weAreSuperSeeding = torrent['superSeedingEnabled']
                 
                 for connId in torrent['connIds'].copy():
                     conn = self.conns[connId]
-                    conn.send(Messages.generateHave(message[1][0]))
                     status = conn.getStatus()
+                    
+                    #send have if needed
+                    if not weAreSuperSeeding:
+                        conn.send(Messages.generateHave(message[1][0]))
                     
                     if weAreFinished and not status.hasMatchingMissingPieces(gotPieces):
                         #nothing to gain, nothing to give - diconnect
@@ -420,6 +459,9 @@ class ConnectionHandler:
                                 #nothing to request anymore
                                 conn.setLocalInterest(False)
                                 torrent['requester'].connGotNotInteresting(conn)
+                
+                if weAreSuperSeeding:
+                    torrent['superSeedingHandler'].gotNewPiece(message[1][0])
                             
         elif message[0] == 8:
             #cancel
@@ -428,7 +470,7 @@ class ConnectionHandler:
             conn.delOutRequest(message[1][0], message[1][1], message[1][2])
             
         else:
-            self.log.warning('Conn %i: Unmatched message with ID: %d - shouldn\'t reach this point!', connId, message[0])
+            self.log.error('Conn %i: Unmatched message with ID: %d - shouldn\'t reach this point!', connId, message[0])
    
 
     ##internal functions - thread related
@@ -523,9 +565,9 @@ class ConnectionHandler:
     
     ##external functions - torrents
     
-    def addTorrent(self, torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, filePriority, requester):
+    def addTorrent(self, torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, filePriority, requester, superSeedingHandler):
         self.lock.acquire()
-        self._addTorrent(torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, filePriority, requester)
+        self._addTorrent(torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, filePriority, requester, superSeedingHandler)
         self.lock.release()
         
         
@@ -542,6 +584,12 @@ class ConnectionHandler:
         self._setFileWantedFlag(torrentIdent, fileIds, wanted)
         self.lock.release()
         
+        
+    def setSuperSeeding(self, torrentIdent, enabled):
+        self.lock.acquire()
+        self._setSuperSeeding(torrentIdent, enabled)
+        self.lock.release()
+        
     
     ##external functions - stats
     
@@ -549,8 +597,11 @@ class ConnectionHandler:
         self.lock.acquire()
         stats = []
         if torrentIdent in self.torrents:
+            superSeedingHandler = self.torrents[torrentIdent]['superSeedingHandler']
             for conn in self._getAllConnections(torrentIdent):
-                stats.append(conn.getStats())
+                connStats = conn.getStats()
+                connStats['offeredPieces'] = ', '.join(str(x) for x in superSeedingHandler.getOfferedPieces(connStats['id']))
+                stats.append(connStats)
         self.lock.release()
         return stats
     

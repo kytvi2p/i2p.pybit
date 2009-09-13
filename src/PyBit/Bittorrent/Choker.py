@@ -48,9 +48,10 @@ class Choker:
         
     ##internal functions - torrent
         
-    def _addTorrent(self, torrentIdent, ownStatus):
+    def _addTorrent(self, torrentIdent, ownStatus, superSeedingHandler):
         assert (not torrentIdent in self.torrents), 'Torrent already added?!'
-        self.torrents[torrentIdent] = {'ownStatus':ownStatus}
+        self.torrents[torrentIdent] = {'ownStatus':ownStatus,
+                                       'superSeedingHandler':superSeedingHandler}
         self.randomSlotLimiter.addUser(torrentIdent)
         self.normalSlotLimiter.addUser(torrentIdent)
         
@@ -128,10 +129,15 @@ class Choker:
         assert normalSlots > 0, 'No normal slots?!'
         
         for torrentIdent in self.torrents.iterkeys():
-            gotPieces = self.torrents[torrentIdent]['ownStatus'].getGotPieces()
-            isFinished = self.torrents[torrentIdent]['ownStatus'].isFinished()
+            superSeedingHandler = self.torrents[torrentIdent]['superSeedingHandler']
+            ownStatus = self.torrents[torrentIdent]['ownStatus']
+            gotPieces = ownStatus.getGotPieces()
+            isFinished = ownStatus.isFinished()
             conns = self.connHandler.getAllConnections(torrentIdent)
-            uploadableConns = set(conn for conn in conns if conn.remoteInterested() and conn.getStatus().hasMatchingMissingPieces(gotPieces))
+            if superSeedingHandler.isEnabled():
+                uploadableConns = set(conn for conn in conns if conn.remoteInterested() and superSeedingHandler.hasOfferedPieces(conn.fileno()))
+            else:
+                uploadableConns = set(conn for conn in conns if conn.remoteInterested() and conn.getStatus().hasMatchingMissingPieces(gotPieces))
             
             self._chokeTorrent(torrentIdent, conns, uploadableConns, randomSlots, normalSlots, isFinished)
         
@@ -141,13 +147,20 @@ class Choker:
         torrentInfo = {}
         neededSlots = []
         for torrentIdent in self.torrents.iterkeys():
+            superSeedingHandler = self.torrents[torrentIdent]['superSeedingHandler']
+            ownStatus = self.torrents[torrentIdent]['ownStatus']
+            gotPieces = ownStatus.getGotPieces()
+            
             info = {}
-            gotPieces = self.torrents[torrentIdent]['ownStatus'].getGotPieces()
             info['gotPieces'] = gotPieces
+            info['isFinished'] = ownStatus.isFinished()
             info['conns'] =  self.connHandler.getAllConnections(torrentIdent)
-            info['uploadableConns'] = set(conn for conn in info['conns'] if conn.remoteInterested() and conn.getStatus().hasMatchingMissingPieces(gotPieces))
+            if superSeedingHandler.isEnabled():
+                info['uploadableConns'] = set(conn for conn in info['conns'] if conn.remoteInterested() and superSeedingHandler.hasOfferedPieces(conn.fileno()))
+            else:
+                info['uploadableConns'] = set(conn for conn in info['conns'] if conn.remoteInterested() and conn.getStatus().hasMatchingMissingPieces(gotPieces))
             info['neededSlots'] = len(info['uploadableConns'])
-            info['isFinished'] = self.torrents[torrentIdent]['ownStatus'].isFinished()
+            
             torrentInfo[torrentIdent] = info
             if info['neededSlots'] > 0:
                 neededSlots.append((info['neededSlots'], torrentIdent))
@@ -215,9 +228,9 @@ class Choker:
         
     ##external functions - torrents
     
-    def addTorrent(self, torrentIdent, ownStatus):
+    def addTorrent(self, torrentIdent, ownStatus, superSeedingHandler):
         self.lock.acquire()
-        self._addTorrent(torrentIdent, ownStatus)
+        self._addTorrent(torrentIdent, ownStatus, superSeedingHandler)
         self.lock.release()
         
         

@@ -241,7 +241,7 @@ class Network_ConfigPanel(wx.Panel):
         limiterItems = wx.FlexGridSizer(cols = 2, vgap = 3, hgap = 5)
         
         #down speed        
-        label1a = wx.StaticText(self, -1, "max Download speed (kb/s):")
+        label1a = wx.StaticText(self, -1, "max Download speed (KB/s):")
         label1a.SetToolTipString('Restricts the client to not download more kilobytes per second then set here')
         limiterItems.Add(label1a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
@@ -252,7 +252,7 @@ class Network_ConfigPanel(wx.Panel):
         limiterItems.Add(self.spin1, 1)
 
         #up speed        
-        label2a = wx.StaticText(self, -1, "max Upload speed (kb/s):")
+        label2a = wx.StaticText(self, -1, "max Upload speed (KB/s):")
         label2a.SetToolTipString('Restricts the client to not upload more kilobytes per second then set here')
         limiterItems.Add(label2a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         

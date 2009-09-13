@@ -354,7 +354,7 @@ class BtConnection(Connection):
                  scheduler, conn, direction, remotePeerAddr,\
                  inMeasureParent, outMeasureParent, outLimiter, inLimiter):
                     
-        log = Logger('BtConnection', '%-6s - %-6s -', torrentIdent, conn.fileno())
+        log = Logger('BtConnection', '%-6s - %-6s - ', torrentIdent, conn.fileno())
                  
         Connection.__init__(self, connStatus, scheduler, conn, direction, remotePeerAddr,\
                             inMeasureParent, outMeasureParent, outLimiter, inLimiter,\

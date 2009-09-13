@@ -26,6 +26,7 @@ from Measure import Measure
 from PieceStatus import PieceStatus
 from Requester import Requester
 from Storage import Storage, StorageException
+from SuperSeedingHandler import SuperSeedingHandler
 from TrackerRequester import TrackerRequester
 from Utilities import logTraceback
 
@@ -72,6 +73,9 @@ class Bt:
         self.log.debug("Creating tracker requester class")
         self.trackerRequester = TrackerRequester(eventSched, peerId, self.peerPool, ownAddrFunc, httpRequester,
                                                  self.inRate, self.outRate, self.storage, self.torrent, self.torrentIdent)
+        
+        self.log.debug("Creating superseeding handler class")
+        self.superSeedingHandler = SuperSeedingHandler(self.torrentIdent, self.btPersister, self.storage.getStatus(), self.pieceStatus)
         
         ##callbacks
         self.log.debug("Adding callbacks")
@@ -165,7 +169,7 @@ class Bt:
                 self.outRate.start()
                 
                 self.log.debug("Adding us to connection handler")
-                self.connHandler.addTorrent(self.torrentIdent, self.torrent, self.pieceStatus, self.inRate, self.outRate, self.storage, self.filePrio, self.requester)
+                self.connHandler.addTorrent(self.torrentIdent, self.torrent, self.pieceStatus, self.inRate, self.outRate, self.storage, self.filePrio, self.requester, self.superSeedingHandler)
                 
                 self.log.debug("Adding us to connection listener")
                 self.connListener.addTorrent(self.torrentIdent, self.torrent.getTorrentHash())
@@ -174,7 +178,7 @@ class Bt:
                 self.connBuilder.addTorrent(self.torrentIdent, self.torrent.getTorrentHash())
                 
                 self.log.debug("Adding us to choker")
-                self.choker.addTorrent(self.torrentIdent, self.storage.getStatus())
+                self.choker.addTorrent(self.torrentIdent, self.storage.getStatus(), self.superSeedingHandler)
                 
                 self.log.debug("Starting tracker requester")
                 self.trackerRequester.start()
@@ -275,6 +279,7 @@ class Bt:
         #torrent stats
         if wantedStats.get('torrent', False):
             stats.update(self.torrent.getStats())
+            stats['superSeeding'] = self.superSeedingHandler.isEnabled()
             
         self.lock.release()
         return stats
@@ -298,4 +303,14 @@ class Bt:
             #not running
             for fileId in fileIds:
                 self.filePrio.setFileWantedFlag(fileId, wanted)
+        self.lock.release()
+        
+        
+    def setSuperSeeding(self, enabled):
+        self.lock.acquire()
+        if not enabled == self.superSeedingHandler.isEnabled():
+            if self.started:
+                self.connHandler.setSuperSeeding(self.torrentIdent, enabled)
+            else:
+                self.superSeedingHandler.setEnabled(enabled)
         self.lock.release()
