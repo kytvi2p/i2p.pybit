@@ -26,34 +26,22 @@ from Utilities import logTraceback
 
 
 class Requester:
-    def __init__(self, config, ident, globalStatus, storage, torrent):
+    def __init__(self, config, ident, pieceStatus, storage, torrent):
         self.config = config
         self.storage = storage
         self.torrent = torrent
-        self.globalStatus = globalStatus
+        self.pieceStatus = pieceStatus
         self.ownStatus = storage.getStatus()
         
         #pieces
-        self.requestablePieces = defaultdict(set) #pieces which contain requestable parts
-        self.requestablePieces[-1] = self.ownStatus.getMissingPieces()
+        self.pieceStatus.setConcurrentRequestsCounter(self.ownStatus.getGotPieces(), -2)
+        self.pieceStatus.setConcurrentRequestsCounter(self.ownStatus.getMissingPieces(), -1)
         self.requestedPieces = {} #pieces which are (partly) requested
 
         #conns
         self.waitingConns = set() #connections which allow requests and are not filled
         
         self.log = logging.getLogger(ident+'-Requester')
-
-
-    ##internal functions - requestable pieces
-
-    def _removeRequestablePiece(self, pieceIndex, fromCount):
-        self.requestablePieces[fromCount].remove(pieceIndex)
-
-
-    def _moveRequestablePiece(self, pieceIndex, fromCount, toCount):
-        self.log.debug("Moving piece %i from %i to %i", pieceIndex, fromCount, toCount)
-        self.requestablePieces[fromCount].remove(pieceIndex)
-        self.requestablePieces[toCount].add(pieceIndex)
     
     
     ##internal functions - requesting
@@ -66,17 +54,16 @@ class Requester:
             if not pieceIndex in self.requestedPieces:
                 #first request for this piece
                 assert not endgame,'Endgame but still pieces left?!'
-                self._moveRequestablePiece(pieceIndex, -1, 0)
-                requestObj = Request(pieceIndex, self.torrent.getLengthOfPiece(pieceIndex), 4096)
+                requestObj = Request(self.pieceStatus, pieceIndex, self.torrent.getLengthOfPiece(pieceIndex), 4096)
                 self.requestedPieces[pieceIndex] = requestObj
-                requests, oldMinReqCount, newMinReqCount = requestObj.getRequests(neededRequests, conn)
+                requests = requestObj.getRequests(neededRequests, conn)
                 assert len(requests) > 0,str(pieceIndex)+': new request but nothing requestable?!'
                 
             else:
                 #a request obj exists
                 requestObj = self.requestedPieces[pieceIndex]
                 excludeRequests = conn.getInRequestsOfPiece(pieceIndex)
-                requests, oldMinReqCount, newMinReqCount = requestObj.getRequests(neededRequests, conn, excludeRequests, endgame)
+                requests = requestObj.getRequests(neededRequests, conn, excludeRequests, endgame)
 
             if len(requests) > 0:
                 #got some valid requests
@@ -87,10 +74,6 @@ class Requester:
                                       failFunc=self.failedRequest,
                                       failFuncArgs=[conn, pieceIndex, request[0], request[1]])
                     neededRequests -= 1
-
-                if oldMinReqCount != newMinReqCount:
-                    #need to move piece index
-                    self._moveRequestablePiece(pieceIndex, oldMinReqCount, newMinReqCount)
                     
                 if neededRequests == 0:
                     #finished
@@ -112,7 +95,7 @@ class Requester:
             
         else:
             #actually need to request something
-            connStatus = conn.getStatus()
+            allRequestablePieces = conn.getStatus().getGotPieces()
             
             #self.log.debug('available pieces:\n%s', str(sorted(connStatus.getGotPieces())))
             #self.log.debug('needed pieces:\n%s', str(sorted(self.requestablePieces[-1])))
@@ -120,29 +103,29 @@ class Requester:
             
             if not self.config.getBool('requester','strictAvailabilityPrio'):
                 #first try in progress pieces
-                requestablePieces = connStatus.getMatchingGotPieces(self.requestablePieces[0])               #determine which pieces are requestable from this conn
-                requestablePieces = self.globalStatus.sortPieceList(requestablePieces)                       #sort them by availability (rarer pieces first)
+                requestablePieces = self.pieceStatus.sortPieceList(allRequestablePieces, 0)                  #sort them by availability (rarer pieces first)
                 neededRequests = self._makeRequestsForPieces(conn, neededRequests, requestablePieces, False) #make requests
+                del requestablePieces
                 
                 if neededRequests > 0:
                     #now try unrequested pieces
-                    requestablePieces = connStatus.getMatchingGotPieces(self.requestablePieces[-1])              #determine which pieces are requestable from this conn
-                    requestablePieces = self.globalStatus.sortPieceList(requestablePieces)                       #sort them by availability (rarer pieces first)
+                    requestablePieces = self.pieceStatus.sortPieceList(allRequestablePieces, -1)                 #sort them by availability (rarer pieces first)
                     neededRequests = self._makeRequestsForPieces(conn, neededRequests, requestablePieces, False) #make requests
+                    del requestablePieces
                     
             else:
                 #try both at once
-                requestablePieces = (connStatus.getMatchingGotPieces(self.requestablePieces[0]), connStatus.getMatchingGotPieces(self.requestablePieces[-1])) #determine which pieces are requestable from this conn
-                requestablePieces = self.globalStatus.sortPieceList(*requestablePieces) #sort them by availability (rarer pieces first)
+                requestablePieces = self.pieceStatus.sortPieceList(allRequestablePieces, 0, -1)              #sort them by availability (rarer pieces first)
                 neededRequests = self._makeRequestsForPieces(conn, neededRequests, requestablePieces, False) #make requests
+                del requestablePieces
                 
-            if neededRequests > 0 and len(self.requestablePieces[-1])==0 and len(self.requestablePieces[0])==0:
+            if neededRequests > 0 and self.pieceStatus.inEndgame():
                 #still need to do more requests and we are in endgame mode
                 idx = 1
-                while neededRequests > 0 and idx <= len(self.requestablePieces) - 2:
-                    requestablePieces = connStatus.getMatchingGotPieces(self.requestablePieces[idx]) #determine which pieces are requestable from this conn
-                    requestablePieces = self.globalStatus.sortPieceList(requestablePieces)           #sort them by availability (rarer pieces first)
+                while neededRequests > 0 and idx <= self.pieceStatus.getMaxConcReqs():
+                    requestablePieces = self.pieceStatus.sortPieceList(allRequestablePieces, idx)               #sort them by availability (rarer pieces first)
                     neededRequests = self._makeRequestsForPieces(conn, neededRequests, requestablePieces, True) #make requests
+                    del requestablePieces
                     idx += 1
                     
             if neededRequests > 0:
@@ -155,12 +138,11 @@ class Requester:
     
     def _tryPieceWithWaitingConns(self, pieceIndex):
         #called if a whole piece failed, checks if some of the waiting conns may process this piece
-        endgame = len(self.requestablePieces[-1]) <= 1 and len(self.requestablePieces[0]) == 0 #if 1 then its this piece
-        
         for conn in self.waitingConns.copy():
             #try one conn
             if conn.getStatus().hasPiece(pieceIndex):
                 #we can request parts of this piece
+                endgame = self.pieceStatus.inEndgame()
                 neededRequests = conn.getMaxAmountOfInRequests() - conn.getAmountOfInRequests()
                 neededRequests = self._makeRequestsForPieces(conn, neededRequests, (pieceIndex,), endgame)
                 
@@ -208,22 +190,19 @@ class Requester:
         if not self._tryRequestWithWaitingConns(conn, pieceIndex, offset, length):
             #couldn't find a waiting conn for this request
             request = self.requestedPieces[pieceIndex]
-            oldMinReqCount, newMinReqCount = request.failedRequest(offset, conn)
-
-            if oldMinReqCount != newMinReqCount:
-                #need to move piece index
-                self._moveRequestablePiece(pieceIndex, oldMinReqCount, newMinReqCount)
+            request.failedRequest(offset, conn)
 
             if request.isEmpty():
                 #not a single in progress piece, remove request object
                 del self.requestedPieces[pieceIndex]
-                self._moveRequestablePiece(pieceIndex, 0, -1)
+                self.pieceStatus.setConcurrentRequestsCounter((pieceIndex,), -1)
     
-
+    
     def finishedRequest(self, data, conn, pieceIndex, offset):
         #finished a request
         assert not self.ownStatus.isSeed(), 'already seed but finished a request?!'
         finishedPiece = False
+        request = self.requestedPieces[pieceIndex]
         
         try:
             self.storage.storeData(pieceIndex, data, offset)
@@ -232,55 +211,40 @@ class Requester:
             self.log.error('Failed to store data of piece "%i", offset "%i":\n%s', pieceIndex, offset, logTraceback())
             success = False
         
-        request = self.requestedPieces[pieceIndex]
-        
         if not success:
             #failed to store data
             canceledConns = []
-            oldMinReqCount, newMinReqCount = request.failedRequest(offset, conn)
-            if oldMinReqCount != newMinReqCount:
-                #need to move piece index
-                self._moveRequestablePiece(pieceIndex, oldMinReqCount, newMinReqCount)
-        
+            request.failedRequest(offset, conn)
+            
         else:
             #stored data
-            canceledConns, oldMinReqCount, newMinReqCount = request.finishedRequest(offset, conn)
-
-            if oldMinReqCount != newMinReqCount:
-                #need to move piece index
-                self._moveRequestablePiece(pieceIndex, oldMinReqCount, newMinReqCount)
-
+            canceledConns = request.finishedRequest(offset, conn)
+            
             #check if request is finished
             if request.isFinished():
                 #finished piece
-                assert newMinReqCount == 0,'Finished but running requests?!'
                 del self.requestedPieces[pieceIndex]
                 
                 #get data
                 try:
                     pieceData = self.storage.getData(pieceIndex, 0, request.getPieceSize())
                 except:
-                    pieceData = None
+                    pieceData = ''
                     self.log.error('Failed to read data of piece "%i":\n%s', pieceIndex, logTraceback())
                 
                 #check data
-                if pieceData is None:
-                    validPiece = False
-                else:
-                    validPiece = sha(pieceData).digest() == self.torrent.getPieceHashByPieceIndex(pieceIndex)
-                
-                #act accordingly
-                if validPiece:
+                if sha(pieceData).digest() == self.torrent.getPieceHashByPieceIndex(pieceIndex):
                     #success
                     finishedPiece = True
                     self.ownStatus.gotPiece(pieceIndex)
-                    self._removeRequestablePiece(pieceIndex, newMinReqCount)
+                    self.pieceStatus.setConcurrentRequestsCounter((pieceIndex,), -2)
                 else:
                     #failure
-                    self.log.warn("Checksum error for retrieved piece %d!", pieceIndex)
-                    self._moveRequestablePiece(pieceIndex, 0, -1)
-                
-
+                    if not pieceData == '':
+                        self.log.warn("Checksum error for retrieved piece %d!", pieceIndex)
+                    self.pieceStatus.setConcurrentRequestsCounter((pieceIndex,), -1)
+                    self._tryPieceWithWaitingConns(pieceIndex)
+                    
         if self.ownStatus.isSeed():
             #clear waiting conns
             self.waitingConns.clear()
@@ -318,10 +282,9 @@ class Requester:
         
     def reset(self):
         #pieces
-        self.requestablePieces = defaultdict(set) #pieces which contain requestable parts
-        self.requestablePieces[-1] = self.ownStatus.getMissingPieces()
+        self.pieceStatus.setConcurrentRequestsCounter(self.ownStatus.getGotPieces(), -2)
+        self.pieceStatus.setConcurrentRequestsCounter(self.ownStatus.getMissingPieces(), -1)
         self.requestedPieces = {} #pieces which are (partly) requested
-
+        
         #conns
         self.waitingConns = set() #connections which allow requests and are not filled
-        

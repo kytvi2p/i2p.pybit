@@ -22,7 +22,7 @@ from collections import deque
 import logging
 import threading
 
-from Connection import Connection
+from Connection import BtConnection
 from ConnectionStatus import ConnectionStatus
 import Messages
 
@@ -67,9 +67,9 @@ class ConnectionHandler:
             self.peerPool.lostConnection(torrentIdent, remoteAddr)
         else:
             #really add this conn
-            conn = Connection(torrentIdent, self.connStatus, torrent['globalStatus'], self.scheduler,\
-                              connSock, direction, remotePeerId, remoteAddr,\
-                              torrent['inMeasure'], torrent['outMeasure'], self.outLimiter, self.inLimiter)
+            conn = BtConnection(torrentIdent, torrent['pieceStatus'], self.connStatus, remotePeerId,\
+                                self.scheduler, connSock, direction, remoteAddr,\
+                                torrent['inMeasure'], torrent['outMeasure'], self.outLimiter, self.inLimiter)
             connId = conn.fileno()
             self.conns[connId] = conn
             torrent['connIds'].add(connId)
@@ -101,6 +101,7 @@ class ConnectionHandler:
         conn.close()
         
         self.peerPool.lostConnection(torrentIdent, remoteAddr, keepInPool)
+        
     
     def _removeAllConnectionsOfTorrent(self, torrentIdent):
         for connId in self.torrents[torrentIdent]['connIds'].copy():
@@ -109,10 +110,10 @@ class ConnectionHandler:
     
     ##internal functions - torrents
     
-    def _addTorrent(self, torrentIdent, torrent, globalStatus, inMeasure, outMeasure, storage, requester):
+    def _addTorrent(self, torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, requester):
         assert torrentIdent not in self.torrents
         self.torrents[torrentIdent] = {'torrent':torrent,
-                                       'globalStatus':globalStatus,
+                                       'pieceStatus':pieceStatus,
                                        'inMeasure':inMeasure,
                                        'outMeasure':outMeasure,
                                        'storage':storage,
@@ -243,10 +244,6 @@ class ConnectionHandler:
             if not conn.hasThisInRequest(message[1][0], message[1][1], len(message[1][2])):
                 self.log.warning('Conn %i: Got data for piece %i with offset %i and length %i but thats not what we requested - probably just normal sync issues',
                                  conn.fileno(), message[1][0], message[1][1], len(message[1][2]))
-                            
-                if conn.localInterested():
-                    self._getTorrentInfo(conn)['requester'].makeRequests(conn)
-                            
             else:
                 shouldProcess = True
 
@@ -434,7 +431,7 @@ class ConnectionHandler:
                 for connId in send:
                     if connId in self.conns:
                         #conn still exists
-                        self.conns[connId].sendQueuedData() 
+                        self.conns[connId].sendEvent() 
             
             self.thread = None
             self.log.info("Stopping")
@@ -478,9 +475,9 @@ class ConnectionHandler:
     
     ##external functions - torrents
     
-    def addTorrent(self, torrentIdent, torrent, globalStatus, inMeasure, outMeasure, storage, requester):
+    def addTorrent(self, torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, requester):
         self.lock.acquire()
-        self._addTorrent(torrentIdent, torrent, globalStatus, inMeasure, outMeasure, storage, requester)
+        self._addTorrent(torrentIdent, torrent, pieceStatus, inMeasure, outMeasure, storage, requester)
         self.lock.release()
         
         

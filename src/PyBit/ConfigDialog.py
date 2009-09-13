@@ -261,13 +261,13 @@ class I2P_ConfigPanel(wx.Panel):
         tunnelOptionBoxItems.Add(label7a, 1, wx.EXPAND)
         
         self.spin2In = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
-        self.spin2In.SetRange(1, 3)
+        self.spin2In.SetRange(1, 5)
         self.spin2In.SetValue(self.config.getInt('i2p','samNumOfTunnelsIn'))
         self.spin2In.SetToolTipString('Number of inbound tunnels')
         tunnelOptionBoxItems.Add(self.spin2In, 1)
         
         self.spin2Out = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
-        self.spin2Out.SetRange(1, 3)
+        self.spin2Out.SetRange(1, 5)
         self.spin2Out.SetValue(self.config.getInt('i2p','samNumOfTunnelsOut'))
         self.spin2Out.SetToolTipString('Number of outbound tunnels')
         tunnelOptionBoxItems.Add(self.spin2Out, 1)
@@ -335,7 +335,8 @@ class I2P_ConfigPanel(wx.Panel):
         commentBox = wx.StaticBox(self, -1, "Note")
         commentBoxSizer = wx.StaticBoxSizer(commentBox, wx.VERTICAL)
         commentLabel = wx.StaticText(self, -1, 'Changing any of these settings will force a reconnect to the i2p router, closing all existing connections to other clients.\n\n'+\
-                                               'Both the display and session name must be unique for the used i2p router. If "TRANSIENT" (without the quotes) is used as a session name, the client will get a different i2p destination after each reconnect to the i2p router.')
+                                               'Both the display and session name must be unique for the used i2p router. If "TRANSIENT" (without the quotes) is used as a session name, the client will get a different i2p destination after each reconnect to the i2p router.\n\n'+\
+                                               'Be careful with changing the tunnel options. These are not only relevant for performance but also for anonymity!')
         commentBoxSizer.Add(commentLabel, 1, flag = wx.EXPAND | wx.ALL, border = 5)
 
 
@@ -519,14 +520,80 @@ class Requester_ConfigPanel(wx.Panel):
         
 
     def saveConfig(self, optionDict):
-       optionDict[('requester', 'strictAvailabilityPrio')] = self.check1.GetValue()
+        optionDict[('requester', 'strictAvailabilityPrio')] = self.check1.GetValue()
+
+
+
+
+class Storage_ConfigPanel(wx.Panel):
+    def __init__(self, config, parent, **kwargs):
+        wx.Panel.__init__(self, parent, **kwargs)
+        self.config = config
+        #stuff
+        vBox = wx.BoxSizer(wx.VERTICAL)
+
+        #build up boxes
+        storageBox = wx.StaticBox(self, -1, "Storage")
+        storageBoxSizer = wx.StaticBoxSizer(storageBox, wx.VERTICAL)
+        storageBoxItems = wx.FlexGridSizer(cols = 1, vgap = 3, hgap = 5)
+
+        commentBox = wx.StaticBox(self, -1, "Note")
+        commentBoxSizer = wx.StaticBoxSizer(commentBox, wx.VERTICAL)
+        
+        #build storage box        
+        storageRealItems = wx.FlexGridSizer(cols = 2, vgap = 3, hgap = 5)
+
+        #skip file checks
+        label1 = wx.StaticText(self, -1, "Skip file checks when possible:")
+        label1.SetToolTipString('Only check if the files of a torrent exist and have the right size when the torrent is run for the first time?')
+        storageRealItems.Add(label1, 1, wx.EXPAND)
+        
+        self.check1 = wx.CheckBox(self, -1)
+        self.check1.SetToolTipString('Only check if the files of a torrent exist and have the right size when the torrent is run for the first time?')
+        self.check1.SetValue(self.config.getBool('storage','skipFileCheck'))
+        storageRealItems.Add(self.check1, 1)
+        
+        #store progress info on disk
+        label2 = wx.StaticText(self, -1, "Store progress information on disk:")
+        label2.SetToolTipString('Store the information, which piece is already downloaded and which not, on disk?')
+        storageRealItems.Add(label2, 1, wx.EXPAND)
+        
+        self.check2 = wx.CheckBox(self, -1)
+        self.check2.SetToolTipString('Store the information, which piece is already downloaded and which not, on disk?')
+        self.check2.SetValue(self.config.getBool('storage','persistPieceStatus'))
+        storageRealItems.Add(self.check2, 1)
+        
+        #build up comment box 
+        commentLabel = wx.StaticText(self, -1, 'Storing progress information on disk is commonly called "fast resume", '+\
+                                               'meaning that with the help of the stored information torrents can be '+\
+                                               'started near instantly after program restarts, skipping the time and CPU '+\
+                                               'consuming hashing which is normally needed.')
+                                            
+        commentBoxSizer.Add(commentLabel, 1, flag = wx.EXPAND | wx.ALL, border = 5)
+
+        #build up storage box
+        storageBoxItems.Add(storageRealItems, 1, wx.EXPAND | wx.ALL, border = 5)
+        storageBoxItems.Add(commentBoxSizer, 1, wx.EXPAND | wx.ALL, border = 0)
+        storageBoxItems.AddGrowableCol(0, 1)
+        storageBoxItems.AddGrowableRow(1, 1)
+        storageBoxSizer.Add(storageBoxItems, 1, wx.EXPAND | wx.ALL, border = 0)
+
+        vBox.Add(storageBoxSizer, 1, wx.EXPAND | wx.ALL, border = 2)
+        #Line everythign up
+        self.SetSizer(vBox)
+        self.Layout()
+        
+
+    def saveConfig(self, optionDict):
+        optionDict[('storage', 'skipFileCheck')] = self.check1.GetValue()
+        optionDict[('storage', 'persistPieceStatus')] = self.check2.GetValue()
 
 
 
 
 class ConfigDialog(wx.Frame):
     def __init__(self, config, parent, **kwargs):
-        wx.Frame.__init__(self, parent, -1, 'Preferences', size=wx.Size(550, 475),\
+        wx.Frame.__init__(self, parent, -1, 'Preferences', size=wx.Size(550, 525),\
                           style = wx.DEFAULT_FRAME_STYLE, **kwargs)
         self.CentreOnScreen()
         self.config = config
@@ -542,6 +609,7 @@ class ConfigDialog(wx.Frame):
         n21 = self.tree.AppendItem(n20,  "I2P")
         n30 = self.tree.AppendItem(root, "Paths")
         n40 = self.tree.AppendItem(root, "Requester")
+        n50 = self.tree.AppendItem(root, "Storage")
         
         self.tree.Expand(n10)
         self.tree.Expand(n20)
@@ -571,7 +639,8 @@ class ConfigDialog(wx.Frame):
                              'Network':Network_ConfigPanel(self.config, self),\
                              'I2P':I2P_ConfigPanel(self.config, self),\
                              'Paths':Paths_ConfigPanel(self.config, self),\
-                             'Requester':Requester_ConfigPanel(self.config, self)}
+                             'Requester':Requester_ConfigPanel(self.config, self),\
+                             'Storage':Storage_ConfigPanel(self.config, self)}
         self.activePanel = 'Logging'
         
         for panelName in self.configPanels.keys():
@@ -612,34 +681,33 @@ class ConfigDialog(wx.Frame):
 if __name__ == "__main__":
     from Config import Config
     
-    #gui config options
-    configDefaults = {'logging':{'consoleLoglevel':('critical', 'str'),
+    #config options
+    configDefaults = {'i2p':{'samIp':('127.0.0.1', 'ip'),
+                             'samPort':(7656, 'port'),
+                             'samDisplayName':('PyBit', 'str'),
+                             'samSessionName':('PyBit', 'str'),
+                             'samZeroHopsIn':(False, 'bool'),
+                             'samZeroHopsOut':(False, 'bool'),
+                             'samNumOfTunnelsIn':(2, 'int'),
+                             'samNumOfTunnelsOut':(2, 'int'),
+                             'samNumOfBackupTunnelsIn':(0, 'int'),
+                             'samNumOfBackupTunnelsOut':(0, 'int'),
+                             'samTunnelLengthIn':(2, 'int'),
+                             'samTunnelLengthOut':(2, 'int'),
+                             'samTunnelLengthVarianceIn':(1, 'int'),
+                             'samTunnelLengthVarianceOut':(1, 'int')},
+                      'logging':{'consoleLoglevel':('critical', 'str'),
                                  'fileLoglevel':('info', 'str')},
+                      'network':{'downSpeedLimit':(102400, 'int'),
+                                 'upSpeedLimit':(25600, 'int')},
                       'paths':{'torrentFolder':('/tmp', 'str'),
-                               'downloadFolder':('/tmp', 'str')}}
-                    
-    #bt config options
-    btConfigDefaults = {'requester':{'strictAvailabilityPrio':(True, 'bool')},
-                        'network':{'downSpeedLimit':(102400, 'int'),
-                                   'upSpeedLimit':(10240, 'int')},
-                        'i2p':{'samIp':('127.0.0.1', 'ip'),
-                               'samPort':(7656, 'port'),
-                               'samDisplayName':('PyBit', 'str'),
-                               'samSessionName':('PyBit', 'str'),
-                               'samZeroHopsIn':(False, 'bool'),
-                               'samZeroHopsOut':(False, 'bool'),
-                               'samNumOfTunnelsIn':(2, 'int'),
-                               'samNumOfTunnelsOut':(2, 'int'),
-                               'samNumOfBackupTunnelsIn':(0, 'int'),
-                               'samNumOfBackupTunnelsOut':(0, 'int'),
-                               'samTunnelLengthIn':(2, 'int'),
-                               'samTunnelLengthOut':(2, 'int'),
-                               'samTunnelLengthVarianceIn':(1, 'int'),
-                               'samTunnelLengthVarianceOut':(1, 'int')}}
+                               'downloadFolder':('/tmp', 'str')},
+                      'requester':{'strictAvailabilityPrio':(True, 'bool')},
+                      'storage':{'persistPieceStatus':(True, 'bool'),
+                                 'skipFileCheck':(False, 'bool')}}
                                     
     #create config, add bt defaults
     config = Config('config.conf', configDefaults=configDefaults)
-    config.addDefaults(btConfigDefaults)
     
     #create GUI
     app = wx.App()

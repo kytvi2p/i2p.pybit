@@ -222,6 +222,7 @@ class EventScheduler:
                         #wait
                         self._wait(event['time'] - time())
             
+            self.log.debug('Stopping')
             self.thread = None
             self.runLock.release()
         except:

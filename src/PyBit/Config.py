@@ -345,7 +345,7 @@ class ConfigCallbackManager:
     def removeCallback(self, callbackId):
         callbackSet = self.callbackObjs[callbackId]
         
-        for section, name in callbackSet['option']:
+        for section, name in callbackSet['options']:
             self.optionsToCallbackId[section][name].remove(callbackId)
             if len(self.optionsToCallbackId[section][name])==0:
                 del self.optionsToCallbackId[section][name]

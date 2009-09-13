@@ -17,8 +17,14 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import logging
+
+from Utilities import logTraceback
+
+
 class Request:
-    def __init__(self, pieceIndex, pieceSize, requestSize):
+    def __init__(self, pieceStatus, pieceIndex, pieceSize, requestSize):
+        self.pieceStatus = pieceStatus
         self.pieceIndex = pieceIndex
         self.pieceSize = pieceSize
         self.requestSize = requestSize
@@ -35,7 +41,6 @@ class Request:
                                      'reqConns':set()}
             self.neededReqs.add(offset)
             self.curReqs.add(offset)
-            
             offset += requestSize
 
         self.requests[offset] = {'reqSize':pieceSize - offset,
@@ -44,9 +49,12 @@ class Request:
         self.neededReqs.add(offset)
         self.curReqs.add(offset)
         
+        #update piece status
+        self.pieceStatus.setConcurrentRequestsCounter((self.pieceIndex,), self.minReqCount)
+        
         
     def _refillCurReqs(self):
-        self.curReqs = set([offset for offset in self.neededReqs if self.requests[offset]['reqCount']==self.minReqCount])
+        self.curReqs = set((offset for offset in self.neededReqs if self.requests[offset]['reqCount'] == self.minReqCount))
         
 
     def _getRequest(self, conn, exclude):
@@ -78,13 +86,16 @@ class Request:
 
 
     def _changeRequestConn(self, reqOffset, oldConn, newConn):
-        funcs = self.requests[reqOffset]['reqConns']
-        funcs.remove(oldConn)
-        funcs.add(newConn)
+        conns = self.requests[reqOffset]['reqConns']
+        conns.remove(oldConn)
+        conns.add(newConn)
+        
 
     def _finishedRequest(self, reqOffset, conn):
         request = self.requests[reqOffset]
+        
         #call cancel functions
+        request['reqCount'] = 0
         request['reqConns'].remove(conn)
         for conn in request['reqConns']:
             conn.cancelInRequest(self.pieceIndex, reqOffset, request['reqSize'])
@@ -95,11 +106,11 @@ class Request:
         self.neededReqs.remove(reqOffset)
         if reqOffset in self.curReqs:
             self.curReqs.remove(reqOffset)
-            if len(self.neededReqs)==0:
+            if len(self.neededReqs) == 0:
                 #completely finished
-                self.minReqCount = 0
+                self.minReqCount = -1
             else:
-                while len(self.curReqs)==0:
+                while len(self.curReqs) == 0:
                     #refill
                     self.minReqCount += 1
                     self._refillCurReqs()
@@ -127,7 +138,6 @@ class Request:
         if exclude is None:
             exclude = set()
             
-        oldMinReqCount = self.minReqCount
         requests = []
         request = self._getRequest(conn, exclude)
         while request[0] is not None and len(requests) < num-1 and (endgame or self.minReqCount==0):
@@ -137,8 +147,9 @@ class Request:
             
         if request[0] is not None:
             requests.append(request)
-            
-        return requests, oldMinReqCount, self.minReqCount
+
+        self.pieceStatus.setConcurrentRequestsCounter((self.pieceIndex,), self.minReqCount)
+        return requests
 
 
     def changeRequestConn(self, offset, oldConn, newConn):
@@ -146,15 +157,16 @@ class Request:
     
 
     def failedRequest(self, offset, connId):
-        oldMinReqCount = self.minReqCount
         self._pushRequest(offset, connId)
-        return oldMinReqCount, self.minReqCount
+        self.pieceStatus.setConcurrentRequestsCounter((self.pieceIndex,), self.minReqCount)
+        self.pieceStatus.setFinishedRequestsCounter((self.pieceIndex,), len(self.requests) - len(self.neededReqs))
 
 
     def finishedRequest(self, offset, conn):
-        oldMinReqCount = self.minReqCount
         conns = self._finishedRequest(offset, conn)
-        return conns, oldMinReqCount, self.minReqCount
+        self.pieceStatus.setConcurrentRequestsCounter((self.pieceIndex,), self.minReqCount)
+        self.pieceStatus.setFinishedRequestsCounter((self.pieceIndex,), len(self.requests) - len(self.neededReqs))
+        return conns
 
 
     def getMinReqCount(self):

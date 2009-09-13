@@ -1,8 +1,9 @@
 """
 Copyright 2009  Blub
 
-Connection, a class which represents one connection to another bittorrent client and
-provides support for the basic functionalities.
+Connection, a class which provides basic functionalities (sending and receiving messages, aborting sends, ...) and
+BtConnection, a class which represents one connection to another bittorrent client and provides support for the
+basic functionalities (choking, requests, ...).
 This file is part of PyBit.
 
 PyBit is free software: you can redistribute it and/or modify
@@ -32,12 +33,12 @@ import threading
 
 
 class Connection:
-    def __init__(self, torrentIdent, connStatus, globalStatus, scheduler,\
-                 conn, direction, remotePeerId, remotePeerAddr,\
-                 inMeasureParent, outMeasureParent, outLimiter, inLimiter):
+    def __init__(self, connStatus, scheduler, conn, direction, remotePeerAddr,\
+                 inMeasureParent, outMeasureParent, outLimiter, inLimiter,\
+                 msgLenFunc, msgDecodeFunc, msgLengthFieldLen, maxMsgLength, keepaliveMsgFunc,\
+                 logIdent):
         
         self.sched = scheduler
-        self.torrentIdent = torrentIdent
         
         #connection
         self.conn = conn
@@ -45,11 +46,10 @@ class Connection:
         self.connectTime = time()
         self.direction = direction      
         self.inMsgCount = 0
+        self.closed = False
         
         #peer
         self.remotePeerAddr = remotePeerAddr
-        self.remotePeerId = remotePeerId
-        self.remoteClient = peerIdToClient(remotePeerId)
         
         #conn status
         self.connStatus = connStatus
@@ -65,33 +65,21 @@ class Connection:
         self.inRate = Measure(self.sched, 60, [inMeasureParent])
         self.outRate = Measure(self.sched, 60, [outMeasureParent])
         
-        #piece status
-        self.status = Status(globalStatus.getPieceAmount(), globalStatus)
-        
-        #choke and interest state, closed flag
-        self.localInterest = False
-        self.remoteInterest = False
-        self.localChoke = True
-        self.remoteChoke = True
-        self.closed = False
-        
         #data buffer
         self.inBuffer = []
         self.outBufferQueue = deque()
         self.outBufferMessages = {}
         self.outBufferMessageId = 0
         
-        #requests
-        self.outRequestsInFlight = 0
-        self.outRequestQueue = []
-        self.outRequestHandles = {}
-        self.maxInRequests = self._calculateMaxAmountOfInRequests()
-        self.inRequestQueue = []
-        self.inRequestInfo = {}
+        #messages
+        self.msgLenFunc = msgLenFunc
+        self.msgDecodeFunc = msgDecodeFunc
+        self.msgLengthFieldLen = msgLengthFieldLen
+        self.maxMsgLength = maxMsgLength
         
         #log
         #self.log = logging.getLogger(torrentIdent+'-Conn '+str(self.connIdent))
-        self.log = logging.getLogger(torrentIdent+'-Conn')
+        self.log = logging.getLogger(logIdent)
         
         #lock
         self.lock = threading.RLock()
@@ -99,9 +87,8 @@ class Connection:
         #events
         self.sendTimeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=300, funcArgs=['send timed out'])
         self.recvTimeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=300, funcArgs=['read timed out'])
-        self.keepaliveEvent = self.sched.scheduleEvent(self.send, timedelta=100, funcArgs=[Messages.generateKeepAlive()], repeatdelta=100)
-
-
+        self.keepaliveEvent = self.sched.scheduleEvent(self.send, timedelta=100, funcArgs=[keepaliveMsgFunc()], repeatdelta=100)
+        
         
     ##internal functions - socket
     
@@ -120,25 +107,26 @@ class Connection:
             data = ''.join(self.inBuffer)
             
             #process data    
-            msgLen = Messages.getMessageLength(data)
+            msgLen = self.msgLenFunc(data)
             while msgLen is not None:
-                msgLen += 4 #because of the length field
-                if msgLen > 140000:
+                msgLen += self.msgLengthFieldLen #because of the length field
+                if msgLen > self.maxMsgLength:
                     #way too large
-                    self._fail('message from peer exceeds size limit (140000 bytes)')
+                    self._fail('message from peer exceeds size limit (%i bytes)' % (self.maxMsgLength,))
                     msgLen = None
                     
                 elif len(data) < msgLen:
                     #incomplete message
                     msgLen = None
+                    
                 else:
                     #finished a message
-                    msg = Messages.decodeMessage(data[:msgLen])
+                    msg = self.msgDecodeFunc(data[:msgLen])
                     self._gotMessage(msg)
                     msgs.append((self.inMsgCount, msg))
                     self.inMsgCount += 1
                     data = data[msgLen:]
-                    msgLen = Messages.getMessageLength(data)
+                    msgLen = self.msgLenFunc(data)
                     
             if data == '':
                 #all processed
@@ -150,11 +138,7 @@ class Connection:
 
 
     def _gotMessage(self, msg):
-        if msg[0]==7:
-            #a piece part
-            if self._hasThisInRequest(msg[1][0], msg[1][1], len(msg[1][2])):
-                #a valid one even
-                self.inRate.updatePayloadCounter(len(msg[1][2]))
+        pass
         
     
     def _send(self):
@@ -201,20 +185,20 @@ class Connection:
                         if len(self.outBufferQueue) == 0:
                             #nothing to send anymore, notify
                             self.connStatus.wantsToSend(False, self.connIdent)
-                                
-                        if message[0] == 'outrequest':
-                            #was a outrequest
-                            self._outRequestGotSend()
                             
-
-    def _queueSend(self, data, dataType='normal'):
+                        if message[0] is not None:
+                            #execute
+                            message[0]()
+                            
+                            
+    def _queueSend(self, data, sendFinishedHandle=None):
         if len(self.outBufferQueue) == 0:
             #first queued item, notify about send interest
             self.connStatus.wantsToSend(True, self.connIdent)
         messageId = self.outBufferMessageId
         self.outBufferMessageId += 1
         self.outBufferQueue.append(messageId)
-        self.outBufferMessages[messageId] = [dataType, data, False]
+        self.outBufferMessages[messageId] = [sendFinishedHandle, data, False]
         return messageId
     
     
@@ -252,6 +236,177 @@ class Connection:
         self.outLimiter.removeUser(self.connIdent)
         self.inLimiter.removeUser(self.connIdent)
         
+        #clear buffers
+        self.inBuffer = []
+        self.outBufferQueue.clear()
+        self.outBufferMessages.clear()
+        self.outBufferMessageId = 0
+        
+        #remove events
+        self.sched.removeEvent(self.sendTimeoutEvent)
+        self.sched.removeEvent(self.recvTimeoutEvent)
+        self.sched.removeEvent(self.keepaliveEvent)
+        
+        
+    ##internal functions - other
+    
+    def _getPayloadRatio(self):
+        inPayload = self.inRate.getTotalTransferedPayloadBytes()
+        outPayload = self.outRate.getTotalTransferedPayloadBytes()
+        
+        if inPayload == 0 and outPayload == 0:
+            ratio = 1.0
+        elif inPayload == 0 and outPayload != 0:
+            ratio = 1.0/outPayload
+        elif inPayload != 0 and outPayload == 0:
+            ratio = inPayload/1.0
+        else:
+            ratio = inPayload / (outPayload * 1.0)
+        return ratio
+            
+            
+    ##external functions - socket
+    
+    def recv(self):
+        self.lock.acquire()
+        msgs = []
+        if not self.closed:
+            msgs = self._recv()
+        self.lock.release()
+        return msgs
+            
+    
+    def send(self, data):
+        self.lock.acquire()
+        if not self.closed:
+            self._queueSend(data)
+        self.lock.release()
+        
+        
+    def sendEvent(self):
+        self.lock.acquire()
+        if not self.closed:
+            self._send()
+        self.lock.release()
+    
+    
+    def fileno(self):
+        self.lock.acquire()
+        value = self.connIdent
+        self.lock.release()
+        return value
+    
+    
+    def timeout(self, reason):
+        self.lock.acquire()
+        if not self.closed:        
+            self._fail(reason)
+        self.lock.release()
+        
+        
+    def close(self):
+        self.lock.acquire()
+        if not self.closed:
+            self._close()
+        self.lock.release()
+    
+    
+    ##external functions - get info
+
+    def getInRate(self):
+        self.lock.acquire()
+        rate = self.inRate
+        self.lock.release()
+        return rate
+    
+
+    def getOutRate(self):
+        self.lock.acquire()
+        rate = self.outRate
+        self.lock.release()
+        return rate
+    
+    
+    def getPayloadRatio(self):
+        self.lock.acquire()
+        ratio = self._getPayloadRatio()
+        self.lock.release()
+        return ratio
+    
+        
+    def getRemotePeerAddr(self):
+        self.lock.acquire()
+        value = self.remotePeerAddr
+        self.lock.release()
+        return value
+    
+    
+    def getShortRemotePeerAddr(self):
+        self.lock.acquire()
+        value = self.remotePeerAddr[:10]
+        self.lock.release()
+        return value
+    
+    
+    
+    
+class BtConnection(Connection):
+    def __init__(self, torrentIdent, globalStatus, connStatus, remotePeerId, \
+                 scheduler, conn, direction, remotePeerAddr,\
+                 inMeasureParent, outMeasureParent, outLimiter, inLimiter):
+                 
+        Connection.__init__(self, connStatus, scheduler, conn, direction, remotePeerAddr,\
+                            inMeasureParent, outMeasureParent, outLimiter, inLimiter,\
+                            Messages.getMessageLength, Messages.decodeMessage, 4, 140000, Messages.generateKeepAlive,\
+                            torrentIdent+'-Conn')
+        
+        #ident
+        self.torrentIdent = torrentIdent
+        
+        #peer
+        self.remotePeerId = remotePeerId
+        self.remoteClient = peerIdToClient(remotePeerId)
+        
+        #piece status
+        self.status = Status(globalStatus.getPieceAmount(), globalStatus)
+        
+        #choke and interest state
+        self.localInterest = False
+        self.remoteInterest = False
+        self.localChoke = True
+        self.remoteChoke = True
+        
+        #requests
+        self.outRequestsInFlight = 0
+        self.outRequestQueue = []
+        self.outRequestHandles = {}
+        self.maxInRequests = self._calculateMaxAmountOfInRequests()
+        self.inRequestQueue = []
+        self.inRequestInfo = {}
+        
+        #events
+        self.requestTimeoutEvent = None
+        
+        
+    ##internal functions - socket
+    
+    def _gotMessage(self, msg):
+        if msg[0]==7:
+            #a piece part
+            if self._hasThisInRequest(msg[1][0], msg[1][1], len(msg[1][2])):
+                #a valid one even
+                assert self.requestTimeoutEvent is not None, 'got data for a request but no request timeout exists?!'
+                if self._amountOfInRequests() == 1:
+                    self.sched.removeEvent(self.requestTimeoutEvent)
+                    self.requestTimeoutEvent = None
+                else:
+                    self.sched.rescheduleEvent(self.requestTimeoutEvent, timedelta=120)
+                self.inRate.updatePayloadCounter(len(msg[1][2]))
+                
+                
+    def _close(self):
+        Connection._close(self)
+        
         #clear piece status
         self.status.clear()
         
@@ -261,27 +416,24 @@ class Connection:
         self.localChoke = True
         self.remoteChoke = True
         
-        #clear buffers
-        self.inBuffer = []
-        self.outBufferQueue.clear()
-        self.outBufferMessages.clear()
-        self.outBufferMessageId = 0
-        
         #remove requests
         self._delAllOutRequests()        
         self._delAllInRequests()
-        
-        #remove events
-        self.sched.removeEvent(self.sendTimeoutEvent)
-        self.sched.removeEvent(self.recvTimeoutEvent)
-        self.sched.removeEvent(self.keepaliveEvent)
         
     
     ##internal functions - inrequests
     
     def _addInRequest(self, pieceIndex, offset, length, callback=None, callbackArgs=[], callbackKw={}):
+        assert self.remoteChoke==False, 'requesting but choked?!'
+        
+        #add timeout
+        if self.requestTimeoutEvent is None:
+            self.requestTimeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=120, funcArgs=['request timed out'])
+            
+        #add request
         messageId = self._queueSend(Messages.generateRequest(pieceIndex, offset, length))
         inRequest = (pieceIndex, offset, length)
+        assert not inRequest in self.inRequestInfo, 'queueing an already queued request?!'
         self.inRequestQueue.append(inRequest)
         self.inRequestInfo[inRequest] = {'messageId':messageId,
                                          'func':callback,
@@ -297,39 +449,18 @@ class Connection:
     def _finishedInRequest(self, pieceIndex, offset, length):
         #try to find the request and delete it if found
         inRequest = (pieceIndex, offset, length)
-        if inRequest in self.inRequestInfo:
-            self.inRequestQueue.remove(inRequest)
-            del self.inRequestInfo[inRequest]
+        self.inRequestQueue.remove(inRequest)
+        del self.inRequestInfo[inRequest]
             
             
     def _cancelInRequest(self, pieceIndex, offset, length):
         #try to find the request, send cancel and then delete it
         inRequest = (pieceIndex, offset, length)
-        if inRequest in self.inRequestInfo:
-            self.inRequestQueue.remove(inRequest)
-            requestInfo = self.inRequestInfo.pop(inRequest)
-            if not self._abortSend(requestInfo['messageId']):
-                #the request was already send
-                self._queueSend(Messages.generateCancel(pieceIndex, offset, length))
-            
-            
-    def _cancelAllInRequests(self):
-        for request in list(self.inRequestQueue):
-            #abort request
-            self._cancelInRequest(request[0], request[1], request[2])
-        assert len(self.inRequestQueue) == 0 and len(self.inRequestInfo) == 0, 'All canceled but some left?! Queue length %i, info length %i' % (len(self.inRequestQueue), len(self.inRequestInfo))
-        
-        
-    def _delInRequest(self, pieceIndex, offset, length):
-        #try to find the request, call callback and then delete it
-        inRequest = (pieceIndex, offset, length)
-        requestInfo = self.inRequestInfo.pop(inRequest, None)
-        if requestInfo is not None:
-            self.inRequestQueue.remove(inRequest)
-            self._abortSend(requestInfo['messageId'])
-            if requestInfo['func'] is not None:
-                apply(requestInfo['func'], requestInfo['funcArgs'], requestInfo['funcKw'])
-            
+        self.inRequestQueue.remove(inRequest)
+        requestInfo = self.inRequestInfo.pop(inRequest)
+        if not self._abortSend(requestInfo['messageId']):
+            #the request was already send
+            self._queueSend(Messages.generateCancel(pieceIndex, offset, length))
         
         
     def _delAllInRequests(self):
@@ -343,7 +474,6 @@ class Connection:
         
 
     def _hasThisInRequest(self, pieceIndex, offset, length):
-        #try to find request
         return (pieceIndex, offset, length) in self.inRequestInfo
     
     
@@ -361,8 +491,8 @@ class Connection:
         elif self.remoteClient.startswith('I2PSnark'):
             limit = 32
         
-        elif self.remoteClient.startswith('PyBit'):
-            version = list([int(digit) for digit in self.remoteClient.split(' ')[1].split('.')])
+        elif self.remoteClient.startswith('PyBit') and ' ' in self.remoteClient:
+            version = tuple((int(digit) for digit in self.remoteClient.split(' ')[1].split('.')))
             if version < (0, 0, 9):
                 limit = 32
             else:
@@ -405,7 +535,7 @@ class Connection:
                 message = Messages.generatePiece(outRequest[0], outRequest[1], data)
                 self.outRate.updatePayloadCounter(outRequest[2])
                 self.outRequestsInFlight += 1
-                self._queueSend(message, 'outrequest')
+                self._queueSend(message, self._outRequestGotSend)
         
 
     def _outRequestGotSend(self):
@@ -489,71 +619,8 @@ class Connection:
             
         elif value==False and self.remoteChoke==True:
             self.remoteChoke = value
-    
-    
-    ##internal functions - other
-    
-    def _getPayloadRatio(self):
-        inPayload = self.inRate.getTotalTransferedPayloadBytes()
-        outPayload = self.outRate.getTotalTransferedPayloadBytes()
-        
-        if inPayload == 0 and outPayload == 0:
-            ratio = 1.0
-        elif inPayload == 0 and outPayload != 0:
-            ratio = 1.0/outPayload
-        elif inPayload != 0 and outPayload == 0:
-            ratio = inPayload/1.0
-        else:
-            ratio = inPayload / (outPayload * 1.0)
-        return ratio
             
             
-    ##external functions - socket
-    
-    def recv(self):
-        self.lock.acquire()
-        msgs = []
-        if not self.closed:
-            msgs = self._recv()
-        self.lock.release()
-        return msgs
-            
-    
-    def send(self, data):
-        self.lock.acquire()
-        if not self.closed:
-            self._queueSend(data)
-        self.lock.release()
-        
-        
-    def sendQueuedData(self):
-        self.lock.acquire()
-        if not self.closed:
-            self._send()
-        self.lock.release()
-    
-    
-    def fileno(self):
-        self.lock.acquire()
-        value = self.connIdent
-        self.lock.release()
-        return value
-    
-    
-    def timeout(self, reason):
-        self.lock.acquire()
-        if not self.closed:        
-            self._fail(reason)
-        self.lock.release()
-        
-        
-    def close(self):
-        self.lock.acquire()
-        if not self.closed:
-            self._close()
-        self.lock.release()
-    
-
     ##external functions - choking and interested
 
     def localChoked(self):
@@ -642,13 +709,6 @@ class Connection:
         if not self.closed:
             self._cancelInRequest(pieceIndex, offset, length)
         self.lock.release()
-            
-            
-    def cancelAllInRequests(self):
-        self.lock.acquire()
-        if not self.closed:
-            self._cancelAllInRequests()
-        self.lock.release()
         
 
     def hasThisInRequest(self, pieceIndex, offset, length):
@@ -700,35 +760,14 @@ class Connection:
         self.lock.release()
         return value
         
-
-    ##external functions - other
-
-    def getInRate(self):
-        self.lock.acquire()
-        rate = self.inRate
-        self.lock.release()
-        return rate
+        
+    ##external functions - get info
     
-
-    def getOutRate(self):
-        self.lock.acquire()
-        rate = self.outRate
-        self.lock.release()
-        return rate
-
-
     def getStatus(self):
         self.lock.acquire()
         obj = self.status
         self.lock.release()
         return obj
-    
-    
-    def getPayloadRatio(self):
-        self.lock.acquire()
-        ratio = self._getPayloadRatio()
-        self.lock.release()
-        return ratio
     
     
     def getScore(self):
@@ -737,22 +776,8 @@ class Connection:
         score = ratio + (ratio * self.inRate.getAveragePayloadRate())
         self.lock.release()
         return score
-    
         
-    def getRemotePeerAddr(self):
-        self.lock.acquire()
-        value = self.remotePeerAddr
-        self.lock.release()
-        return value
-    
-    
-    def getShortRemotePeerAddr(self):
-        self.lock.acquire()
-        value = self.remotePeerAddr[:10]
-        self.lock.release()
-        return value
-    
-    
+        
     def getRemotePeerId(self):
         self.lock.acquire()
         value = self.remotePeerId
@@ -763,13 +788,6 @@ class Connection:
     def getTorrentIdent(self):
         self.lock.acquire()
         value = self.torrentIdent
-        self.lock.release()
-        return value
-
-    
-    def getInMsgCount(self):
-        self.lock.acquire()
-        value = self.inMsgCount
         self.lock.release()
         return value
     

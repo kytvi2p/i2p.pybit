@@ -17,22 +17,30 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+##builtin
 from __future__ import with_statement
 from sha import sha
 import logging
 import os
 import threading
 
-from Status import Status
+##own
+from Status import PersistentStatus
 from Utilities import logTraceback
 
 
 class StorageException(Exception):
-    pass
-
+    def __init__(self, reason, *args):
+        self.reason = reason % args
+        Exception.__init__(self, self.reason)
+        
+        
+        
 
 class Storage:
-    def __init__(self, ident, torrent, pathprefix):
+    def __init__(self, config, btPersister, ident, torrent, pathprefix):
+        self.config = config
+        self.btPersister = btPersister
         self.torrent = torrent
         self.pathprefix = pathprefix
         
@@ -42,7 +50,8 @@ class Storage:
         self.loadLock = threading.Lock()
         
         #other
-        self.ownStatus = Status(self.torrent.getTotalAmountOfPieces())
+        shouldPersist = self.config.get('storage', 'persistPieceStatus')
+        self.ownStatus = PersistentStatus(btPersister, shouldPersist, self.torrent.getTotalAmountOfPieces())
         self.log = logging.getLogger(ident+'-Storage')
         self.lock = threading.Lock()
         
@@ -52,7 +61,7 @@ class Storage:
     def _getFilePath(self, filePath):
         realFilePath = os.path.normpath(os.path.join(self.pathprefix, filePath))
         if not realFilePath.startswith(self.pathprefix):
-            raise StorageException('Security violation: file "%s" is not inside base directory "%s" (original path: "%s")' % (realFilePath, self.pathprefix, os.path.join(self.pathprefix, filePath)))
+            raise StorageException('Security violation: file "%s" is not inside base directory "%s" (original path: "%s")', realFilePath, self.pathprefix, os.path.join(self.pathprefix, filePath))
         return realFilePath
     
         
@@ -61,6 +70,8 @@ class Storage:
     def _checkFile(self, binaryNull, filePath, wantedFileSize):
         #checks path to file and the size of the file itself,
         #may throw StorageException if the file path is not acceptable or a directory or file operation fails
+        created = False
+        modified = False
         
         #get file path
         realFilePath = self._getFilePath(filePath)
@@ -69,13 +80,19 @@ class Storage:
         dirPath = os.path.dirname(realFilePath)
         if not os.path.exists(dirPath):
             #directory doesn't exist, create it
+            created = True
             self.log.debug('Creating Directory "%s"', dirPath)
             try:
                 os.makedirs(dirPath)
             except OSError:
                 raise StorageException('Failed to create directory "%s":\n%s' % (dirPath, logTraceback()))
         
+        
         #check file
+        if not os.path.exists(realFilePath):
+            #file needs to be created
+            created = True
+            
         try:
             fl = open(realFilePath, 'ab')
             with fl:
@@ -84,6 +101,7 @@ class Storage:
                 currentFileSize = fl.tell()
                 if currentFileSize < wantedFileSize:
                     self.log.debug('File "%s" is %d bytes to short', realFilePath, wantedFileSize - currentFileSize)
+                    modified = True
                 else:
                     self.log.debug('File "%s" has the correct size', realFilePath)
                 
@@ -99,6 +117,24 @@ class Storage:
         except IOError:
             #something failed
             raise StorageException('Failure while processing file "%s":\n%s' % (realFilePath, logTraceback()))
+        
+        return created, modified
+        
+        
+    def _checkAllFiles(self):
+        anyModified = False
+        allCreated = True
+        
+        files = self.torrent.getFiles()
+        binaryNull = chr(0)*1048576 #one megabyte
+        place = 0
+        while (not self.shouldAbortLoad) and place < len(files):
+            fileSet = files[place]
+            created, modified = self._checkFile(binaryNull, fileSet['path'], fileSet['size'])
+            anyModified |= modified
+            allCreated &= created
+            place += 1
+        return allCreated, anyModified
             
             
     def _checkPieceAvailability(self):
@@ -118,31 +154,70 @@ class Storage:
                 self.ownStatus.setPieceStatus(piece, False)
                 self.log.debug('Piece Nr. %d is  not finished', piece)
             piece += 1
+            
+            
+    def _load(self, completionCallback):
+        with self.loadLock:
+            #inside lock
+            self.log.info('Loading files of torrent')
+            loadSuccess = False
+            
+            try:
+                #check files of torrent
+                if not self.config.get('storage', 'skipFileCheck'):
+                    #skipping is not allowed
+                    self.log.debug('Not allowed to skip file checking, starting check')
+                    allCreated, anyModified = self._checkAllFiles()
+                    self.btPersister.store('Storage-checkedFiles', True)
+                
+                elif not self.btPersister.get('Storage-checkedFiles', False):
+                    #skipping would be allowed but we didn't check even once up to now
+                    self.log.debug('Files were not checked up to now, starting check')
+                    allCreated, anyModified = self._checkAllFiles()
+                    self.btPersister.store('Storage-checkedFiles', True)
+                    
+                else:
+                    #skipping is allowed and files were already checked
+                    self.log.debug('Skipping file checking')
+                    allCreated = False
+                    anyModified = False
+                
+                
+                #check which pieces are already finished
+                if allCreated:
+                    #no need to check piece availability, all files were just written to disk
+                    self.log.debug('Skipping hashing, files were just created')
+                    
+                else:
+                    #possibly need to check, some files already existed
+                    if self.ownStatus.loadPersistedData():
+                        #persisted status info existed
+                        self.log.debug('Skipping hashing, managed to load persisted status data')
+                    else:
+                        #there is no persisted data
+                        self.log.debug('Checking which pieces are already finished')
+                        self._checkPieceAvailability()
+                    
+                    
+                #check if loading wasn't aborted
+                if not self.shouldAbortLoad:
+                    self.ownStatus.persist()
+                    loadSuccess = True
+                    self.loaded = True
+                    
+            except StorageException, se:
+                self.log.error('Failure during load:\n%s', logTraceback())
+            
+            if not self.shouldAbortLoad:
+                completionCallback(loadSuccess)
     
     
     ##external functions - loading - need self.loadLock
     
-    def load(self):
-        with self.loadLock:
-            #inside lock
-            self.log.info('Loading files of torrent')
-            
-            #check files of torrent
-            files = self.torrent.getFiles()
-            binaryNull = chr(0)*1048576 #one megabyte
-            place = 0
-            while (not self.shouldAbortLoad) and place < len(files):
-                fileSet = files[place]
-                self._checkFile(binaryNull, fileSet['path'], fileSet['size'])
-                place += 1
-            
-            #check which pieces are already finished
-            self._checkPieceAvailability()
-            
-            if not self.shouldAbortLoad:
-                #loading finished
-                self.loaded = True
-            
+    def load(self, completionCallback):
+        thread = threading.Thread(target=self._load, args=(completionCallback,))
+        thread.start()
+        
     
     def abortLoad(self):
         #abort loading
@@ -217,9 +292,9 @@ class Storage:
                 except IOError:
                     #file operation failed
                     raise StorageException('Failure while trying to write to file "%s":\n%s' % (filePath, logTraceback()))
-
-
-    ##external functions - stats
+                
+                
+    ##external functions - stats - no locking
 
     def getAmountOfMissingBytes(self):
         #not locked, nothing needs that
@@ -240,6 +315,7 @@ class Storage:
 
 
     def getStatus(self):
+        #no locking, status class already contains locking
         return self.ownStatus
     
     

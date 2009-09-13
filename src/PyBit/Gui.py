@@ -34,50 +34,18 @@ from StatusBar import StatusBar
 from StatusPanel import StatusPanel
 
 ##own - other
-from Bittorrent.MultiBt import MultiBt, MultiBtException, VERSION
-from Config import Config
-from Logger import LogController
-from ObjectPersister import ThreadedObjectPersister
+from Bittorrent.MultiBt import MultiBtException, VERSION
 from Utilities import logTraceback, encodeStrForPrinting, showWarningMessage, showErrorMessage, FunctionCallConverter
 
 
 class Gui(wx.Frame):
-    def __init__(self, progPath):
+    def __init__(self, progPath, config, torrentHandler):
         self.progPath = progPath
+        self.config = config
+        self.torrentHandler = torrentHandler
+        
+        self.log = logging.getLogger("Gui")
         self.stopFlag = False
-        
-        #create log controller
-        self.logController = LogController((('consoleLog', 'consoleLog', {'logLevel':'critical',
-                                                                          'logFormat':'%(asctime)s %(levelname)-8s %(name)-22s - %(message)s'}),
-                                            ('fileLog'   , 'fileLog'   , {'filename':os.path.join(progPath, u'Logs', u'log'),
-                                                                          'logLevel':'info',
-                                                                          'logFormat':'%(asctime)s %(levelname)-8s %(name)-22s - %(message)s',
-                                                                          'fileMaxBytes':10485760,
-                                                                          'fileMaxRotatedCount':4})))
-                            
-        #create config, set defaults
-        configDefaults = {'logging':{'consoleLoglevel':('critical', 'str'),
-                                     'fileLoglevel':('info', 'str')},
-                          'paths'  :{'torrentFolder':(progPath, 'str'),
-                                     'downloadFolder':(progPath, 'str')}}
-        self.config = Config(os.path.join(progPath, u'config.conf'), configDefaults=configDefaults)
-        
-        #set real log options and add callbacks
-        self.logController.changeHandlerLoglevel('consoleLog', self.config.get('logging','consoleLoglevel'))
-        self.logController.changeHandlerLoglevel('fileLog', self.config.get('logging','fileLoglevel'))
-        self.config.addCallback((('logging', 'consoleLoglevel'),), self.logController.changeHandlerLoglevel, funcArgs=['consoleLog'], valueArgPlace=1)
-        self.config.addCallback((('logging', 'fileLoglevel'),), self.logController.changeHandlerLoglevel, funcArgs=['fileLog'], valueArgPlace=1)
-        
-        #get logger
-        self.log = logging.getLogger('Gui')
-        
-        #create persister
-        self.log.info("Creating object persister instance")
-        self.persister = ThreadedObjectPersister(os.path.join(progPath, u'state.db'), log='ObjectPersister')
-        self.persister.start()
-        
-        #creat torrent handler
-        self.torrentHandler = MultiBt(self.config, self.persister, self.progPath)
         
         
         ##Gui Stuff
@@ -98,9 +66,9 @@ class Gui(wx.Frame):
         torrents.Append(111, 'Add from File', 'Opens a torrent from your harddisk')
         #torrents.Append(112, 'Add from URL', 'Opens a torrent from a http url')
         torrents.AppendSeparator()
-        torrents.Append(113, 'Start selected', 'Starts all selected torrents which are currently stopped')
-        torrents.Append(114, 'Stop selected', 'Stops all selected torrents which are currently running')
-        torrents.Append(115, 'Remove selected', 'Removes all selected torrents which are already stopped')
+        torrents.Append(113, 'Start selected', 'Starts all selected torrents')
+        torrents.Append(114, 'Stop selected', 'Stops all selected torrents')
+        torrents.Append(115, 'Remove selected', 'Removes all selected torrents')
         torrents.AppendSeparator()
         torrents.Append(116, 'Move selected up', 'Moves all selected torrents one row up')
         torrents.Append(117, 'Move selected down', 'Moves all selected torrents one row down')
@@ -187,15 +155,7 @@ class Gui(wx.Frame):
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.OnTimer, self.timer)
         self.timer.Start(1000)
-        
-        
-    def __del__(self):
-        try:
-            self.torrentHandler.stop()
-            self.persister.stop()
-            self.logController.shutdown()
-        except:
-            logTraceback()
+
 
     def OnTimer(self, event):
         try:
@@ -258,9 +218,6 @@ class Gui(wx.Frame):
             del saveDiag
         del diag
 
-##    def OnAddFromURL(self, event):
-##        pass
-
 
     def OnConfig(self, event):
         ConfigDialog(self.config, self)
@@ -285,9 +242,9 @@ class Gui(wx.Frame):
 
 
 
-def showGui(path):
+def showGui(path, config, torrentHandler):
     app = wx.App()
-    test = Gui(path)
+    test = Gui(path, config, torrentHandler)
     try:
         app.MainLoop()
     except:

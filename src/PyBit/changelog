@@ -1,3 +1,16 @@
+0.1.0 - 17.03.2009
+-----------------------
+- splitted "Bittorrent.Connection" up into the class "Connection" (basic socket stuff) and "BtConnection" (bittorrent stuff)
+- improved "Bittorrent.BtConnection": added request timeout (120 seconds for one request, thats more then plenty!)
+- improved "ObjectPersister": added support for removing keys and getting a list of all keys or all matching a certain regex (needed for managing per-torrent persisted data); ensured that all queued jobs get processed before stop() returns
+- added "Bittorrent.BtObjectPersister": handles loading, storing and so on of per-torrent data using an instance of "ObjectPersister" internally
+- added "Bittorrent.PersistentStatus": same functionality as "Status" but in addition the information about piece availability can be persisted using "BtObjectPersister" and loaded again (needed for fast-resume)
+- added support for fast-resuming and skipping file checks (added the above mentioned classes for that, changed things in "Bittorrent.MultiBt", "Bittorrent.Bt", "Bittorrent.Storage" and elsewhere)
+- moved the startup of global classes (classes with only one instance, like "LogController" or "ThreadedObjectPersister") out of the GUI into "PyBit.py"
+- many changes to piece status keeping and to the code which decides which piece should be requested (added class "Bittorrent.PieceStatus", removed "Bittorrent.GlobalStatus", changes to "Bittorrent.Requester", "Bittorrent.Request", ...)
+- a few small bugfixes, a few small performance tweaks
+
+
 0.0.10 - 06.03.2009
 -----------------------
 Blub:

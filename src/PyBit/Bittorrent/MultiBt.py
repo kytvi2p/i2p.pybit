@@ -21,6 +21,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 from __future__ import with_statement
 import logging
 import os
+import re
 import threading
 
 ##own classes
@@ -42,7 +43,7 @@ from PySamLib.I2PSocketManager import I2PSocketManager
 #DEBUG
 #import gc
 
-VERSION = '0.0.10'
+VERSION = '0.1.0'
 
 
 class MultiBtException(Exception):
@@ -64,26 +65,6 @@ class MultiBt:
         
         #log
         self.log = logging.getLogger('MultiBt')
-        
-        #set config defaults
-        configDefaults = {'requester':{'strictAvailabilityPrio':(True, 'bool')},
-                          'network':{'downSpeedLimit':(102400, 'int'),
-                                     'upSpeedLimit':(10240, 'int')},
-                          'i2p':{'samIp':('127.0.0.1', 'ip'),
-                                 'samPort':(7656, 'port'),
-                                 'samDisplayName':('PyBit', 'str'),
-                                 'samSessionName':('PyBit', 'str'),
-                                 'samZeroHopsIn':(False, 'bool'),
-                                 'samZeroHopsOut':(False, 'bool'),
-                                 'samNumOfTunnelsIn':(2, 'int'),
-                                 'samNumOfTunnelsOut':(2, 'int'),
-                                 'samNumOfBackupTunnelsIn':(0, 'int'),
-                                 'samNumOfBackupTunnelsOut':(0, 'int'),
-                                 'samTunnelLengthIn':(2, 'int'),
-                                 'samTunnelLengthOut':(2, 'int'),
-                                 'samTunnelLengthVarianceIn':(1, 'int'),
-                                 'samTunnelLengthVarianceOut':(1, 'int')}}
-        self.config.addDefaults(configDefaults)
         
         #generate peerid
         versionDigits = VERSION.split('.')
@@ -183,8 +164,8 @@ class MultiBt:
             obj = {'queue':obj[0],
                    'version':obj[1]}
                 
-        currentVersion = VERSION.split('.')
-        objVersion = obj['version'].split('.')
+        currentVersion = tuple((int(digit) for digit in VERSION.split('.')))
+        objVersion = tuple((int(digit) for digit in obj['version'].split('.')))
         
         if objVersion < currentVersion:
             #need to do some updates
@@ -240,7 +221,10 @@ class MultiBt:
         #load old queue from db and restore bt jobs
         obj = self.persister.get('MultiBt-torrentQueue', ({'queue':[], 'version':VERSION}))
         obj = self._updateStoredObj(obj)
+        
+        #add torrents to queue
         oldQueue = obj['queue']
+        activeTorrentIds = set()
         while len(oldQueue) > 0:
             #not empty, process next queue element
             queueElement = oldQueue[0]
@@ -251,10 +235,29 @@ class MultiBt:
                 self.torrentId = queueElement['id'] + 1
             
             #add torrent to queue
-            failureMsg = self._addTorrent(queueElement['id'], queueElement['dataPath'])
-            if failureMsg is not None:
+            failureMsg = self._addTorrent(queueElement['id'], queueElement['dataPath'], False)
+            if failureMsg is None:
+                #success
+                activeTorrentIds.add(queueElement['id'])
+            else:
                 #failed to add
                 self.log.warn("Failed to add torrent %i, reason: %s", queueElement['id'], failureMsg)
+                
+        #save new queue to disk
+        self._storeState()
+                
+        #cleanup persister
+        btKeyMatcher = re.compile('^Bt([0-9]+)-')
+        btKeys = self.persister.keys('^Bt[0-9]+-')
+        for key in btKeys:
+            matchObj = btKeyMatcher.match(key)
+            assert matchObj is not None, 'passed key regex but still not valid: "%s"' % (key,)
+            torrentId = int(matchObj.group(1))
+            if torrentId in activeTorrentIds:
+                self.log.debug('Key "%s" belongs to an active torrent, not removing it', key)
+            else:
+                self.log.info('Key "%s" belongs to an inactive torrent, removing it', key)
+                self.persister.remove(key, strict=False)
                     
                     
     def _moveUp(self, torrentIndex):
@@ -307,7 +310,7 @@ class MultiBt:
         return failureMsg, torrent
     
 
-    def _addTorrent(self, torrentId, torrentDataPath):
+    def _addTorrent(self, torrentId, torrentDataPath, storeState=True):
         failureMsg, torrent = self._getTorrentObj(torrentId)
         if failureMsg is None:
             #valid torrent data
@@ -320,7 +323,7 @@ class MultiBt:
                 self.torrentHashes.add(infohash)
                 
                 self.log.debug('Torrent %i: creating bt class', torrentId)
-                btObj = Bt(self.config, self.eventSched, self.httpRequester, self.ownAddrWatcher.getOwnAddr, self.peerId, self.inRate, self.outRate,
+                btObj = Bt(self.config, self.eventSched, self.httpRequester, self.ownAddrWatcher.getOwnAddr, self.peerId, self.persister, self.inRate, self.outRate,
                            self.peerPool, self.connBuilder, self.connListener, self.connHandler, torrent, 'Bt'+str(torrentId), torrentDataPath)
                 
                 #add to queue
@@ -332,9 +335,10 @@ class MultiBt:
                                           'state':'stopped',
                                           'dataPath':torrentDataPath})
                 
-                #save updated queue to disk
-                self.log.debug('Torrent %i: saving queue to disk', torrentId)
-                self._storeState()
+                if storeState:
+                    #save updated queue to disk
+                    self.log.debug('Torrent %i: saving queue to disk', torrentId)
+                    self._storeState()
                 
         if failureMsg is not None:
             self.log.info("Failed to add torrent, reason: %s", failureMsg)
@@ -354,7 +358,7 @@ class MultiBt:
         
     def _stopTorrent(self, torrentId):
         #really stop torrent
-        self.torrentInfo[torrentId]['obj'].pause()
+        self.torrentInfo[torrentId]['obj'].stop()
         
         #adapt queue
         queueIndex = self._getQueueIndex(torrentId)
@@ -364,7 +368,7 @@ class MultiBt:
         
     def _removeTorrent(self, torrentId):
         #stop torrent
-        self.torrentInfo[torrentId]['obj'].stop()
+        self.torrentInfo[torrentId]['obj'].remove()
         
         #remove from hash set
         self.torrentHashes.remove(self.torrentInfo[torrentId]['hash'])
@@ -522,7 +526,7 @@ class MultiBt:
         #stop all bt jobs without modifying the queue
         self.log.info("Stopping all bt jobs")
         for btInfo in self.torrentInfo.itervalues():
-            btInfo['obj'].stop()
+            btInfo['obj'].shutdown()
         
         #stop http requester
         self.log.info("Stopping http requester")

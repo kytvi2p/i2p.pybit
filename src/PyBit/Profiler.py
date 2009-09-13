@@ -7,38 +7,47 @@ class Profiler:
     def __init__(self):
         self.callStack = defaultdict(deque)
         self.funcStats = defaultdict(lambda: [0, 0])
+        self.active = False
         self.lock = threading.Lock()
         
         
     def start(self):
         sys.setprofile(self.event)
         threading.setprofile(self.event)
+        self.active = True
         
         
     def stop(self):
         threading.setprofile(None)
         sys.setprofile(None)
+        self.active = False
     
     
     def event(self, frame, event, arg):
+        currentTime = time()
         code = frame.f_code
         if (not code.co_filename.endswith('threading.py')) or code.co_name == 'acquire' or code.co_name == 'release':
             func = (code.co_filename, code.co_firstlineno, code.co_name)
             thread = threading.currentThread().getName()
-            if thread not in self.callStack:
-                sys.setprofile(self.event)
-            
-            if event == 'call':
-                #entered func
-                self.callStack[thread].append((time(), func))
+            if not self.active:
+                #no longer active, lets try to teach that to the thread ;)
+                sys.setprofile(None)
+            else:
+                #still active
+                if thread not in self.callStack:
+                    sys.setprofile(self.event)
                 
-            elif event == 'return':
-                #returned from func
-                if len(self.callStack[thread]) > 0:
-                    startTime, oldFunc = self.callStack[thread].pop()
-                    assert oldFunc == func
-                    self.funcStats[func][0] += time() - startTime
-                    self.funcStats[func][1] += 1
+                if event == 'call':
+                    #entered func
+                    self.callStack[thread].append((time(), func))
+                    
+                elif event == 'return':
+                    #returned from func
+                    if len(self.callStack[thread]) > 0:
+                        startTime, oldFunc = self.callStack[thread].pop()
+                        assert oldFunc == func
+                        self.funcStats[func][0] += currentTime - startTime
+                        self.funcStats[func][1] += 1
         
     
     def printStats(self):

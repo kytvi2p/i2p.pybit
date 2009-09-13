@@ -20,8 +20,9 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 import logging
 import threading
 
+from BtObjectPersister import BtObjectPersister
 from Choker import Choker
-from GlobalStatus import GlobalStatus
+from PieceStatus import PieceStatus
 from Measure import Measure
 from Requester import Requester
 from Storage import Storage, StorageException
@@ -30,7 +31,7 @@ from Utilities import logTraceback
 
 
 class Bt:
-    def __init__(self, config, eventSched, httpRequester, ownAddrFunc, peerId, pInMeasure, pOutMeasure,
+    def __init__(self, config, eventSched, httpRequester, ownAddrFunc, peerId, persister, pInMeasure, pOutMeasure,
                  peerPool, connBuilder, connListener, connHandler, torrent, torrentIdent, torrentDataPath):
         ##global stuff
         self.config = config
@@ -44,6 +45,9 @@ class Bt:
         self.torrent = torrent
         self.torrentIdent = torrentIdent
         
+        self.log.debug("Creating object persister")
+        self.btPersister = BtObjectPersister(persister, torrentIdent)
+        
         self.log.debug("Creating measure classes")
         self.inRate = Measure(eventSched, 60, [pInMeasure])
         self.outRate = Measure(eventSched, 60, [pOutMeasure])
@@ -51,73 +55,70 @@ class Bt:
         self.outRate.stop()
         
         self.log.debug("Creating storage class")
-        self.storage = Storage(torrentIdent, self.torrent, torrentDataPath)
+        self.storage = Storage(self.config, self.btPersister, torrentIdent, self.torrent, torrentDataPath)
         
         self.log.debug("Creating global status class")
-        self.globalStatus = GlobalStatus(self.torrent.getTotalAmountOfPieces())
+        self.pieceStatus = PieceStatus(self.torrent.getTotalAmountOfPieces())
+        
         self.log.debug("Creating requester class")
-        self.requester = Requester(self.config, self.torrentIdent, self.globalStatus, self.storage, self.torrent)
+        self.requester = Requester(self.config, self.torrentIdent, self.pieceStatus, self.storage, self.torrent)
+        
         self.log.debug("Creating tracker requester class")
         self.trackerRequester = TrackerRequester(eventSched, peerId, self.peerPool, ownAddrFunc, httpRequester,
                                                  self.inRate, self.outRate, self.storage, self.torrent, self.torrentIdent)
+                                                
         self.log.debug("Creating choker class")
         self.choker = Choker(self.torrentIdent, eventSched, self.connHandler, self.storage.getStatus())
         
-        ##callbacks
-        self._initCallbacks()
+        ##calbacks
+        self.log.debug("Adding callbacks")
+        self._addCallbacks()
         
         ##status
         self.started = False
-        self.paused = False
-        self.stopped = True
+        self.paused = True
         
-        ##locks
-        self.loadLock = threading.Lock()
+        ##lock
         self.lock = threading.Lock()
         
     ##internal functions - callbacks
     
-    def _initCallbacks(self):
-        pass
-    
-    
     def _addCallbacks(self):
-        pass
+        ownStatus = self.storage.getStatus()
+        self.persistentStatusCallback = self.config.addCallback((('storage', 'persistPieceStatus'),), ownStatus.enablePersisting)
     
         
     def _removeCallbacks(self):
-       pass
+        self.config.removeCallback(self.persistentStatusCallback)
             
             
     ##internal functions - start/pause/stop - common
             
-    def _halt(self, stop):
-        if self.paused and stop:
-            #stopping and already paused, only need to stop the tracker requester and clear some infos
+    def _halt(self, targetState):
+        if self.paused and targetState in ('shutdown', 'remove'):
+            #stopping and already paused, only need to stop the tracker requester and the callbacks
+            self.log.debug("Removing callbacks")
+            self._removeCallbacks()
+                
             self.log.debug("Stopping tracker requester")
             self.trackerRequester.stop()
-            
-            self.log.debug("Removing all infos related to use from connection pool")
-            self.peerPool.clear(self.torrentIdent)
         
         else:
             #either pausing or stopping and still running or loading
             self.log.debug("Aborting storage loading just in case")
             self.storage.abortLoad()
-            self.loadLock.acquire()
-            self.loadLock.release()
             
             if self.started:
                 #were already running
                 self.started = False
                 
-                self.log.debug("Removing callbacks")
-                self._removeCallbacks()
-                
-                if not stop:
+                if targetState == 'stop':
                     self.log.debug("Pausing tracker requester")
                     self.trackerRequester.pause()
                 else:
+                    self.log.debug("Removing callbacks")
+                    self._removeCallbacks()
+                
                     self.log.debug("Stopping tracker requester")
                     self.trackerRequester.stop()
                 
@@ -137,40 +138,31 @@ class Bt:
                 self.inRate.stop()
                 self.outRate.stop()
                 
-                if stop:
-                    self.log.debug("Removing all infos related to us from connection pool")
-                    self.peerPool.clear(self.torrentIdent)
+        #shutdown/removal specific tasks which need to be done regardless of current status
+        if targetState in ('shutdown', 'remove'):
+            self.log.debug("Removing all infos related to us from connection pool")
+            self.peerPool.clear(self.torrentIdent)
+            
+        if targetState == 'remove':
+            self.log.debug('Removing all persisted objects of this torrent')
+            self.btPersister.removeAll()
                 
     
     ##internal functions - start/pause/stop - specific
     
-    def _start(self):
-        self.loadLock.acquire()
+    def _start(self, loadSuccess):
         try:
-            loaded = False
-            if self.storage.isLoaded():
-                loaded = True
-                self.log.debug("Storage already loaded, skipping hashing")
-            else:
-                try:
-                    self.log.debug("Loading ...")
-                    self.storage.load()
-                    self.log.debug("Reseting requester")
-                    self.requester.reset()
-                    loaded = True
+            if loadSuccess:
+                #loading was successful, add to handlers
+                self.log.debug("Reseting requester")
+                self.requester.reset()
                     
-                except StorageException:
-                    #failure while loading
-                    self.log.error("Loading failed:\n%s", logTraceback())
-                    
-            if loaded:
-                #finished loading, add to handlers
                 self.log.debug("Starting transfer measurement")
                 self.inRate.start()
                 self.outRate.start()
                 
                 self.log.debug("Adding us to connection handler")
-                self.connHandler.addTorrent(self.torrentIdent, self.torrent, self.globalStatus, self.inRate, self.outRate, self.storage, self.requester)
+                self.connHandler.addTorrent(self.torrentIdent, self.torrent, self.pieceStatus, self.inRate, self.outRate, self.storage, self.requester)
                 
                 self.log.debug("Adding us to connection listener")
                 self.connListener.addTorrent(self.torrentIdent, self.torrent.getTorrentHash())
@@ -184,45 +176,54 @@ class Bt:
                 self.log.debug("Starting tracker requester")
                 self.trackerRequester.start()
                 
-                self.log.debug("Adding callbacks")
-                self._addCallbacks()
-                
                 self.started = True
                 
         except:
             #something failed - hard
             self.log.error("Error in load function:\n%s", logTraceback())
-            
-        self.loadLock.release()
                 
                 
-    ##external functions - start/pause/stop
+    ##external functions - state
 
     def start(self):
+        #called when torrent is started
         self.lock.acquire()
-        if self.paused or self.stopped:
+        if self.paused:
             self.paused = False
-            self.stopped = False
-            thread = threading.Thread(target=self._start)
-            thread.start()
-        self.lock.release()
-        
-    def pause(self):
-        self.lock.acquire()
-        if not (self.paused or self.stopped):
-            self._halt(False)
-            self.paused = True
-            self.stopped = False
+            if self.storage.isLoaded():
+                self.log.debug("Storage already loaded, skipping hashing")
+                self._start(True)
+            else:
+                self.storage.load(self._start)
         self.lock.release()
         
         
     def stop(self):
+        #called when torrent is stopped
         self.lock.acquire()
-        if not self.stopped:
-            self._halt(True)
-            self.paused = False
-            self.stopped = True
+        if not self.paused:
+            self._halt('stop')
+            self.paused = True
         self.lock.release()
+        
+        
+    def shutdown(self):
+        #called on shutdown
+        self.lock.acquire()
+        self._halt('shutdown')
+        self.paused = False
+        self.lock.release()
+        
+        
+    def remove(self):
+        #called when torrent is removed
+        self.lock.acquire()
+        self._halt('remove')
+        self.paused = False
+        self.lock.release()
+        
+        
+    ##external functions - stats
         
         
     def getStats(self, wantedStats):

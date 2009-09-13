@@ -42,7 +42,6 @@ class RefillingQuotaLimiter:
 
     def changeRate(self, newRate):
         self.lock.acquire()
-        self.quota = int(self.quota*(int(newRate*self.interval))/(self.rate*1.0))
         self.rate = int(newRate*self.interval)
         self.lock.release()
 
@@ -98,7 +97,7 @@ class RefillingQuotaLimiter:
             if quotaLimitedUsers>0 and self.limited==False:
                 #we have a too low quota
                 unusedUnits = self.rate - self.usedUnits
-                self.quota += min((unusedUnits/quotaLimitedUsers), max(int(self.quota*self.maxQuotaRaise), 1))
+                self.quota += max(min((unusedUnits/quotaLimitedUsers), int(self.quota*self.maxQuotaRaise)), 1)
             else:
                 if rateLimitedUsers>0:
                     #we have a too high quota

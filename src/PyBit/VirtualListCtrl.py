@@ -94,20 +94,18 @@ class VirtualListCtrl(wx.ListCtrl):
         dataKeyword = self.colInfo[colName]['dataKeyword']
         if type(dataKeyword)==str:
             #single item
-            sortList = [row[dataKeyword] for row in data]
+            sortList = (row[dataKeyword] for row in data)
         else:
             #multiple items
             sortList = []
             for row in data:
-                sortList.append(tuple([row[singleDataKeyword] for singleDataKeyword in dataKeyword]))
+                sortList.append([row[singleDataKeyword] for singleDataKeyword in dataKeyword])
         
         #add row index
         sortList = map(lambda tup: (tup[1], tup[0]), enumerate(sortList))
         
         #sort the list
-        sortList.sort()
-        if self.sortDirection == 'DESC':
-            sortList.reverse()
+        sortList.sort(reverse=(self.sortDirection == 'DESC'))
             
         #create new data list
         for colName in self.colData.keys():
@@ -115,13 +113,13 @@ class VirtualListCtrl(wx.ListCtrl):
             colDataKeyword = self.colInfo[colName]['dataKeyword']
             if type(colDataKeyword)==str:
                 #only a single data item
-                self.colData[colName] = list([data[rowNum][colDataKeyword] for rowData, rowNum in sortList])
+                self.colData[colName] = [data[rowNum][colDataKeyword] for rowData, rowNum in sortList]
                 
             else:
                 #multiple data items
                 colData = []
                 for rowData, rowNum in sortList:
-                    colData.append(list([data[rowNum][singleDataKeyword] for singleDataKeyword in colDataKeyword]))
+                    colData.append([data[rowNum][singleDataKeyword] for singleDataKeyword in colDataKeyword])
                 self.colData[colName] = colData
                 
         #set new item length if rows got added or removed

@@ -17,7 +17,6 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from Bittorrent.MultiBt import VERSION
 import wx
 
 class About(wx.Frame):
@@ -49,7 +48,7 @@ class AboutPanel(wx.Panel):
         aboutBox = wx.StaticBox(self, -1, "About")
         aboutSizer = wx.StaticBoxSizer(aboutBox, wx.VERTICAL)
         aboutText = wx.StaticText(self, -1, '\n'+\
-                                  'Version:  '+VERSION+'\n'+\
+                                  'Version:  '+GUIversion+'\n'+\
                                   '\n'+\
                                   'Author:   Blub\n'+\
                                   '\n'+\
@@ -73,5 +72,5 @@ class AboutPanel(wx.Panel):
 
 if __name__ == "__main__":
     app = wx.App()
-    merk = About(None, '0.0.0.1')
+    merk = About(None, '0.0.1')
     app.MainLoop()

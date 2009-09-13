@@ -3,6 +3,8 @@ General
 - cleanup log messages
 - fix flickering problem which occurs if PyBit is run with Windows
 - don't generate different loggers for instances of the same class
+- add support for prioritising files
+- add support for only downloading parts of a torrent (only some of the files)
 - add a few more tabs (logs, block/pieces, tracker, files)
 - add support for bob
 - add support for hiding to systray?
@@ -30,6 +32,7 @@ Bittorrent.ConnectionPool:
 
 Bittorrent.Choker:
 - don't just unchoke a fixed (currently 5) number of peers but share a global maximum across all instances
+- change choking strategy once we are seed
 
 Bittorrent.MultiBt:
 - only load a certain number of torrents at the same time (number should be configurable)
@@ -41,6 +44,7 @@ Bittorrent.Torrent:
 Bittorrent.TrackerRequester:
 - change the number of requested peer adresses depending on the number of already connected peers
 - don't ask for peers when stopping
+- don't just append the url parameters to the tracker announce url but instead check for existing parameters at the end of the url and merge things if needed
 
 
 InfoPanel:

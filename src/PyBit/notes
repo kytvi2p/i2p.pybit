@@ -15,7 +15,7 @@ Threads
 -----------------------
 Classes with static threads (spawned on startup, die on exit):
 - Gui (1)
-- ObjectPersister (1)
+- ThreadedObjectPersister (1)
 - Bittorrent.ConnectionBuilder (1)
 - Bittorrent.ConnectionHandler (1)
 - Bittorrent.ConnectionListener (1)
@@ -24,4 +24,4 @@ Classes with static threads (spawned on startup, die on exit):
 
 
 Classes with dynamic threads (spawned when needed, die when finished):
-- Bittorrent.Bt (1 per loading torrent, spawned when torrent is started, die when initial loading (hashing) is finished)
+- Bittorrent.Storage (1 per loading torrent, spawned when torrent is started, die when initial loading (hashing) is finished)

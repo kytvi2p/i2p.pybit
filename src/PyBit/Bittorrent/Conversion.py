@@ -33,12 +33,7 @@ def binaryToPeer(binaryString):
 
 
 def binaryToBin(binaryString):
-    result = deque()
-    place = 0
-    while place < len(binaryString):
-        result.append(shortIntToBin(binaryToShortInt(binaryString[place])))
-        place += 1
-    return ''.join(result)
+    return ''.join((shortIntToBin(binaryToShortInt(byte)) for byte in binaryString))
 
 
 def binaryToShortInt(binaryString):
@@ -52,14 +47,9 @@ def binaryToLongInt(binaryString):
 ##bin (text binary)
 
 def binToBinary(binString):
-    if not len(binString)%8==0:
+    if not len(binString)%8 == 0:
         binString += (8 - len(binString)%8)*'0'
-    result = deque()
-    place = 0
-    while place < len(binString):
-        result.append(shortIntToBinary(binToInt(binString[place:place+8])))
-        place += 8
-    return ''.join(result)
+    return ''.join((shortIntToBinary(binToInt(binString[idx*8:idx*8+8])) for idx in xrange(0, len(binString)/8)))
 
 
 def binToInt(binString):

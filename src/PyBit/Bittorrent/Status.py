@@ -20,15 +20,25 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 from collections import deque
 import threading
 
+from Conversion import binaryToBin, binToBinary
+
 class Status:
-    def __init__(self, pieceAmount, globalStatus=None):
+    def __init__(self, pieceAmount, pieceStatus=None):
         self.pieceAmount = pieceAmount
-        self.globalStatus = globalStatus
+        self.pieceStatus = pieceStatus
         
         self._initStatus()
         
         self.lock = threading.RLock()
         
+        
+    ##internal functions - bitfield
+    
+    def _getBitfield(self):
+        return ''.join((str(int(pieceIndex in self.gotPieces)) for pieceIndex in xrange(0, self.pieceAmount)))
+        
+        
+    ##internal functions - pieces
         
     def _initStatus(self):
         self.gotPieces = set()
@@ -40,57 +50,43 @@ class Status:
         self.missingPiecesCount = self.pieceAmount
         
         
-    def _getBitfield(self):
-        bitfield = deque()
-        pieceIndex = 0
-        while pieceIndex < self.gotPiecesCount + self.missingPiecesCount:
-            if pieceIndex in self.gotPieces:
-                bitfield.append('1')
-            else:
-                bitfield.append('0')
-            pieceIndex += 1
-        bitfield = ''.join(bitfield)
-        return bitfield
-        
-    
-    ##functions to change status
-    
-    def addBitfield(self, bitfield):
-        self.lock.acquire()
-        for pieceIndex in xrange(0, len(bitfield)):
+    def _clear(self):
+        if self.pieceStatus is not None:
+            self.pieceStatus.decreaseAvailability(bitfield=self._getBitfield())
+        self._initStatus()
+            
+            
+    def _addBitfield(self, bitfield):
+        for pieceIndex in xrange(0, self.pieceAmount):
             if bitfield[pieceIndex]=='1':
                 self.gotPieces.add(pieceIndex)
                 self.missingPieces.remove(pieceIndex)
                 self.gotPiecesCount += 1
                 self.missingPiecesCount -=1
                 
-        if self.globalStatus is not None:
-            self.globalStatus.addBitfield(bitfield)
-        self.lock.release()
-
-
-    def gotPiece(self, pieceIndex):
-        self.lock.acquire()
-        assert pieceIndex in self.missingPieces,'got piece which we already had?!'
-        
+        if self.pieceStatus is not None:
+            self.pieceStatus.increaseAvailability(bitfield=bitfield)
+    
+    
+    def _gotPiece(self, pieceIndex):
         self.missingPieces.remove(pieceIndex)
         self.gotPieces.add(pieceIndex)
         self.gotPiecesCount += 1
         self.missingPiecesCount -= 1
         
-        if self.globalStatus is not None:
-            self.globalStatus.addPiece(pieceIndex)            
-        self.lock.release()
-        
-        
-    def setPieceStatus(self, pieceIndex, got):
-        self.lock.acquire()
+        if self.pieceStatus is not None:
+            self.pieceStatus.increaseAvailability(pieceIndex=pieceIndex)
+    
+    
+    def _setPieceStatus(self, pieceIndex, got):
         if got and pieceIndex in self.missingPieces:
             #piece is in wrong set
             self.missingPieces.remove(pieceIndex)
             self.gotPieces.add(pieceIndex)
             self.missingPiecesCount -= 1
             self.gotPiecesCount += 1
+            if self.pieceStatus is not None:
+                self.pieceStatus.increaseAvailability(pieceIndex=pieceIndex)
         
         elif (not got) and pieceIndex in self.gotPieces:
             #piece is in wrong set
@@ -98,11 +94,38 @@ class Status:
             self.missingPieces.add(pieceIndex)
             self.gotPiecesCount -= 1
             self.missingPiecesCount += 1
-            
+            if self.pieceStatus is not None:
+                self.pieceStatus.decreaseAvailability(pieceIndex=pieceIndex)
+        
+    
+    ##external functions - change status
+    
+    def addBitfield(self, bitfield):
+        self.lock.acquire()
+        self._addBitfield(bitfield)
+        self.lock.release()
+
+
+    def gotPiece(self, pieceIndex):
+        self.lock.acquire()
+        assert pieceIndex in self.missingPieces,'got piece which we already had?!'
+        self._gotPiece(pieceIndex)
         self.lock.release()
         
         
-    ##functions to get information about the pieces
+    def setPieceStatus(self, pieceIndex, got):
+        self.lock.acquire()
+        self._setPieceStatus(pieceIndex, got)
+        self.lock.release()
+        
+        
+    def clear(self):
+        self.lock.acquire()
+        self._clear()
+        self.lock.release()
+        
+        
+    ##external functions - get information about the pieces
     
     def getGotPieces(self):
         self.lock.acquire()
@@ -188,15 +211,7 @@ class Status:
         return count
     
     
-    ##other
-    
-    def clear(self):
-        self.lock.acquire()
-        if self.globalStatus is not None:
-            self.globalStatus.remBitfield(self._getBitfield())
-        self._initStatus()
-        self.lock.release()
-        
+    ##external functions - other
     
     def getPercent(self):
         self.lock.acquire()
@@ -210,3 +225,84 @@ class Status:
         result = self.missingPiecesCount==0
         self.lock.release()
         return result
+    
+    
+    
+    
+class PersistentStatus(Status):
+    def __init__(self, btPersister, shouldPersist, pieceAmount, pieceStatus=None):
+        self.btPersister = btPersister
+        self.shouldPersist = shouldPersist
+        self.allowedToPersist = False
+        if not self.shouldPersist:
+            #remove any leftovers
+            self.btPersister.remove('PersistentStatus-bitfield')
+            
+        Status.__init__(self, pieceAmount, pieceStatus)
+        
+        
+    ##internal functions - persisting
+        
+    def _persist(self):
+        if self.shouldPersist and self.allowedToPersist:
+            binaryBitfield = binToBinary(''.join((str(int(pieceIndex in self.gotPieces)) for pieceIndex in xrange(0, self.pieceAmount))))
+            self.btPersister.store('PersistentStatus-bitfield', binaryBitfield)
+                
+        
+    ##internal functions - pieces        
+        
+    def _clear(self):
+        Status._clear(self)
+        self._persist()
+            
+            
+    def _addBitfield(self, bitfield):
+        Status._addBitfield(self, bitfield)
+        self._persist()
+    
+    
+    def _gotPiece(self, pieceIndex):
+        Status._gotPiece(self, pieceIndex)
+        self._persist()
+            
+    
+    def _setPieceStatus(self, pieceIndex, got):
+        Status._setPieceStatus(self, pieceIndex, got)
+        self._persist()
+                
+                
+    ##external functions - persisting
+    
+    def loadPersistedData(self):
+        self.lock.acquire()
+        success = False
+        if self.shouldPersist:
+            bitfield = self.btPersister.get('PersistentStatus-bitfield', None)
+            if bitfield is not None:
+                success = True
+                self._addBitfield(binaryToBin(bitfield))
+        self.lock.release()
+        return success
+    
+    
+    def persist(self):
+        #called once the initial loading is done, from here on automatic persists are also allowed
+        self.lock.acquire()
+        self.allowedToPersist = True
+        self._persist()
+        self.lock.release()
+    
+    
+    def enablePersisting(self, active):
+        self.lock.acquire()
+        if active and (not self.shouldPersist):
+            #got activated
+            self.shouldPersist = True
+            self._persist()
+            
+        elif (not active) and self.shouldPersist:
+            #got deactived
+            self.shouldPersist = False
+            self.btPersister.remove('PersistentStatus-bitfield')
+            
+        self.lock.release()
