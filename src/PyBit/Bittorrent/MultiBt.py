@@ -41,7 +41,7 @@ from PySamLib.SamSocketManager import SamSocketManager
 #DEBUG
 #import gc
 
-VERSION = '0.0.4'
+VERSION = '0.0.5'
 
 
 class MultiBtException(Exception):
@@ -127,7 +127,7 @@ class MultiBt:
         self.ownAddrWatcher = OwnAddressWatcher(self.destNum, self.samSockManager)
         
         #create http requester class
-        self.httpRequester = HttpRequester(self.eventSched, self.destNum, self.samSockManager, self.ownAddrWatcher.getOwnAddr)
+        self.httpRequester = HttpRequester(self.eventSched, self.destNum, self.samSockManager)
         
         #add config callbacks
         callbackSamAddressOptions = (('i2p','samIp'),

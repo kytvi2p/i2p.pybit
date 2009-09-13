@@ -1,8 +1,8 @@
 """
 Copyright 2009  Blub
 
-HttpRequester, a general class for making requests to a http server; only implements
-a very limited subset of the http specs.
+HttpRequester, a general class for making requests to a http server; implements
+(basic) http GET according to http 1.1
 This file is part of PyBit.
 
 PyBit is free software: you can redistribute it and/or modify
@@ -21,15 +21,16 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 import logging
 import threading
 
+from HttpRequest import HttpGetRequest, HttpRequestException
 from PySamLib.SamSocket import SamSocket
 from Utilities import logTraceback
 
+
 class HttpRequester:
-    def __init__(self, eventScheduler, destNum, samSockManager, ownAddrFunc):
+    def __init__(self, eventScheduler, destNum, samSockManager):
         self.sched = eventScheduler
         self.destNum = destNum
         self.samSockManager = samSockManager
-        self.ownAddrFunc = ownAddrFunc
         
         self.requests = {}
         self.requestId = 0
@@ -50,7 +51,7 @@ class HttpRequester:
         
     ##internal functions - requests
         
-    def _addRequest(self, addr, url, maxSize, callback, callbackArgs, callbackKws):
+    def _addRequest(self, addr, host, url, maxSize, callback, callbackArgs, callbackKws): 
         self.log.debug('Adding request to "%s" for "%s" with maxSize "%d"', addr[:10], url, maxSize)
         self.requestId += 1
         
@@ -67,9 +68,6 @@ class HttpRequester:
         self.conns[sockNum] = {'sock':sock,
                                'connected':False,
                                'outBuffer':None,
-                               'inBuffer':[],
-                               'inBufferSize':0,
-                               'neededBytes':None,
                                'timeout':timeoutEvent,
                                'requestId':self.requestId}
                                
@@ -77,10 +75,12 @@ class HttpRequester:
         #add to sets
         self.allConns.add(sockNum)
         self.connsWithSendInterest.add(sockNum)
+                
+        #http request obj
+        requestObj = HttpGetRequest(addr, host, url, maxDataSize=maxSize)
             
         #add to local requestDict
-        self.requests[self.requestId] = {'url':url,
-                                         'maxSize':maxSize,
+        self.requests[self.requestId] = {'request':requestObj,
                                          'callback':callback,
                                          'callbackArgs':callbackArgs,
                                          'callbackKws':callbackKws,
@@ -120,8 +120,8 @@ class HttpRequester:
     def _finishRequest(self, connSet):
         requestId = connSet['requestId']
         requestSet = self.requests[requestId]
-        data = ''.join(connSet['inBuffer'])
-        self.log.debug('Request to "%s" for "%s": finished successfully (response-length: %d)', connSet['sock'].getpeername()[:10], requestSet['url'], len(data))
+        data = requestSet['request'].getData()
+        self.log.debug('Request to "%s": finished successfully (response-length: %d)', connSet['sock'].getpeername()[:10], len(data))
         
         #remove request
         self._removeRequest(requestId)
@@ -135,7 +135,7 @@ class HttpRequester:
     def _failRequest(self, requestId, reason):
         requestSet = self.requests[requestId]
         connSet = self.conns[requestSet['connId']]
-        self.log.debug('Request to "%s" for "%s": failed (reason: %s)', connSet['sock'].getpeername()[:10], requestSet['url'], reason)
+        self.log.debug('Request to "%s": failed (reason: %s)', connSet['sock'].getpeername()[:10], reason)
         
         self._removeRequest(requestId)
         result = {'success':False,
@@ -143,47 +143,6 @@ class HttpRequester:
         self._reportRequestResult(requestSet, result)
         
         
-    ##internal functions - http
-    
-    def _createHttpRequest(self, url):
-        request = 'GET %s HTTP/1.1\r\nHost: %s\r\n\r\n' % (url, self.ownAddrFunc())
-        return request
-    
-    
-    def _parseHttpHeader(self, rawHeader):
-        header = {}
-        for headerLine in rawHeader:
-            #one header line
-            if ':' in headerLine:
-                #chance that this is a valid header, process it
-                headerLine = headerLine.split(':')
-                key = headerLine[0].lower()
-                value = ':'.join(headerLine[1:]).lstrip()
-                if len(key) > 0 and len(value) > 0:
-                    header[key] = value
-        return header
-    
-    
-    def _parseHttpResponse(self, response):
-        success = False
-        length = None
-        
-        response = response.split('\r\n')
-        httpResponse = response[0].split(' ')
-        header = self._parseHttpHeader(response[1:])
-        if len(httpResponse)==3:
-            #length is ok
-            if httpResponse[0].lower() in ('http/1.0', 'http/1.1') and httpResponse[1] == '200' and httpResponse[2].lower() == 'ok':
-                #response ok
-                if 'content-length' in header:
-                    try:
-                        length = int(header['content-length'])
-                        success = True
-                    except:
-                        pass
-        return success, length
-    
-    
     ##internal functions - conns
     
     def _send(self, connId):
@@ -192,11 +151,11 @@ class HttpRequester:
         
         if not connSet['connected']:
             #connected, queue response
-            self.log.debug('Request to "%s" for "%s": connected', connSet['sock'].getpeername()[:10], requestSet['url'])
+            self.log.debug('Request to "%s": connected', connSet['sock'].getpeername()[:10])
             
             self.sched.rescheduleEvent(connSet['timeout'], timedelta=300)
             connSet['connected'] = True
-            connSet['outBuffer'] = self._createHttpRequest(requestSet['url'])
+            connSet['outBuffer'] = requestSet['request'].getHttpRequest()
             
         else:
             #already connected, send more data
@@ -205,7 +164,7 @@ class HttpRequester:
             dataLen = len(data)
             sendBytes = connSet['sock'].send(data)
             
-            self.log.debug('Request to "%s" for "%s": send %d bytes of request', connSet['sock'].getpeername()[:10], requestSet['url'], sendBytes)
+            self.log.debug('Request to "%s": send %d bytes of request', connSet['sock'].getpeername()[:10], sendBytes)
             
             if sendBytes < dataLen:
                 #not all send, requeue
@@ -213,7 +172,7 @@ class HttpRequester:
             
             else:
                 #all send, wait for response
-                self.log.debug('Request to "%s" for "%s": finished sending request, waiting for response', connSet['sock'].getpeername()[:10], requestSet['url'])
+                self.log.debug('Request to "%s": finished sending request, waiting for response', connSet['sock'].getpeername()[:10])
                 connSet['outBuffer'] = None
                 self.connsWithSendInterest.remove(connId)
                 self.connsWithRecvInterest.add(connId)
@@ -226,50 +185,17 @@ class HttpRequester:
         
         #recv data
         data = connSet['sock'].recv()
-        connSet['inBufferSize'] += len(data)
+        self.log.debug('Request to "%s": got %d bytes of response', connSet['sock'].getpeername()[:10], len(data))
         
-        data = ''.join(connSet['inBuffer']) + data
-        connSet['inBuffer'] = [data]
-        
-        self.log.debug('Request to "%s" for "%s": got %d bytes of response', connSet['sock'].getpeername()[:10], requestSet['url'], len(data))
-        
-        if connSet['neededBytes'] is None and '\r\n\r\n' in data:
-            #just finished http header
-            self.log.debug('Request to "%s" for "%s": finished receiving header', connSet['sock'].getpeername()[:10], requestSet['url'])
-        
-            data = ''.join(connSet['inBuffer'])
-            data = data.split('\r\n\r\n')
-            httpHeader = data[0]
-            data = '\r\n\r\n'.join(data[1:])
+        try:
+            finished = requestSet['request'].handleData(data)
+        except HttpRequestException, e:
+            finished = False
+            self._failRequest(connSet['requestId'], e.getReason())
             
-            #readd non-header data
-            connSet['inBuffer'] = [data]
-            connSet['inBufferSize'] = len(data)
-            
-            #examine http header
-            valid, contentLength = self._parseHttpResponse(httpHeader)
-            if not valid:
-                #invalid header
-                self._failRequest(connSet['requestId'], 'invalid response')
-            else:
-                #valid header
-                if requestSet['maxSize'] < contentLength:
-                    #response length over limit
-                    self._failRequest(connSet['requestId'], 'response length over limit')
-                else:
-                    #ok
-                    self.log.debug('Request to "%s" for "%s": header is valid (response-length: %d)', connSet['sock'].getpeername()[:10], requestSet['url'], contentLength)
-                    connSet['neededBytes'] = contentLength
-                
-        if connSet['neededBytes'] is not None:
-            #content length is known
-            if connSet['neededBytes'] < connSet['inBufferSize']:
-                #too much
-                self._failRequest(connSet['requestId'], 'response length exceeds expected length')
-                
-            elif connSet['neededBytes'] == connSet['inBufferSize']:
-                #finished
-                self._finishRequest(connSet)
+        if finished:
+            #got full response
+            self._finishRequest(connSet)
                 
                 
     ##internal functions - thread
@@ -331,9 +257,11 @@ class HttpRequester:
             
     ##external functions - requests
     
-    def makeRequest(self, addr, url, callback, callbackArgs=[], callbackKws={}, maxSize=1048576):
+    def makeRequest(self, addr, url, callback, callbackArgs=[], callbackKws={}, host=None, maxSize=1048576):
         self.lock.acquire()
-        requestId = self._addRequest(addr, url, maxSize, callback, callbackArgs, callbackKws)
+        if host is None:
+            host = 'http://'+addr+'.i2p'
+        requestId = self._addRequest(addr, host, url, maxSize, callback, callbackArgs, callbackKws)
         self.lock.release()
         return requestId
     
@@ -374,14 +302,10 @@ if __name__=="__main__":
     
     #samSockManager
     samSockManager = SamSocketManager(log='SamSocketManager', asmLog='AsyncSocketManager')
-    destNum = samSockManager.addDestination('127.0.0.1', 7656, 'Test', 'tcp', 'both')
+    destNum = samSockManager.addDestination('127.0.0.1', 7656, 'TRANSIENT', 'tcp', 'both')
     
     #event scheduler
     eventSched = EventScheduler()
-    
-    #funcs
-    def addrFunc():
-        return '127.0.0.1'
     
     def callb(result, requester, eventSched, sockManag, destNum):
         print 'Result:', result
@@ -393,5 +317,5 @@ if __name__=="__main__":
     addr = 'YQERBdlelBfPITVkEM248HCPiDrZB4DrxU1mH8zsI1WECYWIXp5CMDWH3aQLnpqKpEs6LRi~z7OScK-G0KcKaQlTMb1q0qle5OdwmrEHbq6Q3eHH493UHvI-iu~ZPa8a4j6xXqXO~400IRgWCEInKk6GPXxhZrYsD6lA-rT-H7M1XhGwmIL6P-sIOk4TO-HzoDG~2Gd~4zWm6-zmuXnbHqdiSEnqPIOL53FKovsMsSkxQiDyA0tK-YEQEVsMPW2Qokt-Ds-TmmPsra88X5oky6zQH1Nz9OFaMl3swvcVAq2qwrfF-bgl~Sbph2UXrfI~vnmDsD~hpMwv9tk97rjJVZluf8S3WO7-IToO0gHv3t1xJHpZViknBVgdxGdTlObLHew3JKCovQe3GYdlEGH~yRQ0IZiopbNqPh-m-RdKXpupaedcqveRnBpNXPNADRsDILP8Bsnry9RO7SdVxJx12ll~vfDmbNfSrllcOyA6AFStpGdNrxQR40QqME1AzNd3AAAA'
     url = '/gcache.py?urlfile=1'
     
-    requester = HttpRequester(eventSched, destNum, samSockManager, addrFunc)
+    requester = HttpRequester(eventSched, destNum, samSockManager)
     requester.makeRequest(addr, url, callb, callbackArgs=[requester, eventSched, samSockManager, destNum])

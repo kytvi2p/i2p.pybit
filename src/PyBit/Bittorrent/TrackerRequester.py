@@ -25,6 +25,7 @@ import re
 import threading
 
 from Bencoding import bdecode
+from Utilities import logTraceback
 
 class TrackerRequester:
     def __init__(self, eventScheduler,  peerId, connPool, ownAddrFunc, httpRequester,
@@ -162,12 +163,12 @@ class TrackerRequester:
     
     def _parseResponse(self, trackerSet, data):
         url = trackerSet['logUrl']
-        
-        self.log.info('Data from Tracker "%s":\n%s', url, data)
+
         success = False
         try:
             response = bdecode(data)
         except:
+            self.log.warn('Failed to parse response from tracker:\n%s', logTraceback())
             response = None
         
         

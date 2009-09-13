@@ -1,3 +1,10 @@
+0.0.5 - 16.02.2009
+-----------------------
+Blub:
+- removed wrong assertion in "ConnectionPool"
+- improved "HttpRequester": added support for chunked transfer-encoding (needed because trackers might use it for large responses and cause it is required by http 1.1)
+
+
 0.0.4 - 15.02.2009
 -----------------------
 Blub:

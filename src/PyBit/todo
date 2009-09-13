@@ -1,5 +1,6 @@
 General
 -----------------------
+- cleanup log messages
 - fix flickering problem which occurs if PyBit is run with Windows
 - fix CPU-usage bugs (Requester and some places in ConnectionHandler for example)
 - don't generate different loggers for instances of the same class
@@ -36,9 +37,7 @@ Bittorrent.Choker:
 - don't just unchoke a fixed (currently 5) number of peers but share a global maximum across all instances
 
 Bittorrent.HttpRequester:
-- add support for chunked encoding
 - add another timeout for the whole request (trigger after the entire request took a certain time, regardless of transfer activity)
-- don't generate a general "invalid header received" error for 404-responses (and other such failures)!
 
 Bittorrent.MultiBt:
 - only load a certain number of torrents at the same time (number should be configurable)

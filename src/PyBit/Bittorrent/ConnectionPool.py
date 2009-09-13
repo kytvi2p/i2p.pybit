@@ -123,8 +123,6 @@ class ConnectionPool:
             if peer['connectTries'] >=5 or time()-peer['addTime'] > 300:
                 #its no longer worth it to keep this peer
                 del posConns[remoteAddr]
-        else:
-            assert remoteAddr in curConns, 'neither possible nor connected?!'
             
         self.lock.release()
         
