@@ -1,7 +1,6 @@
 General
 -----------------------
 - cleanup log messages
-- get the profiler to profile all threads, not just the GUI (main-) thread
 - fix flickering problem which occurs if PyBit is run with Windows
 - don't generate different loggers for instances of the same class
 - add a few more tabs (logs, block/pieces, tracker, files)
@@ -44,12 +43,12 @@ Bittorrent.TrackerRequester:
 - don't ask for peers when stopping
 
 
-Gui:
-- show some kind of popup if adding a torrent fails
-
 InfoPanel:
 - fix weird wrapping of text with wxPython 2.8
 - add more sizing support
+
+Logger:
+- make max log size and number of kept logs configurable
 
 TorrentConnectionList:
 - add columns (score, raw byte counts, ...) => should probably only be done after persisting GUI changes

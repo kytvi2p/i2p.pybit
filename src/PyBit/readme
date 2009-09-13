@@ -8,7 +8,7 @@ Requirements
 PyBit needs the following:
 - Python >= 2.5 (tested with 2.5 and 2.6; Python 3.0 is incompatible to python 2.x !)
 - wxPython >= 2.6 (tested with 2.6.3.2, 2.8.7.1 and 2.8.9.1)
-- python-profiler (optional, only needed if you want to run PyBit with the "--profile" switch to generate profiling stats)
+- python-profiler (optional, only needed if you want to run PyBit with the "--profile" switch to generate profiling stats and want to use the "cProfile" or "hotshot" profiler)
 
 PyBit should run on any platform for which both python and wxPython are available. I tested it mostly on Linux and only a bit on Windows, so Windows and other platforms are more likly to have bugs. Please report any which you encounter to "BlubMail@mail.i2p", I will try to fix them.
 
@@ -31,7 +31,7 @@ Known Problems
 - if the config dialog is opened, a few GTK warnings may be printed to the console => the cause is unknown but these warnings shouldn't cause any problems
 - the torrent name is displayed twice in the "General"-tab, once in the box "Torrent" and once in the box "Other" => this is not a problem, the torrent name is displayed in the "Other" box as a placeholder for other statistics which will be displayed there in the future.
 - the GUI flickers => Should only occur if you use Windows. For some reason I need to do a full GUI refresh before Windows displays any changes to GUI windows. The full refresh causes flickering. I don't know of any fix, not even if it is my fault or wxPythons/Windows. Without the call which invokes a full refresh, the GUI objects do ask me for the current data, but it still is not displayed. Weird behaviour.
-- when using the "--profile" switch the output seems to miss most classes => the standard profiler of python only profiles the main thread (which happens to be the GUI thread for PyBit); this will be fixed once I figure out how
+- when using the "--profile" switch the output seems to miss most classes => the standard profiler of python only profiles the main thread (which happens to be the GUI thread for PyBit); add "--method own" to use a profiler which supports profiling multiple threads
 
 
 Special Files
@@ -46,6 +46,9 @@ config.conf
 
 copying
 - license of PyBit, not accessed from PyBit
+
+notes
+- further info about PyBit (mostly development related), not accessed from PyBit
 
 profilingStats
 - only present if PyBit was run with the "--profile" commandline argument

@@ -81,9 +81,7 @@ class ConnectionHandler:
             
             
     def _getAllConnections(self, torrentIdent):
-        conns = deque()
-        for connId in self.torrents[torrentIdent]['connIds']:
-            conns.append(self.conns[connId])
+        conns = [self.conns[connId] for connId in self.torrents[torrentIdent]['connIds']]
         return conns
             
     

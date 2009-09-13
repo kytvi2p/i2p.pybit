@@ -61,10 +61,8 @@ class Requester:
     def _makeRequestsForPieces(self, conn, neededRequests, pieces, endgame):
         assert neededRequests > 0,'requesting 0 requests?!'
         
-        place = 0
-        while neededRequests > 0 and place < len(pieces):
-            pieceIndex = pieces[place]
-            
+        for pieceIndex in pieces:
+            #iterate over pieces until we added enough requests
             if not pieceIndex in self.requestedPieces:
                 #first request for this piece
                 assert not endgame,'Endgame but still pieces left?!'
@@ -94,7 +92,9 @@ class Requester:
                     #need to move piece index
                     self._moveRequestablePiece(pieceIndex, oldMinReqCount, newMinReqCount)
                     
-            place += 1
+                if neededRequests == 0:
+                    #finished
+                    break
                     
         return neededRequests
                 

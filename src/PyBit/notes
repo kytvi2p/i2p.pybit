@@ -1,0 +1,27 @@
+Profiling
+-----------------------
+- activated with the switch "--profile"
+- which profiler is used is determined by the "--method" switch (defaults to "cProfile")
+- supported profilers are "cProfile", "hotshot" and a simple self-coded version (called "own"...)
+- only the self-coded version supports profiling all threads of PyBit, "cProfile" and "hotshot" will only profile the main thread, which happens to be the GUI thread
+- when "cProfile" or "hotshot" are used as the profiler, then three different statistics are printed on exit: the first one is sorted by cumulative time, the second one by single function call time and the last one by call count (each restricted to the top 25)
+- when the self-coded profiler is used then only one statistic is printed on exit, which lists all functions sorted by cumulative time spend in them
+- the simple self-coded profiler counts time spend sleeping or waiting (other thread active or waiting for a lock, event ...) to the time spend in a function, so its normal that functions with select() or sleep() calls are way up the list
+- the self-coded profiler has a much larger impact on performance, partly because it has to deal with function calls from all threads and partly because its coded in python and not in C
+- the profiling output can be redirected to a file by using normal pipes ("python PyBit.py --profile --method own > profileStats"), logging output will not be redirected
+
+
+Threads
+-----------------------
+Classes with static threads (spawned on startup, die on exit):
+- Gui (1)
+- ObjectPersister (1)
+- Bittorrent.ConnectionBuilder (1)
+- Bittorrent.ConnectionHandler (1)
+- Bittorrent.ConnectionListener (1)
+- Bittorrent.EventScheduler (1)
+- Bittorrent.HttpRequester (1)
+
+
+Classes with dynamic threads (spawned when needed, die when finished):
+- Bittorrent.Bt (1 per loading torrent, spawned when torrent is started, die when initial loading (hashing) is finished)

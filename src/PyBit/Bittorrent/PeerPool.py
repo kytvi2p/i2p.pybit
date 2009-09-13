@@ -138,6 +138,9 @@ class PeerPool:
         
     def stop(self):
         self.lock.acquire()
+        self.currentConns = defaultdict(dict)
+        self.possibleConns = defaultdict(dict)
+        self.lock.release()
         
         
     def getStats(self, torrentIdent):

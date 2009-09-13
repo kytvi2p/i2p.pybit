@@ -41,19 +41,11 @@ class Choker:
         shouldUpload = set()
         
         #get basic info
-        uploadingConns = set()
-        uploadableConns = set()
-        
-        for conn in conns:
-            if not conn.localChoked():
-                #uploading conn
-                uploadingConns.add(conn)
-                
-            if conn.remoteInterested() and conn.getStatus().hasMatchingMissingPieces(gotPieces):
-                #uploadable
-                uploadableConns.add(conn)
-        
-        if len(uploadableConns) > 0:
+        uploadingConns = set(conn for conn in conns if not conn.localChoked())
+        uploadableConns = set(conn for conn in conns if conn.remoteInterested() and conn.getStatus().hasMatchingMissingPieces(gotPieces))
+        if len(uploadableConns) == 0:
+            self.log.debug('Nothing to do')
+        else:
             #pick one connection randomly (FIXME: better way to do this?)
             conn = choice(list(uploadableConns))
             self.log.debug('conn "%d": Picked this conn as the random upload target', conn.fileno())
@@ -61,10 +53,7 @@ class Choker:
             uploadableConns.remove(conn)
         
         #create list for comparing the others
-        compareList = []
-        for conn in uploadableConns:
-            compareList.append((conn.localInterested(), conn.getScore(), conn))
-            
+        compareList = [(conn.localInterested(), conn.getScore(), conn) for conn in uploadableConns]
         compareList.sort()
         compareList.reverse()
         
@@ -93,7 +82,7 @@ class Choker:
             
     
     def _start(self):
-        if self.chokeEventId == None:
+        if self.chokeEventId is None:
             self.chokeEventId = self.sched.scheduleEvent(self.choke, timedelta=60, repeatdelta=60)
         
             

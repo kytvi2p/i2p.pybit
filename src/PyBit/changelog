@@ -1,3 +1,11 @@
+0.0.10 - 06.03.2009
+-----------------------
+Blub:
+- improved "Bittorrent.Choker": reduced CPU usage slightly
+- improved "Bittorrent.GlobalStatus": reduced CPU usage for sorting piece lists (function "sortPieceList()", needed for deciding which piece should be requested)
+- added "Profiler": a simple profiler which simply tracks how much time was spend inside each function, without considering if the time was spend processing, sleeping, waiting or doing something else. Contrary to cProfile and hotshot it supports profiling multiple threads.
+
+
 0.0.9 - 03.03.2009
 -----------------------
 Blub:
