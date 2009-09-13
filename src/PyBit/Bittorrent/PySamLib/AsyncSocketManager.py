@@ -1,5 +1,5 @@
 """
-Copyright 2008  Blub
+Copyright 2009  Blub
 
 AsnycSocketManager, a simple class to handle async sockets, simplifying their use.
 This file is part of PySamLib.

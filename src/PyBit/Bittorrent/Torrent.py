@@ -18,11 +18,25 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from Bencoding import bencode, bdecode
+from TrackerRequester import destinationTrackerUrlRegex, dnsTrackerUrlRegex
 
 from copy import deepcopy
 from sha import sha
 from random import shuffle
+import logging
 import os
+import re
+
+
+
+
+class TorrentException(Exception):
+    def __init__(self, reason, *args):
+        self.reason = reason % args
+        Exception.__init__(self, self.reason)
+
+
+
 
 class Torrent:
     def __init__(self):
@@ -37,6 +51,7 @@ class Torrent:
         self.pieceLength = None
         self.pieceHashes = None
         self.charset = None
+        self.log = logging.getLogger('Torrent')
         
     def _getFileIndexForOffset(self, offset):
         startPos = 0
@@ -71,13 +86,14 @@ class Torrent:
                 break
         
         return place
+    
 
     def load(self, torrentdata):
         #decode torrentdata
         torrentdata = bdecode(torrentdata)
         
         #encoding
-        if torrentdata.has_key('encoding'):
+        if 'encoding' in torrentdata:
             self.charset = torrentdata['encoding']
         else:
             self.charset = 'UTF-8'
@@ -85,27 +101,58 @@ class Torrent:
         #tracker urls
         self.announce = [[torrentdata['announce']]]
         self.amountOfTrackers = 1
-        if torrentdata.has_key('announce-list'):
+        if 'announce-list' in torrentdata:
             self.amountOfTrackers = 0
             self.announce = torrentdata['announce-list']
             for tier in self.announce:
                 shuffle(tier)
                 self.amountOfTrackers += len(tier)
+                
+        #check urls
+        destTrackerUrl = re.compile(destinationTrackerUrlRegex)
+        dnsTrackerUrl = re.compile(dnsTrackerUrlRegex)
+        
+        tierIdx = 0
+        while tierIdx < len(self.announce):
+            tier = self.announce[tierIdx]
+            urlIdx = 0
+            
+            #check all url of tier
+            while urlIdx < len(tier):
+                if destTrackerUrl.match(tier[urlIdx]) is None and dnsTrackerUrl.match(tier[urlIdx]) is None:
+                    #invalid tracker url
+                    self.log.warn('Found invalid tracker url "%s", ignoring it', tier[urlIdx])
+                    del tier[urlIdx]
+                    self.amountOfTrackers -= 1
+                else:
+                    #valid tracker url
+                    urlIdx += 1
+                    
+            #check if tier is empty
+            if len(tier) == 0:
+                self.log.warn('No valid tracker urls in tier, ignoring entire tier')
+                del self.announce[tierIdx]
+            else:
+                tierIdx += 1
+                
+        if self.amountOfTrackers == 0:
+            raise TorrentException('Torrent contains no valid tracker urls!')
+        
         
         #creation date of the torrent
-        if torrentdata.has_key('creation date'):
+        if 'creation date' in torrentdata:
             self.creationDate = torrentdata['creation date']
         else:
             self.creationDate = 0
         
         #torrent comment
-        if torrentdata.has_key('comment'):
+        if 'comment' in torrentdata:
             self.comment = unicode(torrentdata['comment'], self.charset, 'ignore')
         else:
             self.comment = ''
         
         #creator of the torrent
-        if torrentdata.has_key('created by'):
+        if 'created by' in torrentdata:
             self.createdBy = unicode(torrentdata['created by'], self.charset, 'ignore')
         else:
             self.createdBy = ''
@@ -116,7 +163,7 @@ class Torrent:
         self.torrentName = unicode(info['name'], self.charset, 'ignore')
 
         #files
-        if info.has_key('files'):
+        if 'files' in info:
             #multiple files
             self.files = []
             sizesum = 0
@@ -154,7 +201,7 @@ class Torrent:
         rawpieces = info['pieces']            
         self.pieceHashes = []
         place = 0
-        while place<len(rawpieces):
+        while place < len(rawpieces):
             self.pieceHashes.append(rawpieces[place:place+20])
             place += 20
 

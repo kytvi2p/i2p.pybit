@@ -67,7 +67,7 @@ class HttpGetRequest:
     
     def _createHttpRequest(self):
         request = '\r\n'.join(('GET %s HTTP/1.1' % (self.url,),
-                               'Host: %s\r\n' % (self.host,),
+                               'Host: %s' % (self.host,),
                                'Accept-Encoding: identity',
                                '\r\n'))
         return request

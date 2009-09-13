@@ -21,7 +21,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 import logging
 import threading
 
-from PySamLib.SamSocket import SamSocket
+from PySamLib.I2PSocket import I2PSocket
 import Messages
 
 from Utilities import logTraceback
@@ -66,7 +66,7 @@ class ConnectionListener:
             timeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=300, funcArgs=[newConn[0]])
             
             #create socket obj
-            sock = SamSocket(self.samSockManager, self.destNum,  newConn[0], newConn[1], 'tcp')
+            sock = I2PSocket(self.samSockManager, self.destNum,  newConn[0], newConn[1], 'tcp')
             sock.setblocking(0)
             
             #add to internal structs
@@ -111,7 +111,7 @@ class ConnectionListener:
         self.log.info("Conn \"%d\": Closing, reason: %s", connId, reason)
         
         #close conn, remove from local structs
-        connSet['sock'].close(forceClose=True)
+        connSet['sock'].close(force=True)
         self.allConns.remove(connId)
         del self.conns[connId]
         

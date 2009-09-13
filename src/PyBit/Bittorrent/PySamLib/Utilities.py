@@ -1,5 +1,5 @@
 """
-Copyright 2008  Blub
+Copyright 2009  Blub
 
 Utilities, a collection of small functions and classes.
 This file is part of PySamLib.

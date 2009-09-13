@@ -27,6 +27,11 @@ import threading
 from Bencoding import bdecode
 from Utilities import logTraceback
 
+#regex
+destinationTrackerUrlRegex = '^http://([A-Za-z0-9\-~]{512,512}AAAA)(.i2p){0,1}(/.+)'
+dnsTrackerUrlRegex = '^http://([A-Za-z0-9\-~_.]+(.b32){0,1}.i2p)(/.+)'
+
+
 class TrackerRequester:
     def __init__(self, eventScheduler,  peerId, peerPool, ownAddrFunc, httpRequester,
                  inMeasure, outMeasure, storage, torrent, torrentIdent):
@@ -50,7 +55,8 @@ class TrackerRequester:
         self.httpRequestId = None
         
         self.i2pHostChecker = re.compile('^([A-Za-z0-9\-~]{512,512}AAAA)(.i2p){0,1}$')
-        self.trackerUrlSplitter = re.compile('^http://([A-Za-z0-9\-~]{512,512}AAAA)(.i2p){0,1}(/.+)')
+        self.destinationTrackerUrlSplitter = re.compile(destinationTrackerUrlRegex)
+        self.dnsTrackerUrlSplitter = re.compile(dnsTrackerUrlRegex)
         self.trackerInfos, self.trackerTiers = self._processTrackerList()
         
         #other
@@ -75,7 +81,9 @@ class TrackerRequester:
             prioList.append([])
             for trackerAddr in tier:
                 #single tracker url
-                result = self.trackerUrlSplitter.match(trackerAddr)
+                result = self.destinationTrackerUrlSplitter.match(trackerAddr)
+                if result is None:
+                    result = self.dnsTrackerUrlSplitter.match(trackerAddr)
                 assert result is not None, 'tracker url "%s" is invalid, this should have been checked before!' % (trackerAddr,)
                 prioList[tierNum].append(trackerId)
                 trackerList[trackerId] = {'addr':result.group(1),

@@ -22,7 +22,7 @@ import logging
 import threading
 
 from HttpRequest import HttpGetRequest, HttpRequestException
-from PySamLib.SamSocket import SamSocket
+from PySamLib.I2PSocket import I2PSocket
 from Utilities import logTraceback
 
 
@@ -56,7 +56,7 @@ class HttpRequester:
         self.requestId += 1
         
         #create conn
-        sock = SamSocket(self.samSockManager, self.destNum)
+        sock = I2PSocket(self.samSockManager, self.destNum)
         sock.setblocking(0)
         sock.connect(addr)
         sockNum = sock.fileno()
@@ -101,7 +101,7 @@ class HttpRequester:
         self.sched.removeEvent(connSet['requestTimeoutEvent'])
         
         #close conn, remove from sets
-        connSet['sock'].close(forceClose=True)
+        connSet['sock'].close(force=True)
         self.allConns.remove(connId)
         self.connsWithSendInterest.discard(connId)
         self.connsWithRecvInterest.discard(connId)

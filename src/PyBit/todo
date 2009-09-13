@@ -5,7 +5,6 @@ General
 - fix CPU-usage bugs (Requester and some places in ConnectionHandler for example)
 - don't generate different loggers for instances of the same class
 - add a few more tabs (logs, block/pieces, tracker, files)
-- more exception handling/logging in the GUIs
 - add support for bob
 - webinterface? (with support to only start the webinterface = headless mode?)
 - persist gui changes with ObjectPersister (enabled columns, ordering, ...) ? Would need a fail-safe way to reset to defaults in case of screwed up changes.
@@ -46,6 +45,10 @@ Bittorrent.Torrent
 
 Gui:
 - show some kind of popup if adding a torrent fails
+
+InfoPanel:
+- fix weird wrapping of text with wxPython 2.8
+- add more sizing support
 
 TorrentConnectionList:
 - add columns (peer client, score, raw byte counts, ...) => should probably only be done after persisting GUI changes

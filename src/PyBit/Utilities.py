@@ -21,6 +21,8 @@ from collections import deque
 from cStringIO import StringIO
 from traceback import print_exc
 
+import wx
+
 
 def logTraceback():
     pseudo_file = StringIO()
@@ -34,6 +36,16 @@ def encodeStrForPrinting(string):
     else:
         result = string.encode('UTF-8', 'ignore')
     return result
+
+
+def showWarningMessage(parent, text, *args, **kw):
+    title = kw.get('title', 'Warning')
+    wx.MessageBox(text % args, title, style=(wx.OK | wx.ICON_EXCLAMATION), parent=parent)
+
+
+def showErrorMessage(parent, text, *args, **kw):
+    title = kw.get('title', 'Error')
+    wx.MessageBox(text % args, title, style=(wx.OK | wx.ICON_ERROR), parent=parent)
 
 
 class FunctionCallConverter:

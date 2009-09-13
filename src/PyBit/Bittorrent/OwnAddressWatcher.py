@@ -22,8 +22,8 @@ import logging
 import threading
 
 class OwnAddressWatcher:
-    def __init__(self, destNum, samSockManager):
-        self.destNum = destNum
+    def __init__(self, destId, samSockManager):
+        self.destId = destId
         self.samSockManager = samSockManager
         
         self.ownAddr = ''
@@ -35,7 +35,7 @@ class OwnAddressWatcher:
     ##internal functions - general
         
     def _checkAddr(self):
-        addr = self.samSockManager.getOwnDestination(destNum=self.destNum, timeout=0)
+        addr = self.samSockManager.getOwnDestination(destId=self.destId)
         if addr is not None:
             if addr != self.ownAddr:
                 self.log.debug("New address: %s", addr)

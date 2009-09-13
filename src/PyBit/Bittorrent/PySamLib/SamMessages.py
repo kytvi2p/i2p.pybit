@@ -1,5 +1,5 @@
 """
-Copyright 2008  Blub
+Copyright 2009  Blub
 
 SamMessages, a collection of functions to parse and generate messages which are part of the SAM protocol.
 This file is part of PySamLib.
@@ -101,5 +101,12 @@ def streamCloseMessage(samId):
     message = []
     message.append('STREAM CLOSE ID=')
     message.append(str(samId))
+    message.append('\n')
+    return ''.join(message)
+
+def nameLookup(name):
+    message = []
+    message.append('NAMING LOOKUP NAME=')
+    message.append(name)
     message.append('\n')
     return ''.join(message)

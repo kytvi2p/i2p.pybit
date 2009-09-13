@@ -57,7 +57,7 @@ class Logging_ConfigPanel(wx.Panel):
         loggingItems.Add(label2a, 1, wx.EXPAND)
         
         self.combo2 = wx.ComboBox(self, -1, size = wx.Size(85, -1),\
-                                  choices=["Critical", "Error", "Warn", "Info", "Debug"], style=wx.CB_READONLY)
+                                  choices=["Critical", "Error", "Warning", "Info", "Debug"], style=wx.CB_READONLY)
         self.combo2.SetValue(self.config.get('logging','fileLoglevel').capitalize())
         self.combo2.SetToolTipString('Determines the minimum loglevel a logmessage must have to be written to the logfile.')
         loggingItems.Add(self.combo2, 1)
@@ -471,7 +471,7 @@ class Paths_ConfigPanel(wx.Panel):
 class ConfigDialog(wx.Frame):
     def __init__(self, config, parent, **kwargs):
         wx.Frame.__init__(self, parent, -1, 'Preferences', size=wx.Size(550, 475),\
-                          style = wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, **kwargs)
+                          style = wx.DEFAULT_FRAME_STYLE, **kwargs)
         self.CentreOnScreen()
         self.config = config
 

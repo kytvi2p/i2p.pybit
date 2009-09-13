@@ -38,7 +38,7 @@ from Bittorrent.MultiBt import MultiBt, MultiBtException, VERSION
 from Config import Config
 from Logger import LogController
 from ObjectPersister import ThreadedObjectPersister
-from Utilities import logTraceback, encodeStrForPrinting, FunctionCallConverter
+from Utilities import logTraceback, encodeStrForPrinting, showWarningMessage, showErrorMessage, FunctionCallConverter
 
 
 class Gui(wx.Frame):
@@ -241,15 +241,18 @@ class Gui(wx.Frame):
                 if data is None:
                     #failed to read file
                     self.log.error('Failed to read torrent file from "%s", torrent not added', encodeStrForPrinting(torrentPath))
+                    showErrorMessage(self, 'Failed to read torrent file from "%s".', torrentPath)
                 else:
                     #worked
                     self.log.info('Adding torrent with data path "%s"', encodeStrForPrinting(savePath))
                     try:
                         self.torrentList.addTorrent(data, savePath)
                     except MultiBtException, e:
-                        self.log.error('Failed to add torrent, reason: %s"', e.reason)
+                        self.log.error('Failed to add torrent, reason: %s', e.reason)
+                        showErrorMessage(self, '%s.', e.reason)
                     except Exception, e:
-                        self.log.critical('Crash while adding torrent:\n%s', str(logTraceback()))
+                        self.log.critical('Internal error while adding torrent:\n%s', str(logTraceback()))
+                        showErrorMessage(self, 'Internal error, torrent not added.\n%s.', str(logTraceback()))
             del saveDiag
         del diag
 
@@ -270,7 +273,7 @@ class Gui(wx.Frame):
         
     
     def OnReadme(self, event):
-        ScrollableTextViewerFrame(self, 'Readme', os.path.join(self.progPath, u'changelog'))
+        ScrollableTextViewerFrame(self, 'Readme', os.path.join(self.progPath, u'readme'))
         
 
     def OnClose(self, event):

@@ -1,0 +1,63 @@
+Installation
+-----------------------
+You don't need to install PySamLib. Simply extract the archive and you are done.
+
+
+Requirements
+----------------------- 
+PySamLib needs the following:
+- Python >= 2.5
+
+PySamLib should run on any platform for which python 2.5 is available.
+
+
+Starting
+-----------------------
+PySamLib is not supposed to be started directly (although you may execute "I2PSocketManager.py" for a short test run), it is a library, so you should use it within another application but not directly.
+
+
+Usage
+-----------------------
+The main interface is the class "I2PSocketManager". Import this class, create an instance and use that instance, the other classes are only used internally.
+The only exceptions are "I2PSocket" and "I2PPoll" within "I2PSocket":
+"I2PSocket" is a wrapper class, which needs an instance of "I2PSocketManager" to work. Its interface emulates the normal socket interface, with a few extensions and a few restrictions. It is mostly for convenience: Using this class in the classes which do socket work in your application will spare you a few parameters to pass along and keep things mostly the "normal" way, as it would be with normal sockets.
+"I2PPoll" is another wrapper class, which also needs an instance of "I2PSocketManager" to work. It emulates the poll() interface (by using the normal select() interface of "I2PSocketManager internally), the necessary constants are within "SamSocket.py".
+
+
+Features
+-----------------------
+- only supports SAM (version 2.0) right now
+- supports raw, udp and tcp destinations
+- supports multiple destinations to different or the same i2p router at once
+- returns unique i2p socket ids for each created connection, regardless of destination (per I2PSocketManager instance, you should never need more then one instance per application)
+- the i2p socket ids of different destinations may be mixed within one select() call
+- configurable (default) max buffer sizes for both inbound and outbound sockets (tcp destinations only)
+- uses poll() or, if thats not available, select() for managing the real sockets
+- thread-safe
+
+
+Info
+-----------------------
+1. the select interface is slightly different then you would expect if you know the regular select interface:
+    - it expects sets not lists as parameters and these sets must contain integers/longs (the i2pSocket ids which I2PSocketManager return upon connect()/accept())
+    - using classes with a fileno() function instead of the socket ids in these sets is (contrary to the regular select() interface) NOT possible!
+    - it accepts three or four parameters: a receive-interest set, a send-interest set, a error-set and an optional timeout
+    - it returns sets, three of them: a receivable set, a sendable set and an errored set
+    - the receivable set consists of the i2pSocket ids of sockets which have data in their inbound buffer, regardless of their status (the inbound buffer of a failed socket is not cleared until it is explicitly closed by using close())
+    - the sendable set consists of the i2pSocket ids of sockets which have a not filled outbound buffer and can send data (meaning they must be connected)
+    - the error set consists of the i2pSocket ids of sockets which failed or which are unknown to the library (if you close() a socket and includes it id in the error-interest set in a nother call to select(), then its id will be in the error set)
+
+2. I2PSocketManager NEVER raises an exception, regardless of what kind of silly action you may request (thats the theory ...):
+    - the checks are not yet finished, so for really silly things it could simply crash and thus do raise an exception
+    - the checks are pretty much finished for the socket functions
+    - you may for example call send() for a closed or failed socket, it will simply return 0 as the count of send bytes
+    - the same holds true for recv() or close()
+    - this behaviour was implemented to prevent all the thousands of race conditions which may happen with normal sockets and which normally require many "try/except" statements to protect against them
+
+3. close() accepts a keyword argument, "force":
+    - normally if you call close(), the library will wait until all data in the outbound buffer was send, before it really closes the socket
+    - if you call close(force=True), then the library will immediately close the socket, regardless of the contents of the outbound buffer
+
+4. removing a destination calls close(force=True) for all its sockets
+
+5. if the connection to the sam bridge fails then the library will automatically try to reconnect (up to once per second); all i2pSockets of the destination which used that connection, will fail

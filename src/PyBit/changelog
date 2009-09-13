@@ -1,3 +1,17 @@
+0.0.7 - 23.02.2009
+-----------------------
+Blub:
+- fixed bug in "Bittorrent.HttpRequester": the http header was slightly malformed (double newline instead of one after each header line)
+- fixed bug in "ConfigDialog": the combobox for the file loglevel contained a wrong loglevel: "Warning" was called "Warn"
+- fixed bug in "Gui": the "ScrollableTextViewer" for "About->Show Readme" was called with the wrong filename - it showed the changelog instead (seriously, how did I manage to not notice this up to now?!)
+- improved "Bittorrent.MultiBt": made failure messages more sensible, added code to pass on exceptions which are raised in torrent.load()
+- improved "Bittorrent.Torrent": added sanity checks for tracker urls, raise custom "TorrentException"
+- improved "Bittorrent.TrackerRequester": added support for tracker urls which do not contain the full i2p destination
+- added "showWarningMessage()" and "showErrorMessage()" to "Utilities", both show a typical small dialog with a warning/error text
+- changed "ConfigDialog": removed the "always on top" attribute
+- updated PySamLib from v0.1.5 to v0.2.1, adapted the affected classes (because of function renames and such)
+
+
 0.0.6 - 21.02.2009
 -----------------------
 Blub:

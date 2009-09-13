@@ -194,7 +194,7 @@ class Connection:
     def _fail(self, reason=''):
         #cause the conn to fail
         self.log.info('Conn failed: %s', reason)
-        self.conn.close(forceClose=True)
+        self.conn.close(force=True)
         
         
     def _close(self):
@@ -202,7 +202,7 @@ class Connection:
         self.closed = True
         
         #close conn, update conn state
-        self.conn.close(forceClose=True)
+        self.conn.close(force=True)
         self.connStatus.removeConn(self.connIdent)
         
         #stop rate measurement

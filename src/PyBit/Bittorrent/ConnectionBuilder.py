@@ -21,7 +21,7 @@ from collections import deque
 import logging
 import threading
 
-from PySamLib.SamSocket import SamSocket
+from PySamLib.I2PSocket import I2PSocket
 import Messages
 
 from Utilities import logTraceback
@@ -80,7 +80,7 @@ class ConnectionBuilder:
             peerAddrs = self.peerPool.getPossibleConnections(torrentIdent, wantedConns, torrentInfo['connAddrs'])
             for peerAddr in peerAddrs:
                 #create conn
-                sock = SamSocket(self.samSockManager, self.destNum)
+                sock = I2PSocket(self.samSockManager, self.destNum)
                 sock.setblocking(0)
                 sock.connect(peerAddr)
                 sockNum = sock.fileno()
@@ -145,7 +145,7 @@ class ConnectionBuilder:
         
         #close conn
         self.peerPool.failedToConnect(connSet['torrentIdent'], conn.getpeername())
-        conn.close(forceClose=True)
+        conn.close(force=True)
         del self.conns[connId]
         
 

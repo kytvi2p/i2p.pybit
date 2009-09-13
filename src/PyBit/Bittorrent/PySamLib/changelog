@@ -1,3 +1,25 @@
+0.2.1 - 23.02.2009
+-----------------------
+Blub:
+- fixed bug in "SamTcpDestination": All i2pSockets were failed when a destination failed but failing an already failed socket crashes
+- fixed bug in "SamExtendedDestination": multiple simultaneous lookups of the same name were incorrectly handled (the callback arguments and keywords were not stored correctly)
+
+
+0.2.0 - 22.02.2009
+-----------------------
+Blub:
+- restructured the entire library to be less monolithic but more spread out over different classes, so that it is easier to maintain and to extend; cleaned up the code and interface in the process
+- did not backwards compatible API changes! (mostly renames but the behaviour and keywords of a few functions did change)
+- massive rename: renamed "SamSocketManager" to "I2PSocketManager", "SamPoll" to "I2PPoll", "SamSocket" to "I2PSocket"; replaced "Sam" in funtion names of these classes with "I2P" (PySamLib may support other protocols like BOB in the future, in that case "Sam" in the function names would be misleading)
+- added "AsyncSocket": a wrapper class for "AsyncSocketManager" which emulates (parts of) the socket interface 
+- added "I2PSocketStatus": stores which i2pSocket may recv or send and which ones failed
+- added "RealSocketStatus": stores which async socket wants to recv, send, ...
+- added "SamDestination.py": includes five different classes, one for each sam destination type (raw, udp and tcp), which each represent one sam destination of their type per instance, and two base classes used for inheriting
+- added "SamSocket.py": includes "SamTcpSocket", a class which represents a single sam tcp stream per instance, and "SamTcpListeningSocket", which represents one listening tcp socket per instance (virtual, the sam bridge doesn't know about this socket)
+- improved "SamMessages.py": added nameLookup() which creates a name lookup message
+- added support for automatic name resolution: If connect() is not given a full i2p destination but a i2p name ("*.i2p" or "*.b32.i2p", but it will try to resolve anything which is not 516 chars long or which doesn't end with "AAAA"), then PySamLib tries to resolve the name using the sam bridge. If resolving the name fails then the socket fails, if it succeeds then the result is used as the connect target.
+
+
 0.1.5 - 07.02.2009
 -----------------------
 Blub:

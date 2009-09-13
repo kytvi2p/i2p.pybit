@@ -35,14 +35,14 @@ from HttpRequester import HttpRequester
 from Limiter import RefillingQuotaLimiter
 from Measure import Measure
 from OwnAddressWatcher import OwnAddressWatcher
-from Torrent import Torrent
+from Torrent import Torrent, TorrentException
 from Utilities import generateRandomBinary, encodeStrForPrinting, logTraceback
-from PySamLib.SamSocketManager import SamSocketManager
+from PySamLib.I2PSocketManager import I2PSocketManager
 
 #DEBUG
 #import gc
 
-VERSION = '0.0.6'
+VERSION = '0.0.7'
 
 
 class MultiBtException(Exception):
@@ -102,7 +102,7 @@ class MultiBt:
                              'outbound.lengthVariance':self.config.getStr('i2p','samTunnelLengthVarianceOut'),
                              'outbound.allowZeroHop':self.config.getStr('i2p','samZeroHopsOut')}
                     
-        self.samSockManager = SamSocketManager(log='SamSocketManager', asmLog='AsyncSocketManager')
+        self.samSockManager = I2PSocketManager(log='SamSocketManager', asmLog='AsyncSocketManager')
         self.destNum = self.samSockManager.addDestination(self.config.get('i2p','samIp'),
                                                           self.config.get('i2p','samPort'),
                                                           self.config.get('i2p','samSessionName'),
@@ -146,11 +146,11 @@ class MultiBt:
                                      ('i2p','samTunnelLengthVarianceOut'):'outbound.lengthVariance',
                                      ('i2p','samZeroHopsOut'):'outbound.allowZeroHop'}
                                     
-        self.config.addCallback(callbackSamAddressOptions.keys(), self.samSockManager.changeSamBridgeAddress,
+        self.config.addCallback(callbackSamAddressOptions.keys(), self.samSockManager.changeSessionAddress,
                                 funcArgs=[self.destNum], funcKw={'reconnect':True}, valueArgPlace=1,
                                 callType='item-funcKwSingle', optionTranslationTable=callbackSamAddressOptions, callWithAllOptions=True)
                                 
-        self.config.addCallback((('i2p','samSessionName'),), self.samSockManager.changeDestinationName,
+        self.config.addCallback((('i2p','samSessionName'),), self.samSockManager.changeSessionName,
                                 funcArgs=[self.destNum], funcKw={'reconnect':True}, valueArgPlace=1)
         
                             
@@ -297,6 +297,8 @@ class MultiBt:
             torrent = Torrent()
             try:
                 torrent.load(torrentFileData)
+            except TorrentException, e:
+                failureMsg = e.reason
             except:
                 failureMsg = 'Failed to parse torrent file "%s"!\nTraceback: %s' % (encodeStrForPrinting(torrentFilePath), logTraceback())
         
@@ -310,7 +312,7 @@ class MultiBt:
             infohash = torrent.getTorrentHash()
             if infohash in self.torrentHashes:
                 #torrent is already on the queue
-                failureMsg = 'torrent is already queued'
+                failureMsg = 'Torrent is already queued'
             else:
                 #torrent is not on the queue
                 self.torrentHashes.add(infohash)
@@ -413,7 +415,7 @@ class MultiBt:
         failureMsg = self._addTorrent(torrentId, torrentDataPath)
         self.lock.release()
         if failureMsg is not None:
-            raise MultiBtException('Failed to add torrent: "%s"', failureMsg)
+            raise MultiBtException(failureMsg)
         else:
             return torrentId
         
