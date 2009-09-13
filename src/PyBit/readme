@@ -22,7 +22,7 @@ Known Problems
 (these are only the most probable for anyone to stumble upon, look into the file "todo" for a more complete list)
 - once in a while a traceback of a failed logging will be printed to the console (if you started PyBit from one) => this is completely harmless
 - if the config dialog is opened, a few GTK warnings may be printed to the console => the cause is unknown but these warnings shouldn't cause any problems
-- the GUI can use quite a few CPU cycles => only select the "Connections"-tab if you really want to look at the connections; selecting the "General"-tab saves you ~80% of the overall CPU usage (without the GUI PyBit never exceeded 2% CPU usage on my system ...)
+- the GUI can use quite a few CPU cycles => only select the "Connections"-tab if you really want to look at the connections; selecting the "General"-tab saves you ~80% of the overall CPU usage (without the GUI PyBit never exceeded 2% CPU usage on my system, with the gui its ~5%, with the connection-tab selected up to ~25% ...)
 - there are weird symbols displayed in the "General"-tab, following the description "Info Hash" => this is not a problem, what you see is the binary identifier for that torrent. It is displayed there as a placeholder for other statistics which will be displayed there in the future.
 - if I move a column sometimes nothing happens or the wrong one is moved => scroll as far left as possible before moving columns around, else weird stuff will happen
 
@@ -30,18 +30,15 @@ Known Problems
 Special Files
 -----------------------
 changelog
-- simply the changelog of PyBit, not used internally
+- simply the changelog of PyBit, not used internally except for displaying it
 
 config.conf
 - contains all user configurable settings
 - will be (re-)created with default settings if it doesn't exist
+- any missing option and any option with an invalid value will be set to the default when PyBit is started
 
 copying
 - license of PyBit, not accessed from PyBit
-
-log
-- all log messages are written here
-- should only be deleted after PyBit terminated
 
 readme
 - this file
@@ -62,6 +59,13 @@ Bittorrent and Bittorrent/PySamLib
 Icons
 - contains the icons which are used within PyBit
 
+Logs
+- contains all logfiles
+- once a logfile reaches 10MB, it is moved to "log.x", "x" being a number, and a new one is created
+- 5 old logfiles are kept, older ones are deleted
+- neither the maximum size (10MB) nor the number of kept logs (5 including the current one) is configurable right now
+- the logfile called "log" (the current logfile) should only be deleted after PyBit terminated
+
 Torrents
 - contains copies of the torrents which are currently queued in PyBit
-- do not delete manually, these files will be deleted if you remove the corresponding torrent from PyBits queue
+- do not delete these manually, these files will be deleted if you remove the corresponding torrent from PyBits queue

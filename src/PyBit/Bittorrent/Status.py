@@ -83,6 +83,25 @@ class Status:
         self.lock.release()
         
         
+    def setPieceStatus(self, pieceIndex, got):
+        self.lock.acquire()
+        if got and pieceIndex in self.missingPieces:
+            #piece is in wrong set
+            self.missingPieces.remove(pieceIndex)
+            self.gotPieces.add(pieceIndex)
+            self.missingPiecesCount -= 1
+            self.gotPiecesCount += 1
+        
+        elif (not got) and pieceIndex in self.gotPieces:
+            #piece is in wrong set
+            self.gotPieces.remove(pieceIndex)
+            self.missingPieces.add(pieceIndex)
+            self.gotPiecesCount -= 1
+            self.missingPiecesCount += 1
+            
+        self.lock.release()
+        
+        
     ##functions to get information about the pieces
     
     def getGotPieces(self):

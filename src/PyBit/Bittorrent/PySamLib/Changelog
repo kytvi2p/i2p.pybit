@@ -1,9 +1,16 @@
+0.1.5 - 07.02.2009
+-----------------------
+Blub:
+- added function "changeSamBridgeAddress()" which changes the ip address and port of a destination
+- added function "changeDestinationName()" which changes the name of a destination (the name which is displayed on the router console)
+
+
 0.1.4 - 28.01.2009
 -----------------------
 Blub:
-- added functions to get the currently available bytes in the recv buffer of a sam tcp socket
+- added functions to get the amount of currently available bytes in the recv buffer of a sam tcp socket
 - fixed bug which prevented the removal of internal data structures for some closed sockets
-- added shutdown() function, which guarantees that the main-loop thread dies before function return, to SamSocketManager and AsyncSocketManager
+- added shutdown() function, which guarantees that the main-loop thread dies before the function returns, to SamSocketManager and AsyncSocketManager
 - SamSocket doesn't try to get its own i2p destination already in the constructor but only if needed
 
 

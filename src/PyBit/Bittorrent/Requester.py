@@ -22,6 +22,8 @@ from sha import sha
 import logging
 
 from Request import Request
+from Utilities import logTraceback
+
 
 class Requester:
     def __init__(self, ident, globalStatus, storage, torrent):
@@ -203,30 +205,61 @@ class Requester:
         assert not self.ownStatus.isSeed(), 'already seed but finished a request?!'
         finishedPiece = False
         
-        self.storage.storeData(pieceIndex, data, offset)
+        try:
+            self.storage.storeData(pieceIndex, data, offset)
+            success = True
+        except:
+            self.log.error('Failed to store data of piece "%i", offset "%i":\n%s', pieceIndex, offset, logTraceback())
+            success = False
+        
         request = self.requestedPieces[pieceIndex]
-        canceledConns, oldMinReqCount, newMinReqCount = request.finishedRequest(offset, conn)
+        
+        if not success:
+            #failed to store data
+            canceledConns = []
+            oldMinReqCount, newMinReqCount = request.failedRequest(offset, conn)
+            if oldMinReqCount != newMinReqCount:
+                #need to move piece index
+                self._moveRequestablePiece(pieceIndex, oldMinReqCount, newMinReqCount)
+        
+        else:
+            #stored data
+            canceledConns, oldMinReqCount, newMinReqCount = request.finishedRequest(offset, conn)
 
-        if oldMinReqCount != newMinReqCount:
-            #need to move piece index
-            self._moveRequestablePiece(pieceIndex, oldMinReqCount, newMinReqCount)
+            if oldMinReqCount != newMinReqCount:
+                #need to move piece index
+                self._moveRequestablePiece(pieceIndex, oldMinReqCount, newMinReqCount)
 
-
-        #check if request is finished
-        if request.isFinished():
-            #finished piece
-            assert newMinReqCount==0,'Finished but running requests?!'
-            del self.requestedPieces[pieceIndex]
-            pieceData = self.storage.getData(pieceIndex, 0, request.getPieceSize())
-            if sha(pieceData).digest()==self.torrent.getPieceHashByPieceIndex(pieceIndex):
-                #success
-                finishedPiece = True
-                self.ownStatus.gotPiece(pieceIndex)
-                self._removeRequestablePiece(pieceIndex, newMinReqCount)
-            else:
-                #failure
-                self.log.warn("Checksum error for retrieved piece %d!", pieceIndex)
-                self._moveRequestablePiece(pieceIndex, 0, -1)
+            #check if request is finished
+            if request.isFinished():
+                #finished piece
+                assert newMinReqCount==0,'Finished but running requests?!'
+                del self.requestedPieces[pieceIndex]
+                
+                #get data
+                try:
+                    pieceData = self.storage.getData(pieceIndex, 0, request.getPieceSize())
+                except:
+                    pieceData = None
+                    self.log.error('Failed to read data of piece "%i":\n%s', pieceIndex, logTraceback())
+                
+                #check data
+                if pieceData is None:
+                    validPiece = False
+                else:
+                    validPiece = sha(pieceData).digest() == self.torrent.getPieceHashByPieceIndex(pieceIndex)
+                
+                #act accordingly
+                if validPiece:
+                    #success
+                    finishedPiece = True
+                    self.ownStatus.gotPiece(pieceIndex)
+                    self._removeRequestablePiece(pieceIndex, newMinReqCount)
+                else:
+                    #failure
+                    self.log.warn("Checksum error for retrieved piece %d!", pieceIndex)
+                    self._moveRequestablePiece(pieceIndex, 0, -1)
+                
 
         if self.ownStatus.isSeed():
             #clear waiting conns

@@ -28,6 +28,14 @@ def logTraceback():
     return pseudo_file.getvalue()
 
 
+def encodeStrForPrinting(string):
+    if type(string)==str:
+        result = string
+    else:
+        result = string.encode('UTF-8', 'ignore')
+    return result
+
+
 class FunctionCallConverter:
     def __init__(self, func, funcArgs=[], funcKw={}, resultFilter=None, resultFilterFormat=None):
         self.func = func

@@ -43,7 +43,7 @@ class RefillingQuotaLimiter:
     def changeRate(self, newRate):
         self.lock.acquire()
         self.quota = int(self.quota*(int(newRate*self.interval))/(self.rate*1.0))
-        self.rate = int(newRate*self.intervall)
+        self.rate = int(newRate*self.interval)
         self.lock.release()
 
     def addUser(self, ident, callback=None, callbackArgs=[], callbackKw={}):

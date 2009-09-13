@@ -142,6 +142,13 @@ class SamSocketManager:
         return realSocketNum
     
     
+    def _changeSocketConnectAddress(self, realSocketNum, ip, port):
+        if ip is not None:
+            self.realSockets[realSocketNum]['ip'] = ip
+        if port is not None:
+            self.realSockets[realSocketNum]['port'] = port
+    
+    
     def _sendOverRealSocket(self, realSockNum, data):
         #just add the message to the outgoing queue of the socket
         realSocket = self.realSockets[realSockNum]
@@ -300,6 +307,18 @@ class SamSocketManager:
             
     def _changeDefaultInRecvLimitThreshold(self, destSet, defaultInRecvLimitThreshold):
         destSet['defaultInRecvLimitThreshold'] = defaultInRecvLimitThreshold
+        
+        
+    def _changeSamBridgeAddress(self, destNum, ip, port, reconnect):
+        self._changeSocketConnectAddress(self.samDests[destNum]['realSocket'], ip, port)
+        if reconnect:
+            self._failDestination(destNum, 'sam bridge address changed')
+            
+            
+    def _changeDestinationName(self, destNum, destName, reconnect):
+        self.samDests[destNum]['destName'] = destName
+        if reconnect:
+            self._failDestination(destNum, 'destination name changed')
         
             
     def _changeSessionOption(self, destNum, option, value, reconnect):
@@ -1000,6 +1019,20 @@ class SamSocketManager:
             destSet = self.samDests[destNum]
             if destSet['sessionType']=='tcp':
                 self._changeDefaultInRecvLimitThreshold(destSet, defaultInRecvLimitThreshold)
+        self.lock.release()
+        
+        
+    def changeSamBridgeAddress(self, destNum, ip=None, port=None, reconnect=False):
+        self.lock.acquire()
+        if destNum in self.samDests:
+            self._changeSamBridgeAddress(destNum, ip, port, reconnect)
+        self.lock.release()
+        
+        
+    def changeDestinationName(self, destNum, destName, reconnect=False):
+        self.lock.acquire()
+        if destNum in self.samDests:
+            self._changeDestinationName(destNum, destName, reconnect)
         self.lock.release()
         
        

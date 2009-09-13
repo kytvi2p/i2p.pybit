@@ -22,6 +22,74 @@ import wx
 from wx.lib.masked import NumCtrl, IpAddrCtrl
 
 
+class Logging_ConfigPanel(wx.Panel):
+    def __init__(self, config, parent, **kwargs):
+        wx.Panel.__init__(self, parent, **kwargs)
+        self.config = config
+        #stuff
+        vBox = wx.BoxSizer(wx.VERTICAL)
+
+        #build up boxes
+        loggingBox = wx.StaticBox(self, -1, "Logging")
+        loggingBoxSizer = wx.StaticBoxSizer(loggingBox, wx.VERTICAL)
+        loggingBoxItems = wx.FlexGridSizer(cols = 1, vgap = 3, hgap = 5)
+
+        commentBox = wx.StaticBox(self, -1, "Note")
+        commentBoxSizer = wx.StaticBoxSizer(commentBox, wx.VERTICAL)
+
+        #build speedLimiter box        
+        loggingItems = wx.FlexGridSizer(cols = 2, vgap = 3, hgap = 5)
+        
+        #down speed        
+        label1a = wx.StaticText(self, -1, "Console loglevel:")
+        label1a.SetToolTipString('Determines the minimum loglevel a logmessage must have to be printed to the console.')
+        loggingItems.Add(label1a, 1, wx.EXPAND)
+        
+        self.combo1 = wx.ComboBox(self, -1, size = wx.Size(85, -1),\
+                                  choices=["Critical", "Error", "Warning", "Info", "Debug"], style=wx.CB_READONLY)
+        self.combo1.SetValue(self.config.get('logging','consoleLoglevel').capitalize())
+        self.combo1.SetToolTipString('Determines the minimum loglevel a logmessage must have to be printed to the console.')
+        loggingItems.Add(self.combo1, 1)
+
+        #up speed        
+        label2a = wx.StaticText(self, -1, "File loglevel:")
+        label2a.SetToolTipString('Determines the minimum loglevel a logmessage must have to be written to the logfile.')
+        loggingItems.Add(label2a, 1, wx.EXPAND)
+        
+        self.combo2 = wx.ComboBox(self, -1, size = wx.Size(85, -1),\
+                                  choices=["Critical", "Error", "Warn", "Info", "Debug"], style=wx.CB_READONLY)
+        self.combo2.SetValue(self.config.get('logging','fileLoglevel').capitalize())
+        self.combo2.SetToolTipString('Determines the minimum loglevel a logmessage must have to be written to the logfile.')
+        loggingItems.Add(self.combo2, 1)
+        
+        loggingItems.AddGrowableCol(0, 1)
+        
+        #build up comment box 
+        commentLabel = wx.StaticText(self, -1, 'It is probably best to use "Error" or "Warning" for normal operation, '+\
+                                               '"Critical" if you want to minimise logging to very serious errors. '+\
+                                               '"Info" is only something for the curious and "Debug" for developers or the insane. ;)\n\n'+\
+                                               'Warning: Setting the logfile to "Debug" will create GBs of logs per day, '+\
+                                               'setting the console loglevel to that level will affect performance drastically!')
+        commentBoxSizer.Add(commentLabel, 1, flag = wx.EXPAND | wx.ALL, border = 5)
+
+        #build up network box
+        loggingBoxItems.Add(loggingItems, 1, wx.EXPAND | wx.ALL, border = 5)
+        loggingBoxItems.Add(commentBoxSizer, 1, wx.EXPAND | wx.ALL, border = 0)
+        loggingBoxItems.AddGrowableCol(0, 1)
+        loggingBoxItems.AddGrowableRow(1, 1)
+        loggingBoxSizer.Add(loggingBoxItems, 1, wx.EXPAND | wx.ALL, border = 0)
+
+        vBox.Add(loggingBoxSizer, 1, wx.EXPAND | wx.ALL, border = 2)
+        #Line everythign up
+        self.SetSizer(vBox)
+        self.Layout()
+        
+
+    def saveConfig(self, optionDict):
+        optionDict[('logging','consoleLoglevel')] = self.combo1.GetValue().lower()
+        optionDict[('logging','fileLoglevel')] = self.combo2.GetValue().lower()
+        
+
 class Network_ConfigPanel(wx.Panel):
     def __init__(self, config, parent, **kwargs):
         wx.Panel.__init__(self, parent, **kwargs)
@@ -47,7 +115,7 @@ class Network_ConfigPanel(wx.Panel):
         
         self.spin1 = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin1.SetRange(1, 1048576)
-        self.spin1.SetValue(self.config.getInt('connections','downSpeed')/1024)
+        self.spin1.SetValue(self.config.getInt('network','downSpeedLimit')/1024)
         self.spin1.SetToolTipString('Restricts the client to not download more kilobytes per second then set here')
         limiterItems.Add(self.spin1, 1)
 
@@ -58,7 +126,7 @@ class Network_ConfigPanel(wx.Panel):
         
         self.spin2 = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin2.SetRange(1, 1048576)
-        self.spin2.SetValue(self.config.getInt('connections','upSpeed')/1024)
+        self.spin2.SetValue(self.config.getInt('network','upSpeedLimit')/1024)
         self.spin2.SetToolTipString('Restricts the client to not upload more kilobytes per second then set here')
         limiterItems.Add(self.spin2, 1)
         
@@ -82,9 +150,9 @@ class Network_ConfigPanel(wx.Panel):
         self.Layout()
         
 
-    def saveConfig(self):
-        self.config.set('connections','downSpeed',self.spin1.GetValue()*1024)
-        self.config.set('connections','upSpeed',self.spin2.GetValue()*1024)
+    def saveConfig(self, optionDict):
+        optionDict[('network','downSpeedLimit')] = self.spin1.GetValue()*1024
+        optionDict[('network','upSpeedLimit')] = self.spin2.GetValue()*1024
         
         
         
@@ -131,15 +199,26 @@ class I2P_ConfigPanel(wx.Panel):
         samOptionBoxItems.Add(self.spin1, 1)
         
         
-        #sam session name
-        label3a = wx.StaticText(self, -1, "Session name:")
-        label3a.SetToolTipString('This name will appear in your local destinations overview; changing it will also change the used destination.')
+        #sam display name
+        label3a = wx.StaticText(self, -1, "Display name:")
+        label3a.SetToolTipString('This name will appear in the destinations overview of the i2p router webinterface.')
         samOptionBoxItems.Add(label3a, 1, wx.EXPAND)
         
         self.edit1 = wx.TextCtrl(self, -1, "", size=wx.Size(115,-1))
-        self.edit1.SetValue(self.config.get('i2p','samSessionName'))        
-        self.edit1.SetToolTipString('This name will appear in your local destinations overview; changing it will also change the used destination.')
+        self.edit1.SetValue(self.config.get('i2p','samDisplayName'))        
+        self.edit1.SetToolTipString('This name will appear in the destinations overview of the i2p router webinterface.')
         samOptionBoxItems.Add(self.edit1, 1)
+        
+        
+        #sam session name
+        label4a = wx.StaticText(self, -1, "Session name:")
+        label4a.SetToolTipString('This name will be used by the sam bridge to determine which i2p destination should be used for this client, changing it will also change the used destination.')
+        samOptionBoxItems.Add(label4a, 1, wx.EXPAND)
+        
+        self.edit2 = wx.TextCtrl(self, -1, "", size=wx.Size(115,-1))
+        self.edit2.SetValue(self.config.get('i2p','samSessionName'))        
+        self.edit2.SetToolTipString('This name will be used by the sam bridge to determine which i2p destination should be used for this client, changing it will also change the used destination.')
+        samOptionBoxItems.Add(self.edit2, 1)
         
         
         #add item sizer to box sizer
@@ -152,18 +231,18 @@ class I2P_ConfigPanel(wx.Panel):
         tunnelOptionBoxItems = wx.FlexGridSizer(cols = 3, vgap = 3, hgap = 20)
         
         #headline
-        label4a = wx.StaticText(self, -1, "")
-        tunnelOptionBoxItems.Add(label4a, 1)
-        label4b = wx.StaticText(self, -1, "In")
-        tunnelOptionBoxItems.Add(label4b, 1)
-        label4c = wx.StaticText(self, -1, "Out")
-        tunnelOptionBoxItems.Add(label4c, 1)
+        label5a = wx.StaticText(self, -1, "")
+        tunnelOptionBoxItems.Add(label5a, 1)
+        label5b = wx.StaticText(self, -1, "In")
+        tunnelOptionBoxItems.Add(label5b, 1)
+        label5c = wx.StaticText(self, -1, "Out")
+        tunnelOptionBoxItems.Add(label5c, 1)
         
         
         #ZeroHops
-        label5a = wx.StaticText(self, -1, "Zero Hops:")
-        label5a.SetToolTipString('Allow Zero Hops?')
-        tunnelOptionBoxItems.Add(label5a, 1, wx.EXPAND)
+        label6a = wx.StaticText(self, -1, "Zero Hops:")
+        label6a.SetToolTipString('Allow Zero Hops?')
+        tunnelOptionBoxItems.Add(label6a, 1, wx.EXPAND)
         
         self.check1In = wx.CheckBox(self, -1)
         self.check1In.SetToolTipString('Allow Zero Hops for inbound tunnels?')
@@ -177,9 +256,9 @@ class I2P_ConfigPanel(wx.Panel):
         
         
         #tunnel quantity
-        label6a = wx.StaticText(self, -1, "Number of tunnels:")
-        label6a.SetToolTipString('Number of tunnels')
-        tunnelOptionBoxItems.Add(label6a, 1, wx.EXPAND)
+        label7a = wx.StaticText(self, -1, "Number of tunnels:")
+        label7a.SetToolTipString('Number of tunnels')
+        tunnelOptionBoxItems.Add(label7a, 1, wx.EXPAND)
         
         self.spin2In = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin2In.SetRange(1, 3)
@@ -195,9 +274,9 @@ class I2P_ConfigPanel(wx.Panel):
         
         
         #backup tunnel quantity
-        label7a = wx.StaticText(self, -1, "Number of backup tunnels:")
-        label7a.SetToolTipString('Number of backup tunnels')
-        tunnelOptionBoxItems.Add(label7a, 1, wx.EXPAND)
+        label8a = wx.StaticText(self, -1, "Number of backup tunnels:")
+        label8a.SetToolTipString('Number of backup tunnels')
+        tunnelOptionBoxItems.Add(label8a, 1, wx.EXPAND)
         
         self.spin3In = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin3In.SetRange(0, 2)
@@ -213,9 +292,9 @@ class I2P_ConfigPanel(wx.Panel):
         
         
         #tunnel length
-        label8a = wx.StaticText(self, -1, "Length of tunnels:")
-        label8a.SetToolTipString('Length of tunnels')
-        tunnelOptionBoxItems.Add(label8a, 1, wx.EXPAND)
+        label9a = wx.StaticText(self, -1, "Length of tunnels:")
+        label9a.SetToolTipString('Length of tunnels')
+        tunnelOptionBoxItems.Add(label9a, 1, wx.EXPAND)
         
         self.spin4In = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin4In.SetRange(0, 3)
@@ -231,9 +310,9 @@ class I2P_ConfigPanel(wx.Panel):
         
         
         #tunnel length variance
-        label9a = wx.StaticText(self, -1, "Variance of tunnel length:")
-        label9a.SetToolTipString('Controls how much the length of the tunnels is randomly changed. If negative, the tunnel length varies +/- the set value, else only + the set value.')
-        tunnelOptionBoxItems.Add(label9a, 1, wx.EXPAND)
+        label10a = wx.StaticText(self, -1, "Variance of tunnel length:")
+        label10a.SetToolTipString('Controls how much the length of the tunnels is randomly changed. If negative, the tunnel length varies +/- the set value, else only + the set value.')
+        tunnelOptionBoxItems.Add(label10a, 1, wx.EXPAND)
         
         self.spin8In = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin8In.SetRange(-2, 2)
@@ -255,7 +334,8 @@ class I2P_ConfigPanel(wx.Panel):
         ##build up comment box 
         commentBox = wx.StaticBox(self, -1, "Note")
         commentBoxSizer = wx.StaticBoxSizer(commentBox, wx.VERTICAL)
-        commentLabel = wx.StaticText(self, -1, 'All of these settings require a restart to take effect.')
+        commentLabel = wx.StaticText(self, -1, 'Changing any of these settings will force a reconnect to the i2p router, closing all existing connections to other clients.\n\n'+\
+                                               'Both the display and session name must be unique for the used i2p router. If "TRANSIENT" (without the quotes) is used as a session name, the client will get a different i2p destination after each reconnect to the i2p router.')
         commentBoxSizer.Add(commentLabel, 1, flag = wx.EXPAND | wx.ALL, border = 5)
 
 
@@ -274,20 +354,21 @@ class I2P_ConfigPanel(wx.Panel):
         self.Layout()
         
 
-    def saveConfig(self):
-        self.config.set('i2p', 'samIp', self.ipField1.GetValue().replace(' ', ''))
-        self.config.set('i2p', 'samPort', self.spin1.GetValue())
-        self.config.set('i2p', 'samSessionName', self.edit1.GetValue())
-        self.config.set('i2p', 'samZeroHopsIn', self.check1In.GetValue())
-        self.config.set('i2p', 'samZeroHopsOut', self.check1Out.GetValue())
-        self.config.set('i2p', 'samNumOfTunnelsIn', self.spin2In.GetValue())
-        self.config.set('i2p', 'samNumOfTunnelsOut', self.spin2Out.GetValue())
-        self.config.set('i2p', 'samNumOfBackupTunnelsIn', self.spin3In.GetValue())
-        self.config.set('i2p', 'samNumOfBackupTunnelsOut', self.spin3Out.GetValue())
-        self.config.set('i2p', 'samTunnelLengthIn', self.spin4In.GetValue())
-        self.config.set('i2p', 'samTunnelLengthOut', self.spin4Out.GetValue())
-        self.config.set('i2p', 'samTunnelLengthVarianceIn', self.spin8In.GetValue())
-        self.config.set('i2p', 'samTunnelLengthVarianceOut', self.spin8Out.GetValue())
+    def saveConfig(self, optionDict):
+        optionDict[('i2p', 'samIp')] = self.ipField1.GetValue().replace(' ', '')
+        optionDict[('i2p', 'samPort')] = self.spin1.GetValue()
+        optionDict[('i2p', 'samDisplayName')] = self.edit1.GetValue()
+        optionDict[('i2p', 'samSessionName')] = self.edit2.GetValue()
+        optionDict[('i2p', 'samZeroHopsIn')] = self.check1In.GetValue()
+        optionDict[('i2p', 'samZeroHopsOut')] = self.check1Out.GetValue()
+        optionDict[('i2p', 'samNumOfTunnelsIn')] = self.spin2In.GetValue()
+        optionDict[('i2p', 'samNumOfTunnelsOut')] = self.spin2Out.GetValue()
+        optionDict[('i2p', 'samNumOfBackupTunnelsIn')] = self.spin3In.GetValue()
+        optionDict[('i2p', 'samNumOfBackupTunnelsOut')] = self.spin3Out.GetValue()
+        optionDict[('i2p', 'samTunnelLengthIn')] = self.spin4In.GetValue()
+        optionDict[('i2p', 'samTunnelLengthOut')] = self.spin4Out.GetValue()
+        optionDict[('i2p', 'samTunnelLengthVarianceIn')] = self.spin8In.GetValue()
+        optionDict[('i2p', 'samTunnelLengthVarianceOut')] = self.spin8Out.GetValue()
         
         
 
@@ -380,16 +461,16 @@ class Paths_ConfigPanel(wx.Panel):
         return path
     
 
-    def saveConfig(self):
-        self.config.set('paths','torrentFolder', self.edit1.GetValue())
-        self.config.set('paths','downloadFolder', self.edit2.GetValue())
+    def saveConfig(self, optionDict):
+        optionDict[('paths','torrentFolder')] = self.edit1.GetValue()
+        optionDict[('paths','downloadFolder')] = self.edit2.GetValue()
         
         
 
 
 class ConfigDialog(wx.Frame):
     def __init__(self, config, parent, **kwargs):
-        wx.Frame.__init__(self, parent, -1, 'Preferences', size=wx.Size(550, 375),\
+        wx.Frame.__init__(self, parent, -1, 'Preferences', size=wx.Size(550, 475),\
                           style = wx.DEFAULT_FRAME_STYLE | wx.STAY_ON_TOP, **kwargs)
         self.CentreOnScreen()
         self.config = config
@@ -400,13 +481,15 @@ class ConfigDialog(wx.Frame):
         self.tree = wx.TreeCtrl(parent=self, id=100, size=wx.Size(150,-1),\
                                 style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.TR_HAS_BUTTONS | wx.TR_SINGLE )
         root = self.tree.AddRoot('root')
-        n10 = self.tree.AppendItem(root, "Network")
-        n11 = self.tree.AppendItem(n10,  "I2P")
-        n20 = self.tree.AppendItem(root, "Paths")
-
+        n10 = self.tree.AppendItem(root, "Logging")
+        n20 = self.tree.AppendItem(root, "Network")
+        n21 = self.tree.AppendItem(n20,  "I2P")
+        n30 = self.tree.AppendItem(root, "Paths")
+        
         self.tree.Expand(n10)
-        self.tree.Expand(n11)
         self.tree.Expand(n20)
+        self.tree.Expand(n21)
+        self.tree.Expand(n30)
         self.tree.SelectItem(n10)
 
         self.vBox.Add(self.tree, 1, wx.EXPAND)
@@ -427,10 +510,11 @@ class ConfigDialog(wx.Frame):
         self.hBox.Add(self.vBox, 0, wx.EXPAND)
 
         #config panels
-        self.configPanels = {'Network':Network_ConfigPanel(self.config, self),\
+        self.configPanels = {'Logging':Logging_ConfigPanel(self.config, self),\
+                             'Network':Network_ConfigPanel(self.config, self),\
                              'I2P':I2P_ConfigPanel(self.config, self),\
                              'Paths':Paths_ConfigPanel(self.config, self)}
-        self.activePanel = 'Network'
+        self.activePanel = 'Logging'
         
         for panelName in self.configPanels.keys():
             if not panelName==self.activePanel:
@@ -438,7 +522,6 @@ class ConfigDialog(wx.Frame):
             self.hBox.Add(self.configPanels[panelName], 1, wx.EXPAND)
 
         #Line everything up
-
         self.SetSizer(self.hBox)
         self.Layout()
         
@@ -457,8 +540,10 @@ class ConfigDialog(wx.Frame):
         
 
     def OnSave(self, event):
+        optionDict = {}
         for panel in self.configPanels.values():
-            panel.saveConfig()
+            panel.saveConfig(optionDict)
+        self.config.setMany(optionDict, True)
         self.Destroy()
         
 
@@ -470,15 +555,17 @@ if __name__ == "__main__":
     from Config import Config
     
     #gui config options
-    configDefaults = {'logging':{'loglevel':('Info', 'str')},
+    configDefaults = {'logging':{'consoleLoglevel':('critical', 'str'),
+                                 'fileLoglevel':('info', 'str')},
                       'paths':{'torrentFolder':('/tmp', 'str'),
                                'downloadFolder':('/tmp', 'str')}}
                     
     #bt config options
-    btConfigDefaults = {'connections':{'downSpeed':(102400, 'int'),
-                                       'upSpeed':(10240, 'int')},
+    btConfigDefaults = {'network':{'downSpeedLimit':(102400, 'int'),
+                                   'upSpeedLimit':(10240, 'int')},
                         'i2p':{'samIp':('127.0.0.1', 'ip'),
                                'samPort':(7656, 'port'),
+                               'samDisplayName':('PyBit', 'str'),
                                'samSessionName':('PyBit', 'str'),
                                'samZeroHopsIn':(False, 'bool'),
                                'samZeroHopsOut':(False, 'bool'),

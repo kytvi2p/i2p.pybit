@@ -31,8 +31,9 @@ from SortableList import SortableList
 ##own - other
 from Bittorrent.MultiBt import MultiBt, VERSION
 from Config import Config
+from Logger import LogController
 from ObjectPersister import ObjectPersister
-from Utilities import logTraceback, FunctionCallConverter
+from Utilities import logTraceback, encodeStrForPrinting, FunctionCallConverter
 
 ##other
 from time import time, sleep
@@ -46,21 +47,40 @@ class Gui(wx.Frame):
         self.progPath = progPath
         self.stopFlag = False
         
-        #objects
-        self.log = logging.getLogger('Gui')
-        self.log.info("Creating object persister instance")
-        self.persister = ObjectPersister(os.path.join(progPath, u'state.db'), log='ObjectPersister')
-        
+        #create log controller
+        self.logController = LogController((('consoleLog', 'consoleLog', {'logLevel':'critical',
+                                                                          'logFormat':'%(asctime)s %(levelname)-8s %(name)-22s - %(message)s'}),
+                                            ('fileLog'   , 'fileLog'   , {'filename':os.path.join(progPath, u'Logs', u'log'),
+                                                                          'logLevel':'info',
+                                                                          'logFormat':'%(asctime)s %(levelname)-8s %(name)-22s - %(message)s',
+                                                                          'fileMaxBytes':10485760,
+                                                                          'fileMaxRotatedCount':4})))
+                            
         #create config, set defaults
-        configDefaults = {'logging':{'loglevel':('Info', 'str')},
+        configDefaults = {'logging':{'consoleLoglevel':('critical', 'str'),
+                                     'fileLoglevel':('info', 'str')},
                           'paths'  :{'torrentFolder':(progPath, 'str'),
                                      'downloadFolder':(progPath, 'str')}}
         self.config = Config(os.path.join(progPath, u'config.conf'), configDefaults=configDefaults)
         
+        #set real log options and add callbacks
+        self.logController.changeHandlerLoglevel('consoleLog', self.config.get('logging','consoleLoglevel'))
+        self.logController.changeHandlerLoglevel('fileLog', self.config.get('logging','fileLoglevel'))
+        self.config.addCallback((('logging', 'consoleLoglevel'),), self.logController.changeHandlerLoglevel, funcArgs=['consoleLog'], valueArgPlace=1)
+        self.config.addCallback((('logging', 'fileLoglevel'),), self.logController.changeHandlerLoglevel, funcArgs=['fileLog'], valueArgPlace=1)
+        
+        #get logger
+        self.log = logging.getLogger('Gui')
+        
+        #create persister
+        self.log.info("Creating object persister instance")
+        self.persister = ObjectPersister(os.path.join(progPath, u'state.db'), log='ObjectPersister')
+        
+        #creat torrent handler
         self.torrentHandler = MultiBt(self.config, self.persister, self.progPath)
         
         
-        #Gui Stuff
+        ##Gui Stuff
         wx.Frame.__init__(self, None, -1, 'PyBit', size = wx.Size(800, 600), style = wx.DEFAULT_FRAME_STYLE)
         self.CentreOnScreen()
         
@@ -203,7 +223,7 @@ class Gui(wx.Frame):
                 savePath = saveDiag.GetPath()
                 
                 #try to load torrent
-                self.log.info('Trying to read torrent file from "%s"', torrentPath)
+                self.log.info('Trying to read torrent file from "%s"', encodeStrForPrinting(torrentPath))
                 try:
                     fl = open(torrentPath, 'rb')
                     data = fl.read()
@@ -213,10 +233,10 @@ class Gui(wx.Frame):
                 
                 if data is None:
                     #failed to read file
-                    self.log.error('Failed to read torrent file from "%s", torrent not added', torrentPath)
+                    self.log.error('Failed to read torrent file from "%s", torrent not added', encodeStrForPrinting(torrentPath))
                 else:
                     #worked
-                    self.log.info('Adding torrent with data path "%s"', savePath)
+                    self.log.info('Adding torrent with data path "%s"', encodeStrForPrinting(savePath))
                     self.torrentList.addTorrent(data, savePath)
             del saveDiag
         del diag
@@ -241,11 +261,12 @@ class Gui(wx.Frame):
         self.stopFlag = True
         self.Destroy()
         self.torrentHandler.stop()
+        self.logController.shutdown()
 
 
 if __name__=="__main__":
     import logging
-    logging.basicConfig(level=logging.INFO,
+    logging.basicConfig(level=logging.DEBUG,
                         filename="log",
                         format='%(asctime)s %(levelname)-8s %(name)-22s - %(message)s')
 
@@ -255,5 +276,4 @@ if __name__=="__main__":
     try:
         app.MainLoop()
     except:
-        log.error(str(logTraceback()))
-    logging.shutdown()
+        print 'Main loop failed:', str(logTraceback())

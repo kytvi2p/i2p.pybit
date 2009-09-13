@@ -20,6 +20,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 
 from Measure import Measure
 from Status import Status
+from Utilities import logTraceback
 import Messages
 
 from collections import deque
@@ -112,7 +113,12 @@ class Connection:
             msgLen = Messages.getMessageLength(data)
             while msgLen is not None:
                 msgLen += 4 #because of the length field
-                if len(data) < msgLen:
+                if msgLen > 140000:
+                    #way too large
+                    self._fail('message from peer exceeds size limit (140000 bytes)')
+                    msgLen = None
+                    
+                elif len(data) < msgLen:
                     #incomplete message
                     msgLen = None
                 else:
@@ -328,10 +334,21 @@ class Connection:
     def _sendOutRequest(self):
         #queue one outrequest in the outbuffer
         outRequest = self.outRequests['requests'].popleft()
-        message = Messages.generatePiece(outRequest['pieceIndex'], outRequest['offset'], outRequest['dataHandle']())
-        self.outRate.updatePayloadCounter(outRequest['length'])
-        self.outRequests['inFlight'] += 1
-        self._queueSend(message, 'outrequest')
+        try:
+            #try to get data
+            data = outRequest['dataHandle']()
+        except:
+            #failed to get data
+            self.log.error("Failed to get data for outrequest:\n%s", logTraceback())
+            data = None
+            self._fail("could not get data for outrequest")
+            
+        if data is not None:
+            #got data
+            message = Messages.generatePiece(outRequest['pieceIndex'], outRequest['offset'], data)
+            self.outRate.updatePayloadCounter(outRequest['length'])
+            self.outRequests['inFlight'] += 1
+            self._queueSend(message, 'outrequest')
         
 
     def _outRequestGotSend(self):

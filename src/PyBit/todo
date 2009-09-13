@@ -1,11 +1,12 @@
 General
 -----------------------
-- add callbacks for all relevant classes (choker, samSocketManager, ...) to the instance of the config class (=don't require restarts for config changes!)
 - fix CPU-usage bugs (Requester and some places in ConnectionHandler for example)
 - fix strange log errors (used "%i" or "%d" instead of "%s" in a log message somewhere? Or is the wrong data getting logged somewhere?)
-- setup logging the normal way, don't generate different loggers for instances of the same class
+- don't generate different loggers for instances of the same class
+- add a few more tabs (logs, block/pieces, tracker, files)
 - prevent adding the same torrent twice?
 - more exception handling/logging in the GUIs
+- add support for bob
 - webinterface? (with support to only start the webinterface = headless mode?)
 - persist gui changes with ObjectPersister (enabled columns, ordering, ...) ? Would need a fail-safe way to reset to defaults in case of screwed up changes.
 
@@ -13,8 +14,8 @@ General
 Classes
 -----------------------
 
-Bittorrent.Connection:
-- handle failing data handle (outrequests)
+Bittorrent.Bt:
+- report status changes (loading/running/completed/error) back to MultiBt (for status changes and such)
 
 Bittorrent.ConnectionBuilder:
 - timeout
@@ -37,24 +38,11 @@ Bittorrent.MultiBt:
 - add some kind of scheduling?
 
 Bittorrent.Requester
-- handle failed writes of finished requests
 - really prefer rare pieces, regardless of current in-progress pieces (RAM vs efficiency tradeoff = optional?)
-
-Bittorrent.Storage
-- raise own exceptions on file access errors
-- cleanup, add another lock only for loading and use the existing ones for all other (external) funcs
-- handle failures inside the load() function
 
 Bittorrent.Tracker Requester:
 - prevent us from adding ourselve as a possible peer
 
-
-Config:
-- add override to set() to prevent the options from being saved to disk after getting modified
-- add commit() to force saving the options to disk
-
-ConfigDialog:
-- prevent the Config class from writing all options to disk after each single set() to speedup things - do one commit() call at the end
 
 SorteableList:
 - fix column moving (doesn't work if scrolled to the right)

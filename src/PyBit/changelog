@@ -1,3 +1,14 @@
+0.0.2 - 07.02.2009
+-----------------------
+Blub:
+- failed IO (full disk, no permission to access file, ...) should now be handled and logged
+- improved setup of the logging system, which can now handle both file and console logging (and the loglevel is configurable)
+- all config options can now be changed without restarting PyBit
+- added a few sanity checks
+- fixed lots of small bugs, which weren't triggered in 0.0.1 because the relevant code wasn't yet used
+- updated PySamLib from v0.1.4 to v0.1.5
+
+
 0.0.1 - 30.01.2009
 -----------------------
 Blub:

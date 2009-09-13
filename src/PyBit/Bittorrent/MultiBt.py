@@ -41,7 +41,7 @@ from PySamLib.SamSocketManager import SamSocketManager
 #DEBUG
 #import gc
 
-VERSION = '0.0.1'
+VERSION = '0.0.2'
 
 
 class MultiBtException(Exception):
@@ -63,10 +63,11 @@ class MultiBt:
         self.log = logging.getLogger('MultiBt')
         
         #set config defaults
-        configDefaults = {'connections':{'downSpeed':(102400, 'int'),
-                                         'upSpeed':(10240, 'int')},
+        configDefaults = {'network':{'downSpeedLimit':(102400, 'int'),
+                                     'upSpeedLimit':(10240, 'int')},
                           'i2p':{'samIp':('127.0.0.1', 'ip'),
                                  'samPort':(7656, 'port'),
+                                 'samDisplayName':('PyBit', 'str'),
                                  'samSessionName':('PyBit', 'str'),
                                  'samZeroHopsIn':(False, 'bool'),
                                  'samZeroHopsOut':(False, 'bool'),
@@ -86,30 +87,30 @@ class MultiBt:
                       shortIntToBinary(versionDigits[2]) + generateRandomBinary(14)
                     
         #create samSocketManager
-        samOptions = {'inbound.nickname':self.config.get('i2p','samSessionName'),
-                      'inbound.quantity':self.config.get('i2p','samNumOfTunnelsIn'),
-                      'inbound.backupQuantity':self.config.get('i2p','samNumOfBackupTunnelsIn'),
-                      'inbound.length':self.config.get('i2p','samTunnelLengthIn'),
-                      'inbound.lengthVariance':self.config.get('i2p','samTunnelLengthVarianceIn'),
-                      'inbound.allowZeroHop':self.config.get('i2p','samZeroHopsIn'),
-                      'outbound.quantity':self.config.get('i2p','samNumOfTunnelsOut'),
-                      'outbound.backupQuantity':self.config.get('i2p','samNumOfBackupTunnelsOut'),
-                      'outbound.length':self.config.get('i2p','samTunnelLengthOut'),
-                      'outbound.lengthVariance':self.config.get('i2p','samTunnelLengthVarianceOut'),
-                      'outbound.allowZeroHop':self.config.get('i2p','samZeroHopsOut')}
+        samSessionOptions = {'inbound.nickname':self.config.getStr('i2p','samDisplayName'),
+                             'inbound.quantity':self.config.getStr('i2p','samNumOfTunnelsIn'),
+                             'inbound.backupQuantity':self.config.getStr('i2p','samNumOfBackupTunnelsIn'),
+                             'inbound.length':self.config.getStr('i2p','samTunnelLengthIn'),
+                             'inbound.lengthVariance':self.config.getStr('i2p','samTunnelLengthVarianceIn'),
+                             'inbound.allowZeroHop':self.config.getStr('i2p','samZeroHopsIn'),
+                             'outbound.quantity':self.config.getStr('i2p','samNumOfTunnelsOut'),
+                             'outbound.backupQuantity':self.config.getStr('i2p','samNumOfBackupTunnelsOut'),
+                             'outbound.length':self.config.getStr('i2p','samTunnelLengthOut'),
+                             'outbound.lengthVariance':self.config.getStr('i2p','samTunnelLengthVarianceOut'),
+                             'outbound.allowZeroHop':self.config.getStr('i2p','samZeroHopsOut')}
                     
         self.samSockManager = SamSocketManager(log='SamSocketManager', asmLog='AsyncSocketManager')
         self.destNum = self.samSockManager.addDestination(self.config.get('i2p','samIp'),
-                                                          self.config.getInt('i2p','samPort'),
+                                                          self.config.get('i2p','samPort'),
                                                           self.config.get('i2p','samSessionName'),
-                                                          'tcp', 'both', samOptions)
+                                                          'tcp', 'both', samSessionOptions)
         
         #create event scheduler
         self.eventSched = EventScheduler()
         
         #create traffic related classes
-        self.inLimiter = RefillingQuotaLimiter(self.eventSched, self.config.getInt('connections','downSpeed'))
-        self.outLimiter = RefillingQuotaLimiter(self.eventSched, self.config.getInt('connections','upSpeed'))
+        self.inLimiter = RefillingQuotaLimiter(self.eventSched, self.config.get('network','downSpeedLimit'))
+        self.outLimiter = RefillingQuotaLimiter(self.eventSched, self.config.get('network','upSpeedLimit'))
         self.inRate = Measure(self.eventSched, 60)
         self.outRate = Measure(self.eventSched, 60)
         
@@ -125,6 +126,37 @@ class MultiBt:
         
         #create http requester class
         self.httpRequester = HttpRequester(self.eventSched, self.destNum, self.samSockManager, self.ownAddrWatcher.getOwnAddr)
+        
+        #add config callbacks
+        callbackSamAddressOptions = (('i2p','samIp'),
+                                     ('i2p','samPort'))
+                                    
+        callbackSamSessionOptions = {('i2p','samDisplayName'):'inbound.nickname',
+                                     ('i2p','samNumOfTunnelsIn'):'inbound.quantity',
+                                     ('i2p','samNumOfBackupTunnelsIn'):'inbound.backupQuantity',
+                                     ('i2p','samTunnelLengthIn'):'inbound.length',
+                                     ('i2p','samTunnelLengthVarianceIn'):'inbound.lengthVariance',
+                                     ('i2p','samZeroHopsIn'):'inbound.allowZeroHop',
+                                     ('i2p','samNumOfTunnelsOut'):'outbound.quantity',
+                                     ('i2p','samNumOfBackupTunnelsOut'):'outbound.backupQuantity',
+                                     ('i2p','samTunnelLengthOut'):'outbound.length',
+                                     ('i2p','samTunnelLengthVarianceOut'):'outbound.lengthVariance',
+                                     ('i2p','samZeroHopsOut'):'outbound.allowZeroHop'}
+                                    
+        self.config.addCallback(callbackSamAddressOptions, self.samSockManager.changeSamBridgeAddress,
+                                funcArgs=[self.destNum], funcKw={'reconnect':True}, valueArgPlace=1,
+                                callType='value-funcArgAll')
+                                
+        self.config.addCallback((('i2p','samSessionName'),), self.samSockManager.changeDestinationName,
+                                funcArgs=[self.destNum], funcKw={'reconnect':True}, valueArgPlace=1)
+        
+                            
+        self.config.addCallback(callbackSamSessionOptions.keys(), self.samSockManager.replaceSessionOptions,
+                                funcArgs=[self.destNum], funcKw={'reconnect':True}, valueArgPlace=1,
+                                callType='item-dictArg', optionTranslationTable=callbackSamSessionOptions, callWithAllOptions=True)
+        
+        self.config.addCallback((('network', 'downSpeedLimit'),), self.inLimiter.changeRate)
+        self.config.addCallback((('network', 'upSpeedLimit'),), self.outLimiter.changeRate)
         
         #queue related structures
         self.torrentId = 1
@@ -244,34 +276,34 @@ class MultiBt:
     
     
     def _startTorrent(self, torrentId):
+        #start torrent
+        self.torrents[torrentId].start()
+        
         #adapt queue
         queueIndex = self._getQueueIndex(torrentId)
         self.torrentQueue[queueIndex]['state'] = 'running'
         self._storeTorrentQueue()
         
-        #really start torrent
-        self.torrents[torrentId].start()
-        
         
     def _stopTorrent(self, torrentId):
+        #really stop torrent
+        self.torrents[torrentId].pause()
+        
         #adapt queue
         queueIndex = self._getQueueIndex(torrentId)
         self.torrentQueue[queueIndex]['state'] = 'stopped'
         self._storeTorrentQueue()
         
-        #really stop torrent
-        self.torrents[torrentId].pause()
-        
         
     def _removeTorrent(self, torrentId):
+        #stop torrent then delete entry
+        self.torrents[torrentId].stop()
+        del self.torrents[torrentId]
+        
         #remove from queue
         queueIndex = self._getQueueIndex(torrentId)
         del self.torrentQueue[queueIndex]
         self._storeTorrentQueue()
-        
-        #stop torrent then delete entry
-        self.torrents[torrentId].stop()
-        del self.torrents[torrentId]
         
         #remove internal torrent file
         try:

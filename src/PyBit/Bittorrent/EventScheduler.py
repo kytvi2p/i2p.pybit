@@ -27,6 +27,14 @@ import threading
 from Utilities import logTraceback
 
 
+
+
+class EventSchedulerException(Exception):
+    pass
+
+
+
+
 class EventScheduler:
     def __init__(self):
         self.eventQueue = []
@@ -200,7 +208,7 @@ class EventScheduler:
             
     def scheduleEvent(self, task, timestamp=None, timedelta=None, funcArgs=[], funcKw={}, repeatdelta=None, catchUpLateRepeats=False):
         if (timestamp is not None) and (timedelta is not None):
-            raise InvalidArgument('Only either a timestamp or a timedelta may be given')
+            raise EventSchedulerException('Only either a timestamp or a timedelta may be given')
         
         elif (timestamp is None) and (timedelta is not None):
             eventTime = time() + timedelta
@@ -228,7 +236,7 @@ class EventScheduler:
     
     def rescheduleEvent(self, eventId, timestamp=None, timedelta=None, relativeTimedelta=None):
         if (timestamp is not None) + (timedelta is not None) + (relativeTimedelta is not None) > 1:
-            raise InvalidArgument('Only either a timestamp or a timedelta may be given')
+            raise EventSchedulerException('Only either a timestamp or a timedelta may be given')
         
         elif (timestamp is None) and (timedelta is None) and (relativeTimedelta is None):
             timestamp = time()

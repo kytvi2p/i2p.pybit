@@ -17,15 +17,17 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+import logging
+import threading
+
 from Choker import Choker
 from GlobalStatus import GlobalStatus
 from Measure import Measure
 from Requester import Requester
-from Storage import Storage
+from Storage import Storage, StorageException
 from TrackerRequester import TrackerRequester
+from Utilities import logTraceback
 
-import logging
-import threading
 
 class Bt:
     def __init__(self, config, eventSched, httpRequester, ownAddrFunc, peerId, pInMeasure, pOutMeasure,
@@ -60,6 +62,7 @@ class Bt:
         self.choker = Choker(self.torrentIdent, eventSched, self.connHandler, self.storage.getStatus())
         
         ##status
+        self.started = False
         self.paused = False
         self.stopped = True
         
@@ -70,28 +73,45 @@ class Bt:
     
     def _start(self):
         self.loadLock.acquire()
-        if self.storage.isLoaded():
-            self.log.debug("Storage already loaded, skipping hashing")
-        else:
-            self.log.debug("Loading ...")
-            self.storage.load()
-            self.log.debug("Reseting requester")
-            self.requester.reset()
+        try:
+            loaded = False
+            if self.storage.isLoaded():
+                self.log.debug("Storage already loaded, skipping hashing")
+            else:
+                try:
+                    self.log.debug("Loading ...")
+                    self.storage.load()
+                    self.log.debug("Reseting requester")
+                    self.requester.reset()
+                    loaded = True
+                    
+                except StorageException:
+                    #failure while loading
+                    self.log.error("Loading failed:\n%s", logTraceback())
+                    
+            if loaded:
+                #finished loading, add to handlers
+                self.log.debug("Adding us to connection handler")
+                self.connHandler.addTorrent(self.torrentIdent, self.torrent, self.globalStatus, self.inRate, self.outRate, self.storage, self.requester)
+                
+                self.log.debug("Adding us to connection listener")
+                self.connListener.addTorrent(self.torrentIdent, self.torrent.getTorrentHash())
+                
+                self.log.debug("Adding us to connection builder")
+                self.connBuilder.addTorrent(self.torrentIdent, self.torrent.getTorrentHash())
+                
+                self.log.debug("Starting choker")
+                self.choker.start()
+                
+                self.log.debug("Starting tracker requester")
+                self.trackerRequester.start()
+                
+                self.started = True
+                
+        except:
+            #something failed - hard
+            self.log.error("Error in load function:\n%s", logTraceback())
             
-        self.log.debug("Adding us to connection handler")
-        self.connHandler.addTorrent(self.torrentIdent, self.torrent, self.globalStatus, self.inRate, self.outRate, self.storage, self.requester)
-        
-        self.log.debug("Adding us to connection listener")
-        self.connListener.addTorrent(self.torrentIdent, self.torrent.getTorrentHash())
-        
-        self.log.debug("Adding us to connection builder")
-        self.connBuilder.addTorrent(self.torrentIdent, self.torrent.getTorrentHash())
-        
-        self.log.debug("Starting choker")
-        self.choker.start()
-        
-        self.log.debug("Starting tracker requester")
-        self.trackerRequester.start()
         self.loadLock.release()
         
     
@@ -101,20 +121,24 @@ class Bt:
         self.loadLock.acquire()
         self.loadLock.release()
         
-        self.log.debug("Stopping choker")
-        self.choker.stop()
-        
-        self.log.debug("Pausing tracker requester")
-        self.trackerRequester.pause()
-        
-        self.log.debug("Removing us from connection builder")
-        self.connBuilder.removeTorrent(self.torrentIdent)
-        
-        self.log.debug("Removing us from connection listener")
-        self.connListener.removeTorrent(self.torrent.getTorrentHash())
-        
-        self.log.debug("Removing us from connection handler")
-        self.connHandler.removeTorrent(self.torrentIdent)
+        if self.started:
+            #were already running
+            self.started = False
+            
+            self.log.debug("Stopping choker")
+            self.choker.stop()
+            
+            self.log.debug("Pausing tracker requester")
+            self.trackerRequester.pause()
+            
+            self.log.debug("Removing us from connection builder")
+            self.connBuilder.removeTorrent(self.torrentIdent)
+            
+            self.log.debug("Removing us from connection listener")
+            self.connListener.removeTorrent(self.torrent.getTorrentHash())
+            
+            self.log.debug("Removing us from connection handler")
+            self.connHandler.removeTorrent(self.torrentIdent)
         
         
     def _stop(self):
@@ -127,29 +151,33 @@ class Bt:
             self.connPool.clear(self.torrentIdent)
             
         else:
-            #still running
+            #still running or loading
             self.log.debug("Aborting storage loading just in case")
             self.storage.abortLoad()
             self.loadLock.acquire()
             self.loadLock.release()
             
-            self.log.debug("Stopping choker")
-            self.choker.stop()
-            
-            self.log.debug("Stopping tracker requester")
-            self.trackerRequester.stop()
-            
-            self.log.debug("Removing us from connection builder")
-            self.connBuilder.removeTorrent(self.torrentIdent)
-            
-            self.log.debug("Removing us from connection listener")
-            self.connListener.removeTorrent(self.torrent.getTorrentHash())
-            
-            self.log.debug("Removing us from connection handler")
-            self.connHandler.removeTorrent(self.torrentIdent)
-            
-            self.log.debug("Removing all infos related to us from connection pool")
-            self.connPool.clear(self.torrentIdent)
+            if self.started:
+                #were already running
+                self.started = False
+                
+                self.log.debug("Stopping choker")
+                self.choker.stop()
+                
+                self.log.debug("Stopping tracker requester")
+                self.trackerRequester.stop()
+                
+                self.log.debug("Removing us from connection builder")
+                self.connBuilder.removeTorrent(self.torrentIdent)
+                
+                self.log.debug("Removing us from connection listener")
+                self.connListener.removeTorrent(self.torrent.getTorrentHash())
+                
+                self.log.debug("Removing us from connection handler")
+                self.connHandler.removeTorrent(self.torrentIdent)
+                
+                self.log.debug("Removing all infos related to us from connection pool")
+                self.connPool.clear(self.torrentIdent)
         
 
     def start(self):
