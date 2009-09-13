@@ -23,7 +23,7 @@ from collections import deque
 import logging
 
 from Conversion import hexToInt
-from HttpUtilities import joinUrl
+from HttpUtilities import joinRelativeUrl
 
 
 class HttpRequestException(Exception):
@@ -72,7 +72,7 @@ class HttpGetRequest:
         else:
             host = self.host.encode('UTF-8', 'ignore')
             
-        request = '\r\n'.join(('GET %s HTTP/1.1' % (joinUrl(self.url),),
+        request = '\r\n'.join(('GET %s HTTP/1.1' % (joinRelativeUrl(self.url),),
                                'Host: %s' % (host,),
                                'Accept-Encoding: identity',
                                '\r\n'))

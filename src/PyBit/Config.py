@@ -91,14 +91,85 @@ class Config:
             
     ##internal functions - option types
     
+        
     def _getOptionType(self, section, option):
         return self.configDefaults[section][option][1]
     
+    
+    def _checkDecodedData(self, section, option, data):
+        #checks if raw data has the right type for encoding (storing)
+        dataType = self.configDefaults[section][option][1]
         
-    def _checkOptionType(self, section, option, optionData, optionType):
+        ok = False
+        if dataType == 'str':
+            if isinstance(data, str):
+                ok = True
+            
+        elif dataType == 'unicode':
+            if isinstance(data, unicode):
+                ok = True
+            
+        elif dataType == 'int':
+            if isinstance(data, int) or isinstance(data, long):
+                ok = True
+            
+        elif dataType == 'long':
+            if isinstance(data, int) or isinstance(data, long):
+                ok = True
+            
+        elif dataType == 'float':
+            if isinstance(data, int) or isinstance(data, long) or isinstance(data, float):
+                ok = True
+                
+        elif dataType == 'bool':
+            if isinstance(data, bool):
+                ok = True
+            
+        elif dataType == 'ip':
+            try:
+                if isinstance(data, unicode):
+                    data = data.encode('UTF-8')
+                if isinstance(data, str):
+                    if self.ipCheck.match(data) is not None:
+                        ok = True
+            except:
+                pass
+                
+        elif dataType == 'port':
+            if isinstance(data, int) or isinstance(data, long):
+                if data > 0 and data < 65536:
+                    ok = True
+                    
+        return ok
+    
+    
+    def _encodeOptionData(self, section, option, optionData):
+        #used to really encode the data
+        optionType = self.configDefaults[section][option][1]
+        if optionType in ('int', 'long', 'float', 'bool', 'port'):
+            data = str(optionData)
+        elif optionType == 'str':
+            data = optionData
+        else:
+            data = optionData.encode('UTF-8', 'ignore')
+        return data
+        
+    
+    
+        
+    def _checkEncodedData(self, section, option, optionData):
+        #checks if stored option data has the right data type
+        optionType = self.configDefaults[section][option][1]
         ok = False
         if optionType=='str':
             ok = True
+            
+        elif optionType=='unicode':
+            try:
+                optionData.decode('UTF-8')
+                ok = True
+            except:
+                pass
             
         elif optionType=='int':
             try:
@@ -122,7 +193,7 @@ class Config:
                 pass
                 
         elif optionType=='bool':
-            if str(optionData).lower() in ('true', 'false'):
+            if optionData.lower() in ('true', 'false'):
                 ok = True
             
         elif optionType=='ip':
@@ -140,8 +211,9 @@ class Config:
         return ok
     
     
-    def _applyOptionType(self, section, option, optionDataAsString, optionType):
-        data = optionDataAsString
+    def _decodeOptionData(self, section, option, optionDataAsString):
+        #used to really decode the data
+        optionType = self.configDefaults[section][option][1]
         
         if optionType=='int':
             data = int(optionDataAsString)
@@ -157,6 +229,12 @@ class Config:
                 
         elif optionType=='port':
             data = int(optionDataAsString)
+            
+        elif optionType=='unicode':
+            data = optionDataAsString.decode('UTF-8', 'ignore')
+            
+        else:
+            data = str(optionDataAsString)
             
         return data
         
@@ -180,13 +258,16 @@ class Config:
                 if not self.config.has_option(section, name):
                     #option isn't known, add it
                     self.log.warn('The option in section "%s" with name "%s" does not exist, setting it to the default value "%s"!',
-                                  section, name, str(configDefaults[section][name][0]))
-                    self.config.set(section, name, str(configDefaults[section][name][0]))
-                elif not self._checkOptionType(section, name, self.config.get(section, name), configDefaults[section][name][1]):
+                                  section, name, configDefaults[section][name][0])
+                    encData = self._encodeOptionData(section, name, configDefaults[section][name][0])
+                    self.config.set(section, name, encData)
+                    
+                elif not self._checkEncodedData(section, name, self.config.get(section, name)):
                     #options exists but has the wrong type, replace it
                     self.log.warn('The option in section "%s" with name "%s" and value "%s" has the wrong type, setting it to the default value "%s"!',
-                                  section, name, self.config.get(section, name), str(configDefaults[section][name][0]))
-                    self.config.set(section, name, str(configDefaults[section][name][0]))
+                                  section, name, self.config.get(section, name), configDefaults[section][name][0])
+                    encData = self._encodeOptionData(section, name, configDefaults[section][name][0])
+                    self.config.set(section, name, encData)
     
     
     ##external functions - defaults
@@ -235,7 +316,7 @@ class Config:
     def get(self, section, name):
         with self.lock:
             result = self.config.get(section, name)
-            result = self._applyOptionType(section, name, result, self._getOptionType(section, name))
+            result = self._decodeOptionData(section, name, result)
         return result
     
     def getStr(self, section, name):
@@ -266,13 +347,14 @@ class Config:
     def set(self, section, name, value, quiet=False):
         #set value
         with self.lock:
-            if not self._checkOptionType(section, name, value, self._getOptionType(section, name)):
+            if not self._checkDecodedData(section, name, value):
                 if not quiet:
-                    raise ConfigException('Invalid type: section "%s", name "%s": expected "%s", got "%s" (value: "%s")' % (section, name, self._getOptionType(section, name), str(type(value)), str(value)))
+                    raise ConfigException('Invalid type: section "%s", name "%s": expected "%s", got "%s" (value: "%s")' % (section, name, self._getOptionType(section, name), type(value), value))
             else:
-                if str(value) != self.config.get(section, name):
+                encValue = self._encodeOptionData(section, name, value)
+                if encValue != self.config.get(section, name):
                     #value changed
-                    self.config.set(section, name, str(value))
+                    self.config.set(section, name, encValue)
                     self.callbackManager.execCallbacks({(section, name):value})
                     self._writeConfig()
         
@@ -282,22 +364,23 @@ class Config:
             changedOptions = {}
             #check which options changed (and if they have the right type)
             for option, value in options.iteritems():
-                if not self._checkOptionType(option[0], option[1], value, self._getOptionType(option[0], option[1])):
+                if not self._checkDecodedData(option[0], option[1], value):
                     #wrong type
                     if not quiet:
-                        raise ConfigException('Invalid type: section "%s", option "%s": expected "%s", got "%s" (value: "%s")' % (option[0], option[1], self._getOptionType(option[0], option[1]), str(type(value)), str(value)))
+                        raise ConfigException('Invalid type: section "%s", option "%s": expected "%s", got "%s" (value: "%s")' % (option[0], option[1], self._getOptionType(option[0], option[1]), type(value), value))
                 else:
                     #right type
-                    if str(value) != self.config.get(option[0], option[1]):
+                    encValue = self._encodeOptionData(option[0], option[1], value)
+                    if encValue != self.config.get(option[0], option[1]):
                         #value changed
-                        self.log.debug('Option in section "%s" with name "%s" changed, new value "%s"', option[0], option[1], str(value))
-                        changedOptions[option] = value
+                        self.log.debug('Option in section "%s" with name "%s" changed, new value "%s"', option[0], option[1], value)
+                        changedOptions[option] = encValue
                     else:
                         self.log.debug('Option in section "%s" with name "%s" did not change', option[0], option[1])
             
             #set options
             for option, value in changedOptions.iteritems():
-                self.config.set(option[0], option[1], str(value))
+                self.config.set(option[0], option[1], value)
             
             #write to config file and call callbacks if necessary
             if len(changedOptions) > 0:
@@ -322,7 +405,7 @@ class ConfigCallbackManager:
             if not option in callOptions:
                 value = self.valueGetFunc(option[0], option[1])
                 self.log.debug('Adding unchanged option in section "%s" with name "%s" and value "%s" to changed options',
-                               option[0], option[1], str(value))
+                               option[0], option[1], value)
                 callOptions[option] = value
         
         

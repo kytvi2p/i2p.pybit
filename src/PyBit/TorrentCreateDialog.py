@@ -42,7 +42,8 @@ class TorrentCreateDialog(wx.Frame):
 
         ##mapper
         self.knownTrackerMapper = {u'crstrack.i2p':u'http://mm3zx3besctrx6peq5wzzueil237jdgscuvn5ugwilxrwzyuajja.b32.i2p/tracker/announce.php',
-                                   u'tracker.postman.i2p':u'http://YRgrgTLGnbTq2aZOZDJQ~o6Uk5k6TK-OZtx0St9pb0G-5EGYURZioxqYG8AQt~LgyyI~NCj6aYWpPO-150RcEvsfgXLR~CxkkZcVpgt6pns8SRc3Bi-QSAkXpJtloapRGcQfzTtwllokbdC-aMGpeDOjYLd8b5V9Im8wdCHYy7LRFxhEtGb~RL55DA8aYOgEXcTpr6RPPywbV~Qf3q5UK55el6Kex-6VCxreUnPEe4hmTAbqZNR7Fm0hpCiHKGoToRcygafpFqDw5frLXToYiqs9d4liyVB-BcOb0ihORbo0nS3CLmAwZGvdAP8BZ7cIYE3Z9IU9D1G8JCMxWarfKX1pix~6pIA-sp1gKlL1HhYhPMxwyxvuSqx34o3BqU7vdTYwWiLpGM~zU1~j9rHL7x60pVuYaXcFQDR4-QVy26b6Pt6BlAZoFmHhPcAuWfu-SFhjyZYsqzmEmHeYdAwa~HojSbofg0TMUgESRXMw6YThK1KXWeeJVeztGTz25sL8AAAA.i2p/announce.php',
+                                   u'tracker2.postman.i2p':u'http://lnQ6yoBTxQuQU8EQ1FlF395ITIQF-HGJxUeFvzETLFnoczNjQvKDbtSB7aHhn853zjVXrJBgwlB9sO57KakBDaJ50lUZgVPhjlI19TgJ-CxyHhHSCeKx5JzURdEW-ucdONMynr-b2zwhsx8VQCJwCEkARvt21YkOyQDaB9IdV8aTAmP~PUJQxRwceaTMn96FcVenwdXqleE16fI8CVFOV18jbJKrhTOYpTtcZKV4l1wNYBDwKgwPx5c0kcrRzFyw5~bjuAKO~GJ5dR7BQsL7AwBoQUS4k1lwoYrG1kOIBeDD3XF8BWb6K3GOOoyjc1umYKpur3G~FxBuqtHAsDRICkEbKUqJ9mPYQlTSujhNxiRIW-oLwMtvayCFci99oX8MvazPS7~97x0Gsm-onEK1Td9nBdmq30OqDxpRtXBimbzkLbR1IKObbg9HvrKs3L-kSyGwTUmHG9rSQSoZEvFMA-S0EXO~o4g21q1oikmxPMhkeVwQ22VHB0-LZJfmLr4SAAAA.i2p/announce.php',
+                                   u'tracker.thepiratebay.i2p':u'http://tracker.thepiratebay.i2p/announce',
                                    u'tracker.welterde.i2p':u'http://tracker.welterde.i2p/announce'}
                         
         self.pieceSizeMapper = {u'32kb':32768,
@@ -210,7 +211,7 @@ class TorrentCreateDialog(wx.Frame):
         #tracker url
         boxId = wx.NewId()
         self.trackerName = wx.ComboBox(mainPanel, boxId, size = wx.Size(155, -1),\
-                                       choices=['crstrack.i2p', 'tracker.postman.i2p', 'tracker.welterde.i2p', 'other'], style=wx.CB_READONLY)
+                                       choices=sorted(self.knownTrackerMapper.iterkeys()) + ['other'], style=wx.CB_READONLY)
         self.trackerName.SetToolTipString('Either select one of the predefined trackers here or select "other" to enter a different tracker announce url in the text box to the right')
         trackerBoxItems.Add(self.trackerName, (0,0), (1,1))
         wx.EVT_COMBOBOX(self, boxId, self.OnTrackerNameSelection)

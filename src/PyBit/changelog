@@ -1,3 +1,17 @@
+0.2.2 - 13.09.2009
+-----------------------
+Blub:
+- fixed bug in "Bittorrent.ConnectionHandler": Corrupted bitfield messages could get handled and cause crashes, added sanity check to prevent this.
+- fixed bug in "Config": Unicode data wasn't handled at all, so any unicode string which contained non-ascii chars couldn't be stored (matters for default paths).
+- changed "Bittorrent.ConnectionHandler": Show availability and number of assigned uploads in brackets for each piece index in the "Offered Pieces" column.
+- changed "PyBit": Increased default tunnel count from 2 to 3 and decreased default length variance from 1 to 0.
+- changed "TorrentCreateDialog": Removed "tracker.postman.i2p" as a choice in the tracker box, added "tracker2.postman.i2p" and "tracker.thepiratebay.i2p"
+
+ThePirateBay (@forum.i2p, thanks for finding these and creating patches for them):
+- fixed bug in "Bittorrent.HttpRequest": PyBit sent the full url in the HTTP GET request header which fails for some http servers. Now the relative url gets send.
+- fixed bug in "Bittorrent.Measure": While calculating the average rates a ZeroDivision Error could occur if the time duration was zero.
+
+
 0.2.1 - 30.08.2009
 -----------------------
 Blub:

@@ -147,7 +147,7 @@ class Choker_ConfigPanel(wx.Panel):
 
     def saveConfig(self, optionDict):
         optionDict[('choker','chokeInterval')] = self.spin1.GetValue()
-        optionDict[('choker','slotLimitScope')] = self.combo1.GetValue().lower()
+        optionDict[('choker','slotLimitScope')] = str(self.combo1.GetValue().lower())
         optionDict[('choker','maxSlots')] = self.spin2.GetValue()
         optionDict[('choker','randomSlotRatio')] = self.slide.GetValue() / 100.0
         
@@ -218,8 +218,8 @@ class Logging_ConfigPanel(wx.Panel):
         
 
     def saveConfig(self, optionDict):
-        optionDict[('logging','consoleLoglevel')] = self.combo1.GetValue().lower()
-        optionDict[('logging','fileLoglevel')] = self.combo2.GetValue().lower()
+        optionDict[('logging','consoleLoglevel')] = str(self.combo1.GetValue().lower())
+        optionDict[('logging','fileLoglevel')] = str(self.combo2.GetValue().lower())
         
 
 class Network_ConfigPanel(wx.Panel):
@@ -490,8 +490,8 @@ class I2P_ConfigPanel(wx.Panel):
     def saveConfig(self, optionDict):
         optionDict[('i2p', 'samIp')] = self.ipField1.GetValue().replace(' ', '')
         optionDict[('i2p', 'samPort')] = self.spin1.GetValue()
-        optionDict[('i2p', 'samDisplayName')] = self.edit1.GetValue().replace(' ', '')
-        optionDict[('i2p', 'samSessionName')] = self.edit2.GetValue().replace(' ', '')
+        optionDict[('i2p', 'samDisplayName')] = self.edit1.GetValue().replace(' ', '').encode('UTF-8')
+        optionDict[('i2p', 'samSessionName')] = self.edit2.GetValue().replace(' ', '').encode('UTF-8')
         optionDict[('i2p', 'samZeroHopsIn')] = self.check1In.GetValue()
         optionDict[('i2p', 'samZeroHopsOut')] = self.check1Out.GetValue()
         optionDict[('i2p', 'samNumOfTunnelsIn')] = self.spin2In.GetValue()
@@ -808,7 +808,7 @@ class ConfigDialog(wx.Frame):
         optionDict = {}
         for panel in self.configPanels.values():
             panel.saveConfig(optionDict)
-        self.config.setMany(optionDict, True)
+        self.config.setMany(optionDict, False)
         self.Destroy()
         
 
@@ -842,8 +842,8 @@ if __name__ == "__main__":
                                  'fileLoglevel':('info', 'str')},
                       'network':{'downSpeedLimit':(102400, 'int'),
                                  'upSpeedLimit':(25600, 'int')},
-                      'paths':{'torrentFolder':('/tmp', 'str'),
-                               'downloadFolder':('/tmp', 'str')},
+                      'paths':{'torrentFolder':(u'/tmp', 'unicode'),
+                               'downloadFolder':(u'/tmp', 'unicode')},
                       'requester':{'strictAvailabilityPrio':(True, 'bool')},
                       'storage':{'persistPieceStatus':(True, 'bool'),
                                  'skipFileCheck':(False, 'bool')}}

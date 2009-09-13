@@ -126,7 +126,7 @@ class Measure:
     
     def getAverageRate(self):
         self.lock.acquire()
-        value = self.totalTransferedBytes / (time() - self.createTime*1.0)
+        value = self.totalTransferedBytes / max(1.0, (time() - self.createTime*1.0))
         if value > 0:
             value /= 1024.0
         self.lock.release()
@@ -135,7 +135,7 @@ class Measure:
     
     def getAveragePayloadRate(self):
         self.lock.acquire()
-        value = self.totalTransferedPayloadBytes / (time() - self.createTime*1.0)
+        value = self.totalTransferedPayloadBytes / max(1.0, (time() - self.createTime*1.0))
         if value > 0:
             value /= 1024.0
         self.lock.release()

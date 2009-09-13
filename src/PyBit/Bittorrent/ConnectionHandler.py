@@ -258,12 +258,18 @@ class ConnectionHandler:
         elif message[0] == 5:
             #remotes bitfield
             normalLength = self._getTorrentInfo(conn)['torrent'].getTotalAmountOfPieces()
-            if not normalLength%8 == 0:
-                normalLength += (8 - normalLength%8)
+            if normalLength%8 == 0:
+                wantedLength = normalLength
+            else:
+                wantedLength = normalLength + (8 - normalLength%8)
                 
-            if not normalLength == len(message[1]):
+            if not wantedLength == len(message[1]):
                 self.log.warning('Conn %i: Bitfield has the wrong size! (Wanted: %i Got: %i)',
-                                 conn.fileno(), normalLength, len(message[1]))
+                                 conn.fileno(), wantedLength, len(message[1]))
+                                
+            elif '1' in message[1][normalLength:]:
+                self.log.warning('Conn %i: Bitfield contains positive flags in padding data!',
+                                 conn.fileno())
                             
             elif msgNum > 1:
                 self.log.warning('Conn %i: Bitfield was received as the %i th message!',
@@ -598,9 +604,10 @@ class ConnectionHandler:
         stats = []
         if torrentIdent in self.torrents:
             superSeedingHandler = self.torrents[torrentIdent]['superSeedingHandler']
+            pieceStatus = self.torrents[torrentIdent]['pieceStatus']
             for conn in self._getAllConnections(torrentIdent):
                 connStats = conn.getStats()
-                connStats['offeredPieces'] = ', '.join(str(x) for x in superSeedingHandler.getOfferedPieces(connStats['id']))
+                connStats['offeredPieces'] = ', '.join('%i (%i, %i)' % (pieceIndex, pieceStatus.getAvailability(pieceIndex), pieceStatus.getAssignedUploads(pieceIndex)) for pieceIndex in superSeedingHandler.getOfferedPieces(connStats['id']))
                 stats.append(connStats)
         self.lock.release()
         return stats

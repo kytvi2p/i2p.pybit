@@ -139,6 +139,7 @@ Avg. Upspeed (P): How much was send on average up to know (only 'payload' data, 
 Score: The score is used by the choker to decide to which peers we should upload. Higher values are better. The value is calculated from the payload ratio and the average download speed of a connection. If we are seeding, then values lower 1.0 are considered as 1.0.
 Payload Ratio: The ratio between downloaded and uploaded data. It tells how many payload bytes we get from a peer for each uploaded byte. So a value of 0.5 would mean that we would need to upload 20kb to get 10kb (on average).
 Protocol Overhead: Overhead caused by protocol message. A value of 50% would for example mean, that on average 15kb of raw data need to be transfered to transfer 10kb of payload data. This stat is not entirely accurate because payload data and raw data get counted at different places (payload data when it is placed or retrieved in/out of the connection buffer, raw data when it is really send/received), but it should get more accurate with increasing transfer sizes. (Thats the theory, because frequent connection disconnects are currently normal for I2P, this stat is currently extremly inaccurate. :|)
+Offered Pieces: Pieces which are currently offered to the peer (when superseeding). The brackets behind each piece index contains the availability and the number of offers of the piece.
 
 files panel:
 Id: The unique id of this file, only used internaly.

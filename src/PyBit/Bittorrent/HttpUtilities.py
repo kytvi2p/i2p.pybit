@@ -148,7 +148,7 @@ def decodeUrl(url):
         splittedUrl.append(unicode(unquote(urlDict['anchor']), 'UTF-8', 'ignore'))
     if len(urlDict['parameterFlag']) > 0:
         splittedUrl.append(u'?')
-        splittedUrl.append(deocdeUrlParameter(urlDict['parameter']))
+        splittedUrl.append(decodeUrlParameter(urlDict['parameter']))
     return  u''.join(splittedUrl)
     
     
@@ -171,40 +171,60 @@ def joinUrlParameter(paras):
     return ''.join(encodedParas)
 
 
+def joinRelativeUrl(url):
+    return joinUrlParts(path=url.get('path', None), anchor=url.get('anchor', None), parameter=url.get('parameter', None))
+
+
 def joinUrl(url):
     return joinUrlParts(url['address'], url.get('prefix', 'http://'), url.get('user', None), url.get('port', None),
                         url.get('path', None), url.get('anchor', None), url.get('parameter', None))
     
     
-def joinUrlParts(address, prefix='http://', user=None, port=None, path=None,  anchor=None, parameter=None):
+def joinUrlParts(address=None, prefix='http://', user=None, port=None, path=None,  anchor=None, parameter=None):
     #encode unicode
-    if type(address) == unicode:
+    if isinstance(address, unicode):
         address = address.encode('UTF-8', 'ignore')
-    if type(prefix) == unicode:
+    if isinstance(prefix, unicode):
         prefix = prefix.encode('UTF-8', 'ignore')
-    if type(user) == unicode:
+    if isinstance(user, unicode):
         user = user.encode('UTF-8', 'ignore')
-    if type(port) == unicode:
+    if isinstance(port, unicode):
         port = port.encode('UTF-8', 'ignore')
-    if type(path) == unicode:
+    if isinstance(path, unicode):
         path = path.encode('UTF-8', 'ignore')
-    if type(anchor) == unicode:
+    if isinstance(anchor, unicode):
         anchor = anchor.encode('UTF-8', 'ignore')
-    
+        
+    #check for weirdness
+    if address is not None and address == '':
+        address = None
+    if prefix is not None and prefix == '':
+        prefix = None
+    if user is not None and user == '':
+        user = None
+    if port is not None and port == '':
+        port = None
+    if path is not None and path == '':
+        path = None
+    if anchor is not None and anchor == '':
+        anchor = None
+        
     #encode url
     url = []
-    url.append(quote(prefix))
-    url.append('://')
-    if user is not None:
-        url.append(quote(user))
-        url.append('@')
-    url.append(quote(address))
-    if port is not None:
-        url.append(':')
-        url.append(quote(port))
+    if address is not None:
+        if prefix is not None:
+            url.append(quote(prefix))
+            url.append('://')
+        if user is not None:
+            url.append(quote(user))
+            url.append('@')
+        url.append(quote(address))
+        if port is not None:
+            url.append(':')
+            url.append(quote(port))
     if path is not None:
         url.append(quote(path))
-    elif (anchor is not None) or (parameter is not None):
+    elif (anchor is not None) or (parameter is not None) or (address is None):
         url.append('/')
     if parameter is not None:
         url.append('?')

@@ -276,6 +276,11 @@ class PieceStatus:
         self._updatePieceGroups((pieceIndex for pieceIndex in pieces if not self.finishedRequests[pieceIndex] == newFinishedRequests), newFinishedRequests=newFinishedRequests)
         self.lock.release()
         
+    def getAssignedUploads(self, pieceIndex):
+        self.lock.acquire()
+        assignedUploads = self.assignedUploads[pieceIndex]
+        self.lock.release()
+        return assignedUploads
         
     def increaseAssignedUploads(self, pieceIndex):
         self.lock.acquire()

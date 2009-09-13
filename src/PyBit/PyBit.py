@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-VERSION = '0.2.1'
+VERSION = '0.2.2'
 
 
 ##builtin
@@ -64,20 +64,20 @@ class PyBit:
                                  'samSessionName':('PyBit', 'str'),
                                  'samZeroHopsIn':(False, 'bool'),
                                  'samZeroHopsOut':(False, 'bool'),
-                                 'samNumOfTunnelsIn':(2, 'int'),
-                                 'samNumOfTunnelsOut':(2, 'int'),
+                                 'samNumOfTunnelsIn':(3, 'int'),
+                                 'samNumOfTunnelsOut':(3, 'int'),
                                  'samNumOfBackupTunnelsIn':(0, 'int'),
                                  'samNumOfBackupTunnelsOut':(0, 'int'),
                                  'samTunnelLengthIn':(2, 'int'),
                                  'samTunnelLengthOut':(2, 'int'),
-                                 'samTunnelLengthVarianceIn':(1, 'int'),
-                                 'samTunnelLengthVarianceOut':(1, 'int')},
+                                 'samTunnelLengthVarianceIn':(0, 'int'),
+                                 'samTunnelLengthVarianceOut':(0, 'int')},
                           'logging':{'consoleLoglevel':('critical', 'str'),
                                      'fileLoglevel':('info', 'str')},
                           'network':{'downSpeedLimit':(102400, 'int'),
                                      'upSpeedLimit':(25600, 'int')},
-                          'paths':{'torrentFolder':(self.progPath, 'str'),
-                                   'downloadFolder':(self.progPath, 'str')},
+                          'paths':{'torrentFolder':(self.progPath, 'unicode'),
+                                   'downloadFolder':(self.progPath, 'unicode')},
                           'requester':{'strictAvailabilityPrio':(True, 'bool')},
                           'storage':{'persistPieceStatus':(True, 'bool'),
                                      'skipFileCheck':(False, 'bool')}}
