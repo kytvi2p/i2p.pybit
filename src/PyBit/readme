@@ -1,0 +1,67 @@
+Installation
+-----------------------
+You don't need to install PyBit. Simply extract the archive somewhere (which you probably already did when you read this) and you are done.
+
+
+Requirements
+----------------------- 
+PyBit needs the following:
+- Python >= 2.5 (only tested with 2.5 but 2.6 should also work. But python 3.0 is incompatible to python 2.x !)
+- wxPython >= 2.6 (only tested with 2.6.3.2)
+
+PyBit should run on any platform for which both python and wxPython are available. I tested it on Linux, so other platforms are more likly to have bugs. Please report any which you encounter to "BlubMail@mail.i2p", I will try to fix them.
+
+
+Starting
+-----------------------
+To start PyBit, simply execute "Gui.py". On Linux "python Gui.py" should do the trick, on Windows a simple double-click on "Gui.py" is probably enough.
+
+
+Known Problems
+-----------------------
+(these are only the most probable for anyone to stumble upon, look into the file "todo" for a more complete list)
+- once in a while a traceback of a failed logging will be printed to the console (if you started PyBit from one) => this is completely harmless
+- if the config dialog is opened, a few GTK warnings may be printed to the console => the cause is unknown but these warnings shouldn't cause any problems
+- the GUI can use quite a few CPU cycles => only select the "Connections"-tab if you really want to look at the connections; selecting the "General"-tab saves you ~80% of the overall CPU usage (without the GUI PyBit never exceeded 2% CPU usage on my system ...)
+- there are weird symbols displayed in the "General"-tab, following the description "Info Hash" => this is not a problem, what you see is the binary identifier for that torrent. It is displayed there as a placeholder for other statistics which will be displayed there in the future.
+- if I move a column sometimes nothing happens or the wrong one is moved => scroll as far left as possible before moving columns around, else weird stuff will happen
+
+
+Special Files
+-----------------------
+changelog
+- simply the changelog of PyBit, not used internally
+
+config.conf
+- contains all user configurable settings
+- will be (re-)created with default settings if it doesn't exist
+
+copying
+- license of PyBit, not accessed from PyBit
+
+log
+- all log messages are written here
+- should only be deleted after PyBit terminated
+
+readme
+- this file
+
+state.db
+- a sqlite database, used to store the necessary information to readd all torrents after quiting and restarting PyBit
+- if this file is deleted, all torrents will have to be readded manually
+
+todo
+- a simple list of things which need fixing, not used by PyBit
+
+
+Folders
+-----------------------
+Bittorrent and Bittorrent/PySamLib
+- contain additional program files
+
+Icons
+- contains the icons which are used within PyBit
+
+Torrents
+- contains copies of the torrents which are currently queued in PyBit
+- do not delete manually, these files will be deleted if you remove the corresponding torrent from PyBits queue

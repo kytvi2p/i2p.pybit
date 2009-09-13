@@ -1,0 +1,71 @@
+0.1.4 - 28.01.2009
+-----------------------
+Blub:
+- added functions to get the currently available bytes in the recv buffer of a sam tcp socket
+- fixed bug which prevented the removal of internal data structures for some closed sockets
+- added shutdown() function, which guarantees that the main-loop thread dies before function return, to SamSocketManager and AsyncSocketManager
+- SamSocket doesn't try to get its own i2p destination already in the constructor but only if needed
+
+
+0.1.3 - 25.12.2008
+-----------------------
+Blub:
+- added another implementation of AsyncSocketManager which is based on poll instead of select; the poll-based one is preffered and automatically used if poll is available (poll is available on Unix-like systems but not on Windows)
+- fixed bug in AsyncSocketManager which occured if an existing working connection got added (not done by this lib, so this bug didn't happen)
+
+
+0.1.2 - 21.09.2008
+-----------------------
+Blub:
+- added logging of thread starts and stops
+- increased select timeout to one second
+
+
+0.1.1 - 06.09.2008
+-----------------------
+Blub:
+- AsyncSocketManager now returns a unique id for each socket (instead of the descriptor number of the real socket)
+- prepared support for changing the max buffer size of existing AsyncSocketManager sockets (the actual changing is not yet implemented)
+- renamed two SamSocketManager functions, more consistent that way:
+  getFreeOutBufferSpace -> getSamSocketFreeOutBufferSpace
+  getRemoteDestination -> getSamSocketRemoteDestination
+- added function "getSamSocketErrorReason" which returns why a certain sam tcp socket failed (or None if the socket didn't fail)
+- added recv limit threshold setting: Can be set for each sam tcp socket; SamSocketManager waits until the recv limit increases more than the set threshold before sending a new receive limit to the SAM bridge, should reduce overhead if data is received in very small chunks; defaults to half of the inbound buffer size
+
+
+0.1.0 - 24.08.2008
+-----------------------
+Blub:
+- added support for setting a default queue size for incomming sam connections
+- added support for changing the session options of an existing sam destination
+- added wrapper class which emulates the poll interface (SamPoll, SamSocket.py)
+- added wrapper class which is similiar to the socket interface (SamSocket, SamSocket.py)
+- the accept() function of SamSocketManager now returns a list of tuples of (socketNumber, remoteDestination)
+- sockets, which are not valid and in the errorInterest parameter, will be returned in the error set by the SamSocketManager select call
+
+
+0.0.4 - 17.08.2008
+-----------------------
+Blub:
+- handle failed stream sends; they shouldn't happen because the lib keeps track of sams buffer status, but once in a while they do, probably in border cases (connection fails a short moment before we try to send for example)
+- fixed bug: the "peekOnly" flag of the recv function was not considered when deciding if a sam tcp socket remains receivable
+- fixed bug: in certain cases messages which were received from the sam bridge were duplicated or ignored
+
+
+0.0.3 - 16.08.2008
+-----------------------
+Blub:
+- fixed mayor bug in the send code for sam tcp sockets: sometimes the send buffer didn't get emptied and messages were send twice!
+
+
+0.0.2 - 14.08.2008
+-----------------------
+Blub:
+- if a tcp destination is removed, all existing sam tcp sockets of that destination are failed instead of closed, cleaner that way
+- don't close a sam tcp socket if it has something in its outbuffer, instead wait until the outbuffer is empty and then close it (immediate close can be forced)
+
+
+0.0.1 - 13.08.2008
+-----------------------
+Blub:
+- initial version

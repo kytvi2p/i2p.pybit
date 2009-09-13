@@ -1,0 +1,62 @@
+General
+-----------------------
+- add callbacks for all relevant classes (choker, samSocketManager, ...) to the instance of the config class (=don't require restarts for config changes!)
+- fix CPU-usage bugs (Requester and some places in ConnectionHandler for example)
+- fix strange log errors (used "%i" or "%d" instead of "%s" in a log message somewhere? Or is the wrong data getting logged somewhere?)
+- setup logging the normal way, don't generate different loggers for instances of the same class
+- prevent adding the same torrent twice?
+- more exception handling/logging in the GUIs
+- webinterface? (with support to only start the webinterface = headless mode?)
+- persist gui changes with ObjectPersister (enabled columns, ordering, ...) ? Would need a fail-safe way to reset to defaults in case of screwed up changes.
+
+
+Classes
+-----------------------
+
+Bittorrent.Connection:
+- handle failing data handle (outrequests)
+
+Bittorrent.ConnectionBuilder:
+- timeout
+
+Bittorrent.ConnectionHandler:
+- send "completed" event to tracker, once we completed a torrent (execute callback, probably some function in Bittorrent.Bt)
+
+Bittorrent.ConnectionListener:
+- timeout
+
+Bittorrent.ConnectionPool:
+- rename to "PeerPool": this class is more about having an overview over existing peers, not that much about connections
+
+Bittorrent.HttpRequester:
+- add another timeout for the whole request (trigger after the entire request took a certain time, regardless of transfer activity)
+- don't generate a general "invalid header received" error for 404-responses (and other such failures)!
+
+Bittorrent.MultiBt:
+- only load a certain number of torrents at the same time (number should be configurable)
+- add some kind of scheduling?
+
+Bittorrent.Requester
+- handle failed writes of finished requests
+- really prefer rare pieces, regardless of current in-progress pieces (RAM vs efficiency tradeoff = optional?)
+
+Bittorrent.Storage
+- raise own exceptions on file access errors
+- cleanup, add another lock only for loading and use the existing ones for all other (external) funcs
+- handle failures inside the load() function
+
+Bittorrent.Tracker Requester:
+- prevent us from adding ourselve as a possible peer
+
+
+Config:
+- add override to set() to prevent the options from being saved to disk after getting modified
+- add commit() to force saving the options to disk
+
+ConfigDialog:
+- prevent the Config class from writing all options to disk after each single set() to speedup things - do one commit() call at the end
+
+SorteableList:
+- fix column moving (doesn't work if scrolled to the right)
+- virtualise list to reduce CPU usage, try to use Mixins for things like sorting
+ 
