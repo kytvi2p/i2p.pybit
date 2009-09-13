@@ -132,9 +132,12 @@ class VirtualListCtrl(wx.ListCtrl):
         lastDisplayedRow = min(firstDisplayedRow + self.GetCountPerPage(), newDataAmount)
         self.RefreshItems(firstDisplayedRow, lastDisplayedRow)
         
-        #windows is a bit strange and requires this call - welcome flickering, here you go ...
-        if sys.platform == 'win32':
-            self.Refresh(False)
+        #windows is a bit strange and requires this call (the "RefreshItems" call should do the same ...)
+        if sys.platform[:3] == 'win':
+            if newDataAmount >= oldDataAmount:
+                self.Refresh(False)
+            else:
+                self.Refresh(True)
             
     
     ##event functions

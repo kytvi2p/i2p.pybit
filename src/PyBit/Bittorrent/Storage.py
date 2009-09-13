@@ -20,6 +20,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 ##builtin
 from __future__ import with_statement
 from sha import sha
+from time import time
 import logging
 import os
 import threading
@@ -67,7 +68,7 @@ class Storage:
         
     ##internal functions - loading
         
-    def _checkFile(self, binaryNull, filePath, wantedFileSize):
+    def _checkFile(self, filePath, wantedFileSize):
         #checks path to file and the size of the file itself,
         #may throw StorageException if the file path is not acceptable or a directory or file operation fails
         created = False
@@ -91,13 +92,15 @@ class Storage:
         #check file
         if not os.path.exists(realFilePath):
             #file needs to be created
+            fl = open(realFilePath, 'ab')
+            fl.close()
             created = True
         
         self.log.debug('Processing file "%s" (original name "%s"): new "%s", isdir "%s", isfile "%s", islink "%s", dirname "%s", basename "%s"',\
                        realFilePath, filePath, str(created), str(os.path.isdir(realFilePath)), str(os.path.isfile(realFilePath)),\
                        str(os.path.islink(realFilePath)), dirPath, os.path.basename(realFilePath))
         try:
-            fl = open(realFilePath, 'ab')
+            fl = open(realFilePath, 'rb+')
             with fl:
                 #file opened
                 fl.seek(0, 2)
@@ -108,14 +111,37 @@ class Storage:
                 else:
                     self.log.debug('File "%s" has the correct size', realFilePath)
                 
-                #fill if needed            
-                while (not self.shouldAbortLoad) and currentFileSize + 1048576 < wantedFileSize:
-                    fl.write(binaryNull)
-                    currentFileSize += 1048576
+                #fill if needed
+                if (not self.shouldAbortLoad) and currentFileSize + 1045876 < wantedFileSize:
+                    #large fill
+                    start = time()
+                    fl.seek(1048575, 1)
+                    fl.write('\x00')
+                    fl.flush()
+                    currentFileSize = fl.tell()
+                    needed = time() - start
+                    
+                    try:
+                        step = int(1048575 * 0.1 / needed)
+                    except ZeroDivisionError:
+                        step = wantedFileSize - currentFileSize - 1
+                    step = max(1, step)
+                    self.log.debug('Needed %f seconds for 1 Mb, step size %i', needed, step)
+                    
+                    while (not self.shouldAbortLoad) and currentFileSize + step <= wantedFileSize - 1:
+                        fl.seek(step, 1)
+                        fl.write('\x00')
+                        fl.flush()
+                        currentFileSize = fl.tell()
+                        self.log.debug("Progress: %i / %i", currentFileSize, wantedFileSize)
                 
-                if not self.shouldAbortLoad:
-                    #write remaining bytes
-                    fl.write(chr(0)*(wantedFileSize - currentFileSize))
+                if (not self.shouldAbortLoad) and currentFileSize < wantedFileSize: 
+                    #seek remaining bytes and write last byte
+                    fl.seek((wantedFileSize - currentFileSize - 1), 1)
+                    fl.write('\x00')
+                    fl.flush()
+                    currentFileSize = fl.tell()
+                    self.log.debug("Progress: %i / %i", currentFileSize, wantedFileSize)
             
         except IOError:
             #something failed
@@ -129,11 +155,10 @@ class Storage:
         allCreated = True
         
         files = self.torrent.getFiles()
-        binaryNull = chr(0)*1048576 #one megabyte
         place = 0
         while (not self.shouldAbortLoad) and place < len(files):
             fileSet = files[place]
-            created, modified = self._checkFile(binaryNull, fileSet['path'], fileSet['size'])
+            created, modified = self._checkFile(fileSet['path'], fileSet['size'])
             anyModified |= modified
             allCreated &= created
             place += 1

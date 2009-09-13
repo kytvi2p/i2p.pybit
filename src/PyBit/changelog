@@ -1,3 +1,10 @@
+0.1.3 - 16.05.2009
+-----------------------
+Blub:
+- fixed bug in "VirtualListCtrl": Fixed possible refresh problem on Windows (rows didn't get deleted in all cases for example)
+- improved "Bittorrent.Storage": Added support for sparse files
+
+
 0.1.2 - 19.04.2009
 -----------------------
 Blub:

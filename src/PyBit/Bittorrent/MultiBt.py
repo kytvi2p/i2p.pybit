@@ -44,7 +44,7 @@ from PySamLib.I2PSocketManager import I2PSocketManager
 #DEBUG
 #import gc
 
-VERSION = '0.1.2'
+VERSION = '0.1.3'
 
 
 class MultiBtException(Exception):
