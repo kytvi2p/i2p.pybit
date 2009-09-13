@@ -27,10 +27,10 @@ import Messages
 from Utilities import logTraceback
 
 class ConnectionBuilder:
-    def __init__(self, eventScheduler, connHandler, connPool, destNum, samSockManager, peerId):
+    def __init__(self, eventScheduler, connHandler, peerPool, destNum, samSockManager, peerId):
         self.sched = eventScheduler
         self.connHandler = connHandler
-        self.connPool = connPool
+        self.peerPool = peerPool
         self.destNum = destNum
         self.samSockManager = samSockManager
         self.peerId = peerId
@@ -67,7 +67,7 @@ class ConnectionBuilder:
         torrentInfo = self.torrents[torrentIdent]
         self.sched.removeEvent(torrentInfo['peerEvent'])
         for connId in torrentInfo['conns'].copy():
-            self._failedConn(connId)
+            self._failedConn(connId, 'torrent stopped')
         del self.torrents[torrentIdent]
         
         
@@ -75,27 +75,33 @@ class ConnectionBuilder:
         
     def _getPossiblePeers(self, torrentIdent):
         torrentInfo = self.torrents[torrentIdent]
-        peerAddrs = self.connPool.getPossibleConnections(torrentIdent, 10, torrentInfo['connAddrs'])
-        for peerAddr in peerAddrs:
-            #create conn
-            sock = SamSocket(self.samSockManager, self.destNum)
-            sock.setblocking(0)
-            sock.connect(peerAddr)
-            sockNum = sock.fileno()
-            
-            self.log.info('%s - conn \"%d\": trying to connect to \"%s\"', torrentIdent, sockNum, peerAddr)
-            
-            #update torrent info
-            torrentInfo['conns'].add(sockNum)
-            torrentInfo['connAddrs'].add(peerAddr)
-            
-            #update conn info
-            self.allConns.add(sockNum)
-            self.connsWithSendInterest.add(sockNum)
-            self.conns[sockNum] = {'sock':sock,
-                                   'torrentIdent':torrentIdent,
-                                   'inBuffer':deque(),
-                                   'inBufferSize':0}
+        wantedConns = 10 - len(self.torrents[torrentIdent]['conns'])
+        if wantedConns > 0:
+            peerAddrs = self.peerPool.getPossibleConnections(torrentIdent, wantedConns, torrentInfo['connAddrs'])
+            for peerAddr in peerAddrs:
+                #create conn
+                sock = SamSocket(self.samSockManager, self.destNum)
+                sock.setblocking(0)
+                sock.connect(peerAddr)
+                sockNum = sock.fileno()
+                
+                self.log.info('%s - conn \"%d\": trying to connect to \"%s\"', torrentIdent, sockNum, peerAddr)
+                
+                #create timeout event
+                timeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=300, funcArgs=[sockNum])
+                
+                #update torrent info
+                torrentInfo['conns'].add(sockNum)
+                torrentInfo['connAddrs'].add(peerAddr)
+                
+                #update conn info
+                self.allConns.add(sockNum)
+                self.connsWithSendInterest.add(sockNum)
+                self.conns[sockNum] = {'sock':sock,
+                                       'torrentIdent':torrentIdent,
+                                       'timeout':timeoutEvent,
+                                       'inBuffer':deque(),
+                                       'inBufferSize':0}
                                 
                                 
     def _removeConn(self, connId):
@@ -107,6 +113,9 @@ class ConnectionBuilder:
         self.connsWithSendInterest.discard(connId)
         self.connsWithRecvInterest.discard(connId)
         
+        #remove timeout event
+        self.sched.removeEvent(self.conns[connId]['timeout'])
+        
         #remove from torrent info
         torrentInfo = self.torrents[torrentIdent]
         torrentInfo['conns'].remove(connId)
@@ -115,7 +124,7 @@ class ConnectionBuilder:
         del self.conns[connId]
             
             
-    def _failedConn(self, connId):
+    def _failedConn(self, connId, reason):
         torrentIdent = self.conns[connId]['torrentIdent']
         connSet = self.conns[connId]
         conn = connSet['sock']
@@ -126,22 +135,21 @@ class ConnectionBuilder:
         self.connsWithSendInterest.discard(connId)
         self.connsWithRecvInterest.discard(connId)
         
+        #remove timeout event
+        self.sched.removeEvent(connSet['timeout'])
+        
         #remove from torrent info
         torrentInfo = self.torrents[torrentIdent]
         torrentInfo['conns'].remove(connId)
         torrentInfo['connAddrs'].remove(conn.getpeername())
         
         #close conn
-        self.connPool.failedToConnect(connSet['torrentIdent'], conn.getpeername())        
-        conn.close()
+        self.peerPool.failedToConnect(connSet['torrentIdent'], conn.getpeername())
+        conn.close(forceClose=True)
         del self.conns[connId]
         
 
     ##connections - handshake
-    
-    def _checkHandshake(self, torrentIdent, proto, infohash):
-        return (proto.lower()=='bittorrent protocol' and infohash == self.torrents[torrentIdent]['infohash'])
-    
     
     def _gotFullHandshake(self, connId, connSet):
         data = ''.join(connSet['inBuffer'])
@@ -149,17 +157,19 @@ class ConnectionBuilder:
         #decode handshake
         length, proto, reserved, infohash, remotePeerId = Messages.decodeHandshake(data)
         
-        if not self._checkHandshake(connSet['torrentIdent'], proto, infohash):
+        if not proto.lower() == 'bittorrent protocol':
             #invalid handshake, close conn
-            self.log.info("Conn \"%d\": Got invalid handshake, closing", connId)
-            self._failedConn(connId)
+            self._failedConn(connId, 'received invalid handshake')
+            
+        elif not infohash == self.torrents[connSet['torrentIdent']]['infohash']:
+            #invalid infohash
+            self._failedConn(connId, 'received handshake with wrong infohash')
             
         else:
             #valid handshake
-            if not self.connPool.establishedConnection(connSet['torrentIdent'], connSet['sock'].getpeername()):
+            if not self.peerPool.establishedConnection(connSet['torrentIdent'], connSet['sock'].getpeername()):
                 #we already have a connection to this address
-                self.log.info("Conn \"%d\": Got valid handshake, but we already have a connection to this address; closing", connId)
-                self._failedConn(connId)
+                self._failedConn(connId, 'we already have a connection to this address')
                 
             else:
                 #no connection to this address exists up to now
@@ -213,7 +223,7 @@ class ConnectionBuilder:
                 
                 for connId in errored:
                     #conn failed, close it
-                    self._failedConn(connId)
+                    self._failedConn(connId, 'connection failed')
                     
                 for connId in sendable:
                     if connId in self.conns:
@@ -236,8 +246,7 @@ class ConnectionBuilder:
             self.log.error('Error in main loop:\n%s', logTraceback())
             
             
-    ##external functions
-    
+    ##external functions - thread
     
     def start(self):
         self.lock.acquire()
@@ -254,6 +263,8 @@ class ConnectionBuilder:
             thread.join()
         
     
+    ##external functions - torrents
+    
     def addTorrent(self, torrentIdent, infohash):
         self.lock.acquire()
         self._addTorrent(torrentIdent, infohash)
@@ -265,9 +276,18 @@ class ConnectionBuilder:
         self._removeTorrent(torrentIdent)
         self.lock.release()
         
+        
+    ##external functions - peers
     
     def getPossiblePeers(self, torrentIdent):
         self.lock.acquire()
         if torrentIdent in self.torrents:
             self._getPossiblePeers(torrentIdent)
+        self.lock.release()
+        
+    
+    def timeout(self, connId):
+        self.lock.acquire()
+        if connId in self.allConns:
+            self._failedConn(connId, 'timeout')
         self.lock.release()

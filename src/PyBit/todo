@@ -18,7 +18,6 @@ Bittorrent.Bt:
 - report status changes (loading/running/completed/error) back to MultiBt (for status changes and such)
 
 Bittorrent.ConnectionBuilder:
-- timeout
 - maximum connection limit per torrent
 - maximum connection limit per torrent, calculated from a global limit (and shared, like the bandwidth limit)
 
@@ -26,18 +25,13 @@ Bittorrent.ConnectionHandler:
 - send "completed" event to tracker, once we completed a torrent (execute callback, probably some function in Bittorrent.Bt)
 
 Bittorrent.ConnectionListener:
-- timeout
 - maximum connection limit per torrent, calculated from a global limit (and shared, like the bandwidth limit)
 
 Bittorrent.ConnectionPool:
-- rename to "PeerPool": this class is more about having an overview over existing peers, not that much about connections
 - some kind of backoff if a connect attempt fails (first retry in 1 minute, then 2 minutes, 4, 16, ...)
 
 Bittorrent.Choker:
 - don't just unchoke a fixed (currently 5) number of peers but share a global maximum across all instances
-
-Bittorrent.HttpRequester:
-- add another timeout for the whole request (trigger after the entire request took a certain time, regardless of transfer activity)
 
 Bittorrent.MultiBt:
 - only load a certain number of torrents at the same time (number should be configurable)
@@ -46,8 +40,8 @@ Bittorrent.MultiBt:
 Bittorrent.Requester
 - really prefer rare pieces, regardless of current in-progress pieces (RAM vs efficiency tradeoff = optional?)
 
-Bittorrent.Tracker Requester:
-- prevent us from adding ourselve as a possible peer
+Bittorrent.Torrent
+- add more sanity checks for the torrents content
 
 
 Gui:

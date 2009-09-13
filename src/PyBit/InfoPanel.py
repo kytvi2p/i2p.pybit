@@ -25,7 +25,7 @@ import Conversion
 class InfoPanel(wx.Panel):
     def __init__(self, updateFunc, content, colsPerRow, varsPerRow, parent, **kwargs):
         wx.Panel.__init__(self, parent, **kwargs)
-        self.upFunc = updateFunc
+        self.updateFunc = updateFunc
         self.data = {}
         self.dataToStringFuncs = copy(Conversion.dataToStringFuncs)
         
@@ -65,9 +65,14 @@ class InfoPanel(wx.Panel):
         self.SetSizer(mainSizer)
         self.Layout()
         self.Show()
+        
+        
+    def changeUpdateFunc(self, updateFunc):
+        self.updateFunc = updateFunc
+        
 
-    def manualUpdate(self):
-        stats = self.upFunc()
+    def dataUpdate(self):
+        stats = self.updateFunc()
         if stats is not None:
             for boxName in self.data.iterkeys():
                 box = self.data[boxName]
@@ -85,3 +90,12 @@ class InfoPanel(wx.Panel):
                     item['itemObject'].SetLabel(item['itemDefaultValue'])
                     self.Update()
         self.Layout()
+        
+        
+    def clear(self):
+        for boxName in self.data.keys():
+            box = self.data[boxName]
+            for itemName in box.keys():
+                item = box[itemName]
+                item['itemObject'].SetLabel(item['itemDefaultValue'])
+                self.Update()

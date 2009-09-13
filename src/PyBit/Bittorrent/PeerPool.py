@@ -21,7 +21,7 @@ from collections import deque, defaultdict
 from time import time
 import threading
 
-class ConnectionPool:
+class PeerPool:
     def __init__(self):
         self.currentConns = defaultdict(dict)
         self.possibleConns = defaultdict(dict)

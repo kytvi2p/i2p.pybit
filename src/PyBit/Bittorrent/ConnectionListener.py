@@ -27,9 +27,10 @@ import Messages
 from Utilities import logTraceback
 
 class ConnectionListener:
-    def __init__(self, connHandler, connPool, destNum, samSockManager, peerId):
+    def __init__(self, eventScheduler, connHandler, peerPool, destNum, samSockManager, peerId):
+        self.sched = eventScheduler
         self.connHandler = connHandler
-        self.connPool = connPool
+        self.peerPool = peerPool
         self.destNum = destNum
         self.samSockManager = samSockManager
         self.peerId = peerId
@@ -54,23 +55,76 @@ class ConnectionListener:
         self.thread.start()
         
     
-    ##internal functions
+    ##internal functions - connections
     
     def _acceptConns(self):
         newConns = self.samSockManager.accept(self.listenConn)
         for newConn in newConns:
-            self.log.info("Accepted new connection from \"%s\" with ID \"%d\"", newConn[1][:10], newConn[0])
-            self.allConns.add(newConn[0])
+            self.log.info("Accepted new connection from \"%s\" with Id \"%d\"", newConn[1][:10], newConn[0])
+            
+            #create timeout event
+            timeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=300, funcArgs=[newConn[0]])
+            
+            #create socket obj
             sock = SamSocket(self.samSockManager, self.destNum,  newConn[0], newConn[1], 'tcp')
             sock.setblocking(0)
+            
+            #add to internal structs
+            self.allConns.add(newConn[0])
             self.conns[newConn[0]] = {'sock':sock,
+                                      'added':False,
+                                      'timeout':timeoutEvent,
                                       'inBuffer':[],
                                       'inBufferSize':0}
-                                    
-                                    
-    def _checkHandshake(self, proto, infohash):
-        return (proto.lower()=='bittorrent protocol' and infohash in self.torrents)
-                                    
+            
+        
+    def _recvFromConn(self, connId):
+        connSet = self.conns[connId]
+        neededBytes = 68 - connSet['inBufferSize']
+        data = connSet['sock'].recv(neededBytes)
+        if data != '':
+            #got something, add to buffer
+            dataLen = len(data)
+            connSet['inBuffer'].append(data)
+            connSet['inBufferSize'] += dataLen
+            bufSize = connSet['inBufferSize']
+            
+            #check for handshake
+            if bufSize >= 48 and bufSize < 68 and bufSize - dataLen < 48:
+                #just got enough data to decode short handshake
+                self._gotShortHandshake(connId, connSet)
+                    
+            elif bufSize == 68 and bufSize - dataLen < 48:
+                #got the full handshake at once
+                success = self._gotShortHandshake(connId, connSet)
+                if success:
+                    self._gotFullHandshake(connId, connSet)
+            
+            elif bufSize == 68:
+                #completed handshake
+                self._gotFullHandshake(connId, connSet)
+
+            
+    def _closeConn(self, connId, reason):
+        #close the connection
+        connSet = self.conns[connId]
+        self.log.info("Conn \"%d\": Closing, reason: %s", connId, reason)
+        
+        #close conn, remove from local structs
+        connSet['sock'].close(forceClose=True)
+        self.allConns.remove(connId)
+        del self.conns[connId]
+        
+        #remove timeout event
+        self.sched.removeEvent(connSet['timeout'])
+        
+        if connSet['added']:
+            #already added to peer pool, need to remove it again
+            self.peerPool.lostConnection(connSet['torrentIdent'], connSet['sock'].getpeername())
+        
+        
+        
+    ##internal functions - handshake
                                     
     def _gotShortHandshake(self, connId, connSet):
         success = False
@@ -80,24 +134,27 @@ class ConnectionListener:
         #decode handshake
         length, proto, reserved, infohash = Messages.decodeShortHandshake(data)
         
-        if not self._checkHandshake(proto, infohash):
+        if not proto.lower()=='bittorrent protocol':
             #invalid handshake, close conn
-            self.log.info("Conn \"%d\": Got invalid handshake, closing", connId)
-            self._closeConn(connId, shouldNotify=False)
+            self._closeConn(connId, 'received invalid handshake')
+            
+        elif not infohash in self.torrents:
+            #invalid handshake, close conn
+            self._closeConn(connId, 'received handshake with unknown infohash')
             
         else:
             #valid handshake
             connSet['torrentIdent'] = self.torrents[infohash]
-            if self.connPool.establishedConnection(connSet['torrentIdent'], connSet['sock'].getpeername()):
+            if self.peerPool.establishedConnection(connSet['torrentIdent'], connSet['sock'].getpeername()):
                 #no connection to this address exists up to now
                 success = True
+                connSet['added'] = True
                 self.log.info("Conn \"%d\": Got valid handshake, sending response", connId)
                 connSet['sock'].send(Messages.generateHandshake(infohash, self.peerId))
                 
             else:
                 #we already have a connection to this address
-                self.log.info("Conn \"%d\": Got valid handshake, but we already have a connection to this address; closing", connId)
-                self._closeConn(connId, shouldNotify=False)
+                self._closeConn(connId, 'we already have a connection to this address')
         
         return success
     
@@ -114,42 +171,6 @@ class ConnectionListener:
         
         #remove from local structures
         self.allConns.remove(connId)
-        del self.conns[connId]
-        
-        
-    def _recvFromConn(self, connId):
-        connSet = self.conns[connId]
-        neededBytes = 68 - connSet['inBufferSize']
-        data = connSet['sock'].recv(neededBytes)
-        if data != '':
-            #got something
-            dataLen = len(data)
-            connSet['inBuffer'].append(data)
-            connSet['inBufferSize'] += dataLen
-            bufSize = connSet['inBufferSize']
-            
-            if bufSize >= 48 and bufSize < 68 and bufSize - dataLen < 48:
-                #just got enough data to decode short handshake
-                self._gotShortHandshake(connId, connSet)
-                    
-            elif bufSize == 68 and bufSize - dataLen < 48:
-                #got the full handshake at once
-                success = self._gotShortHandshake(connId, connSet)
-                if success:
-                    self._gotFullHandshake(connId, connSet)
-            
-            elif bufSize == 68:
-                #completed handshake
-                self._gotFullHandshake(connId, connSet)
-
-            
-    def _closeConn(self, connId, shouldNotify=True):
-        self.allConns.remove(connId)
-        connSet = self.conns[connId]
-        connSet['sock'].close()
-        if connSet['inBufferSize'] >= 48 and shouldNotify:
-            #need to notify conn pool
-            self.connPool.lostConnection(connSet['torrentIdent'], connSet['sock'].getpeername())
         del self.conns[connId]
         
     
@@ -179,8 +200,7 @@ class ConnectionListener:
                 for connId in errored:
                     if connId in self.allConns:
                         if not connId == self.listenConn:
-                            self.log.info('Conn \"%d\": conn failed, closing', connId)
-                            self._closeConn(connId)
+                            self._closeConn(connId, 'conn failed')
                 
                 for connId in recvable:
                     if connId in self.allConns:
@@ -199,8 +219,7 @@ class ConnectionListener:
         except:
             self.log.error('Error in main loop:\n%s', logTraceback())
     
-    ##external functions
-    
+    ##external functions - torrents
     
     def addTorrent(self, torrentIdent, infohash):
         self.lock.acquire()
@@ -213,6 +232,17 @@ class ConnectionListener:
         del self.torrents[infohash]
         self.lock.release()
         
+    
+    ##external functions - connections
+    
+    def timeout(self, connId):
+        self.lock.acquire()
+        if connId in self.allConns:
+            self._closeConn(connId, 'timeout')
+        self.lock.release()
+        
+        
+    ##external functions - thread
     
     def start(self):
         self.lock.acquire()

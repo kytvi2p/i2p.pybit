@@ -33,6 +33,7 @@ class StatusPanel(wx.Notebook):
         self.AddPage(child, name)        
         self.childNames.append(name)
         self.childObjects[name] = child
+        
 
     def OnPageChange(self, event):       
         if self.torrentId is not None:            
@@ -44,8 +45,14 @@ class StatusPanel(wx.Notebook):
             self.childObjects[name].changeTorrentId(self.torrentId)
         self.currentPage = event.GetSelection()
         event.Skip()
+        
 
     def changeTorrentId(self, torrentId):
         self.torrentId = torrentId
         name = self.childNames[self.currentPage]
         self.childObjects[name].changeTorrentId(self.torrentId)
+        
+        
+    def manualUpdate(self):
+        name = self.childNames[self.currentPage]
+        self.childObjects[name].manualUpdate()

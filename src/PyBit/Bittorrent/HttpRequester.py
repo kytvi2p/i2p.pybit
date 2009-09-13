@@ -51,7 +51,7 @@ class HttpRequester:
         
     ##internal functions - requests
         
-    def _addRequest(self, addr, host, url, maxSize, callback, callbackArgs, callbackKws): 
+    def _addRequest(self, addr, host, url, maxSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout): 
         self.log.debug('Adding request to "%s" for "%s" with maxSize "%d"', addr[:10], url, maxSize)
         self.requestId += 1
         
@@ -62,13 +62,17 @@ class HttpRequester:
         sockNum = sock.fileno()
         
         #timeout
-        timeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=300, funcArgs=[sockNum, 'transfer timeout'])
+        transferTimeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=transferTimeout, funcArgs=[sockNum, 'transfer timeout'])
+        requestTimeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=requestTimeout, funcArgs=[sockNum, 'request timeout'])
         
         #add to conn dict
         self.conns[sockNum] = {'sock':sock,
                                'connected':False,
                                'outBuffer':None,
-                               'timeout':timeoutEvent,
+                               'transferTimeout':transferTimeout,
+                               'transferTimeoutEvent':transferTimeoutEvent,
+                               'requestTimeout':requestTimeout,
+                               'requestTimeoutEvent':requestTimeoutEvent,
                                'requestId':self.requestId}
                                
         
@@ -93,10 +97,11 @@ class HttpRequester:
         connSet = self.conns[connId]
         
         #remove timeout
-        self.sched.removeEvent(connSet['timeout'])
+        self.sched.removeEvent(connSet['transferTimeoutEvent'])
+        self.sched.removeEvent(connSet['requestTimeoutEvent'])
         
         #close conn, remove from sets
-        connSet['sock'].close()
+        connSet['sock'].close(forceClose=True)
         self.allConns.remove(connId)
         self.connsWithSendInterest.discard(connId)
         self.connsWithRecvInterest.discard(connId)
@@ -153,13 +158,13 @@ class HttpRequester:
             #connected, queue response
             self.log.debug('Request to "%s": connected', connSet['sock'].getpeername()[:10])
             
-            self.sched.rescheduleEvent(connSet['timeout'], timedelta=300)
+            self.sched.rescheduleEvent(connSet['transferTimeoutEvent'], timedelta=connSet['transferTimeout'])
             connSet['connected'] = True
             connSet['outBuffer'] = requestSet['request'].getHttpRequest()
             
         else:
             #already connected, send more data
-            self.sched.rescheduleEvent(connSet['timeout'], timedelta=300)
+            self.sched.rescheduleEvent(connSet['transferTimeoutEvent'], timedelta=connSet['transferTimeout'])
             data = connSet['outBuffer']
             dataLen = len(data)
             sendBytes = connSet['sock'].send(data)
@@ -181,7 +186,7 @@ class HttpRequester:
     def _recv(self, connId):
         connSet = self.conns[connId]
         requestSet = self.requests[connSet['requestId']]
-        self.sched.rescheduleEvent(connSet['timeout'], timedelta=300)
+        self.sched.rescheduleEvent(connSet['transferTimeoutEvent'], timedelta=connSet['transferTimeout'])
         
         #recv data
         data = connSet['sock'].recv()
@@ -257,11 +262,11 @@ class HttpRequester:
             
     ##external functions - requests
     
-    def makeRequest(self, addr, url, callback, callbackArgs=[], callbackKws={}, host=None, maxSize=1048576):
+    def makeRequest(self, addr, url, callback, callbackArgs=[], callbackKws={}, host=None, transferTimeout=120, requestTimeout=300, maxSize=1048576):
         self.lock.acquire()
         if host is None:
             host = 'http://'+addr+'.i2p'
-        requestId = self._addRequest(addr, host, url, maxSize, callback, callbackArgs, callbackKws)
+        requestId = self._addRequest(addr, host, url, maxSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout)
         self.lock.release()
         return requestId
     

@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+from __future__ import with_statement
 import logging
 import wx
 
@@ -55,8 +56,8 @@ class TorrentList(VirtualListCtrl):
                                         'torrent':True,
                                         'transfer':True}}
                                         
-        funcCaller = FunctionCallConverter(updateFunc, funcKw=statKw, resultFilter='bt', resultFilterFormat='item')
-        VirtualListCtrl.__init__(self, cols, funcCaller.callForValue, parent, **kwargs)
+        func = lambda: updateFunc(**statKw)['bt']
+        VirtualListCtrl.__init__(self, cols, func, parent, **kwargs)
 
         #events
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnSelect)
@@ -73,25 +74,18 @@ class TorrentList(VirtualListCtrl):
         
 
     def manualUpdate(self):
-        self.lock.acquire()
-        self.dataUpdate()
-        self.lock.release()
+        with self.lock:
+            self.dataUpdate()
         
 
     def addTorrent(self, torrentFileData, savePath):
         #adds a fresh torrent
-        self.lock.acquire()
-        #add Task to the handler
-        try:
+        with self.lock:
+            #add Task to the handler
             self.torrentHandler.addTorrent(torrentFileData, savePath)
-            success = True
-        except:
-            success = False
-            
-        #updates
-        self.dataUpdate()
-        self.lock.release()
-        return success
+                
+            #updates
+            self.dataUpdate()
     
 
     def OnSelect(self, event):
@@ -107,70 +101,61 @@ class TorrentList(VirtualListCtrl):
 
     def OnStart(self, event):
         #restart a stopped torrent
-        self.lock.acquire()
-        
-        #for each selected row tell the torrenthandler to restart the torrent
-        for row in self._getSelectedRows():
-            torrentId = self._getRawData('Id', row)
-            self.torrentHandler.startTorrent(torrentId)
-        #event.Skip()
-        self.dataUpdate()
-        self.lock.release()
+        with self.lock:
+            #for each selected row tell the torrenthandler to restart the torrent
+            for row in self._getSelectedRows():
+                torrentId = self._getRawData('Id', row)
+                self.torrentHandler.startTorrent(torrentId)
+            #event.Skip()
+            self.dataUpdate()
         
 
     def OnStop(self, event):
         #stops a running torrent
-        self.lock.acquire()
-
-        #stop all selected torrents
-        for row in self._getSelectedRows():
-            torrentId = self._getRawData('Id', row)
-            self.torrentHandler.stopTorrent(torrentId)                
-        #event.Skip()
-        self.dataUpdate()
-        self.lock.release()
+        with self.lock:
+            #stop all selected torrents
+            for row in self._getSelectedRows():
+                torrentId = self._getRawData('Id', row)
+                self.torrentHandler.stopTorrent(torrentId)                
+            #event.Skip()
+            self.dataUpdate()
+            
 
     def OnRemove(self, event):
         #completly removes the torrent from the torrenthandler
-        self.lock.acquire()
+        with self.lock:
+            #find out which rows were selected
+            selectedRows = self._getSelectedRows()
+            selectedRows.reverse()
 
-        #find out which rows were selected
-        selectedRows = self._getSelectedRows()
-        selectedRows.reverse()
+            #remove all selected rows from the list
+            for row in selectedRows:
+                torrentId = self._getRawData('Id', row)
+                self.torrentHandler.removeTorrent(torrentId)
 
-        #remove all selected rows from the list
-        for row in selectedRows:
-            torrentId = self._getRawData('Id', row)
-            self.torrentHandler.removeTorrent(torrentId)
-
-        self.childWindow(None)
-        
-        #event.Skip()
-        self.dataUpdate()
-        self.lock.release()
+            self.childWindow(None)
+            
+            #event.Skip()
+            self.dataUpdate()
         
 
     def OnUp(self, event):
         #moves all selected rows one up in the list
-        self.lock.acquire()
-
-        #move all selected rows one up in the list
-        for row in self._getSelectedRows():
-            torrentId = self._getRawData('Id', row)
-            self.torrentHandler.moveUp(torrentId)
-        #event.Skip()
-        self.dataUpdate()
-        self.lock.release()
+        with self.lock:
+            #move all selected rows one up in the list
+            for row in self._getSelectedRows():
+                torrentId = self._getRawData('Id', row)
+                self.torrentHandler.moveUp(torrentId)
+            #event.Skip()
+            self.dataUpdate()
         
 
     def OnDown(self, event):
         #moves all selected rows one up in the list
-        self.lock.acquire()
-        
-        #move all selected rows one up in the list
-        for row in self._getSelectedRows():
-            torrentId = self._getRawData('Id', row)
-            self.torrentHandler.moveDown(torrentId)
-        #event.Skip()
-        self.dataUpdate()
-        self.lock.release()
+        with self.lock:
+            #move all selected rows one up in the list
+            for row in self._getSelectedRows():
+                torrentId = self._getRawData('Id', row)
+                self.torrentHandler.moveDown(torrentId)
+            #event.Skip()
+            self.dataUpdate()

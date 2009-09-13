@@ -357,8 +357,8 @@ class I2P_ConfigPanel(wx.Panel):
     def saveConfig(self, optionDict):
         optionDict[('i2p', 'samIp')] = self.ipField1.GetValue().replace(' ', '')
         optionDict[('i2p', 'samPort')] = self.spin1.GetValue()
-        optionDict[('i2p', 'samDisplayName')] = self.edit1.GetValue()
-        optionDict[('i2p', 'samSessionName')] = self.edit2.GetValue()
+        optionDict[('i2p', 'samDisplayName')] = self.edit1.GetValue().replace(' ', '')
+        optionDict[('i2p', 'samSessionName')] = self.edit2.GetValue().replace(' ', '')
         optionDict[('i2p', 'samZeroHopsIn')] = self.check1In.GetValue()
         optionDict[('i2p', 'samZeroHopsOut')] = self.check1Out.GetValue()
         optionDict[('i2p', 'samNumOfTunnelsIn')] = self.spin2In.GetValue()

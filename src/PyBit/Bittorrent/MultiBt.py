@@ -18,6 +18,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 ##buildin
+from __future__ import with_statement
 import logging
 import os
 import threading
@@ -28,7 +29,7 @@ from Conversion import shortIntToBinary
 from ConnectionBuilder import ConnectionBuilder
 from ConnectionHandler import ConnectionHandler
 from ConnectionListener import ConnectionListener
-from ConnectionPool import ConnectionPool
+from PeerPool import PeerPool
 from EventScheduler import EventScheduler
 from HttpRequester import HttpRequester
 from Limiter import RefillingQuotaLimiter
@@ -41,7 +42,7 @@ from PySamLib.SamSocketManager import SamSocketManager
 #DEBUG
 #import gc
 
-VERSION = '0.0.5'
+VERSION = '0.0.6'
 
 
 class MultiBtException(Exception):
@@ -117,11 +118,11 @@ class MultiBt:
         self.outRate = Measure(self.eventSched, 60)
         
         #create connection related classes
-        self.connPool = ConnectionPool()
-        self.connHandler = ConnectionHandler(self.config, self.connPool, self.samSockManager.select, self.eventSched,\
+        self.peerPool = PeerPool()
+        self.connHandler = ConnectionHandler(self.config, self.peerPool, self.samSockManager.select, self.eventSched,\
                                              self.inLimiter, self.outLimiter, self.peerId)
-        self.connListener = ConnectionListener(self.connHandler, self.connPool, self.destNum, self.samSockManager, self.peerId)
-        self.connBuilder = ConnectionBuilder(self.eventSched, self.connHandler, self.connPool, self.destNum, self.samSockManager, self.peerId)
+        self.connListener = ConnectionListener(self.eventSched, self.connHandler, self.peerPool, self.destNum, self.samSockManager, self.peerId)
+        self.connBuilder = ConnectionBuilder(self.eventSched, self.connHandler, self.peerPool, self.destNum, self.samSockManager, self.peerId)
         
         #create own address watcher class
         self.ownAddrWatcher = OwnAddressWatcher(self.destNum, self.samSockManager)
@@ -130,8 +131,8 @@ class MultiBt:
         self.httpRequester = HttpRequester(self.eventSched, self.destNum, self.samSockManager)
         
         #add config callbacks
-        callbackSamAddressOptions = (('i2p','samIp'),
-                                     ('i2p','samPort'))
+        callbackSamAddressOptions = {('i2p','samIp'):'ip',
+                                     ('i2p','samPort'):'port'}
                                     
         callbackSamSessionOptions = {('i2p','samDisplayName'):'inbound.nickname',
                                      ('i2p','samNumOfTunnelsIn'):'inbound.quantity',
@@ -145,9 +146,9 @@ class MultiBt:
                                      ('i2p','samTunnelLengthVarianceOut'):'outbound.lengthVariance',
                                      ('i2p','samZeroHopsOut'):'outbound.allowZeroHop'}
                                     
-        self.config.addCallback(callbackSamAddressOptions, self.samSockManager.changeSamBridgeAddress,
+        self.config.addCallback(callbackSamAddressOptions.keys(), self.samSockManager.changeSamBridgeAddress,
                                 funcArgs=[self.destNum], funcKw={'reconnect':True}, valueArgPlace=1,
-                                callType='value-funcArgAll')
+                                callType='item-funcKwSingle', optionTranslationTable=callbackSamAddressOptions, callWithAllOptions=True)
                                 
         self.config.addCallback((('i2p','samSessionName'),), self.samSockManager.changeDestinationName,
                                 funcArgs=[self.destNum], funcKw={'reconnect':True}, valueArgPlace=1)
@@ -285,8 +286,8 @@ class MultiBt:
         self.log.debug('Torrent %i: trying to read torrent data from "%s"', torrentId, torrentFilePath)
         try:
             fl = open(torrentFilePath, 'rb')
-            torrentFileData = fl.read()
-            fl.close()
+            with fl:
+                torrentFileData = fl.read()
         except:
             failureMsg = 'Could not read torrent file from "%s"' % encodeStrForPrinting(torrentFilePath)
     
@@ -316,7 +317,7 @@ class MultiBt:
                 
                 self.log.debug('Torrent %i: creating bt class', torrentId)
                 btObj = Bt(self.config, self.eventSched, self.httpRequester, self.ownAddrWatcher.getOwnAddr, self.peerId, self.inRate, self.outRate,
-                           self.connPool, self.connBuilder, self.connListener, self.connHandler, torrent, 'Bt'+str(torrentId), torrentDataPath)
+                           self.peerPool, self.connBuilder, self.connListener, self.connHandler, torrent, 'Bt'+str(torrentId), torrentDataPath)
                 
                 #add to queue
                 self.log.debug('Torrent %i: adding to queue', torrentId)
@@ -402,8 +403,8 @@ class MultiBt:
         torrentFilePath = self._getTorrentFilePath(torrentId)
         try:
             fl = open(torrentFilePath, 'wb')
-            fl.write(torrentFileData)
-            fl.close()
+            with fl:
+                fl.write(torrentFileData)
         except:
             self.lock.release()
             raise MultiBtException('Failed to save torrent data to "%s"', encodeStrForPrinting(torrentFilePath))
@@ -525,7 +526,7 @@ class MultiBt:
         
         #stop all connection related classes
         self.log.info("Stopping all connection related classes")
-        self.connPool.stop()
+        self.peerPool.stop()
         self.connHandler.stop()
         self.connListener.stop()
         self.connBuilder.stop()

@@ -20,7 +20,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 from InfoPanel import InfoPanel
 
 class TorrentStats(InfoPanel):
-    def __init__(self, updateFunc, parent, **kwargs):
+    def __init__(self, rawUpdateFunc, parent, **kwargs):
         transfer = (('Downloaded:','inPayloadBytes','dataAmount',0),\
                     ('Uploaded:','outPayloadBytes','dataAmount',0),\
                     ('DownSpeed:','inRawSpeed','transferSpeed',0),\
@@ -52,19 +52,42 @@ class TorrentStats(InfoPanel):
                    ('Connections',connections),\
                    ('Other',other))
         
-
+        self.rawUpdateFunc = rawUpdateFunc
         self.torrentId = None
         
-        def upFunc():
-            if self.torrentId==None:
-                return None
-            else:
-                return updateFunc(wantedStats={'bt':self.torrentId}, wantedTorrentStats={'peers':True, 'torrent':True, 'transfer':True, 'transferAverages':True})['bt']
+        self._updateStatKw()
+        func = lambda: self.rawUpdateFunc(**self.statKw)['bt']
+        InfoPanel.__init__(self, func, content, 2, 2, parent, **kwargs)
         
-        InfoPanel.__init__(self, upFunc, content, 2, 2, parent, **kwargs)
+        
+    def _updateStatKw(self):
+        self.statKw = {'wantedStats':{'bt':self.torrentId},
+                       'wantedTorrentStats':{'peers':True,
+                                             'torrent':True,
+                                             'transfer':True,
+                                             'transferAverages':True}}
 
 
     def changeTorrentId(self, torrentId):
-        if not self.torrentId==torrentId:
+        if self.torrentId is not None and torrentId is None:
+            #got disabled
+            self.torrentId = None
+            self.clear()
+            
+        elif self.torrentId is None and torrentId is not None:
+            #got enabled
             self.torrentId = torrentId
-            self.manualUpdate()               
+            self._updateStatKw()
+            self.dataUpdate()
+            
+        elif self.torrentId is not None and torrentId is not None:
+            #normal change
+            if not self.torrentId == torrentId:
+                self.torrentId = torrentId
+                self._updateStatKw()
+                self.dataUpdate()
+                
+                
+    def manualUpdate(self):
+        if self.torrentId is not None:
+            self.dataUpdate()

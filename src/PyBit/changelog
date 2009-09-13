@@ -1,3 +1,22 @@
+0.0.6 - 21.02.2009
+-----------------------
+Blub:
+- fixed bug in "Bittorrent.Bt": transfer measurement wasn't stopped when the torrent was stopped, needlessly causing two events per second and torrent
+- fixed bug in "Bittorrent.EventScheduler": rescheduling events to an earlier time didn't work (not done by PyBit up to now, so this bug wasn't triggered - still better to fix it)
+- fixed bug in "Bittorrent.MultiBt": the callback for the ip and port of the SAM bridge was incorrectly configured, causing crashes if only the port was changed (in these cases it set the ip to the new port config value)
+- fixed bug in "Bittorrent.TrackerRequester": responses without peers (because the tracker doesn't now any) were considered invalid and triggered a retry after 5 minutes
+- fixed bug in "I2P_ConfigPanel": spaces in the display and session name were not removed (the protocol, which sam uses, uses spaces as delimiters within messages)
+- fixed bug in "VirtualListCtrl": sorting by the peer column failed (the peer column is the only column which needs two data items, that wasn't considered when sorting)
+- fixed bug in "TorrentConnectionList": when choosing another torrent in the main list, all items of the connection list were deleted: This is a pre virtual list relict, no longer needed and breaks things.
+- improved "Bittorrent.ConnectionBuilder": added timeout (max 5 minutes from connect attempt to finished handshake exchange), limited maximum connect attempts to 10 per torrent
+- improved "Bittorrent.ConnectionListener": added timeout (a peer has 5 minutes to send a full handshake, should be plenty ...)
+- improved "Bittorrent.HtmlRequester": added request timeout
+- improved "Bittorrent.TrackerRequester": only trigger retries if nothing parsable was received, reduced retry waittime to 1 minute, changed loglevels
+- improved GUI refresh logic: don't even access hidden pages during refresh
+- added a dialog which shows the readme file (About->Show Readme)
+- changed the way connections are closed: all close() calls are now done with the keyword "forceClose=True", which means that PySamLib doesn't wait until all data is send before it closes the connection (prevents memory leaks if a connection gets permanently unsendable without failing - seen that in the past)
+
+
 0.0.5 - 16.02.2009
 -----------------------
 Blub:

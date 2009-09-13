@@ -85,6 +85,59 @@ class VirtualListCtrl(wx.ListCtrl):
     def _getRawData(self, colName, rowIndex):
         return self.colData[colName][rowIndex]
         
+        
+    def _dataUpdate(self, data):
+        oldDataAmount = len(self.colData[self.colMapper[0]])
+        
+        #create sort list
+        colName = self.colMapper[self.sortColumn]
+        dataKeyword = self.colInfo[colName]['dataKeyword']
+        if type(dataKeyword)==str:
+            #single item
+            sortList = [row[dataKeyword] for row in data]
+        else:
+            #multiple items
+            sortList = []
+            for row in data:
+                sortList.append(tuple([row[singleDataKeyword] for singleDataKeyword in dataKeyword]))
+        
+        #add row index
+        sortList = map(lambda tup: (tup[1], tup[0]), enumerate(sortList))
+        
+        #sort the list
+        sortList.sort()
+        if self.sortDirection == 'DESC':
+            sortList.reverse()
+            
+        #create new data list
+        for colName in self.colData.keys():
+            #fill one column
+            colDataKeyword = self.colInfo[colName]['dataKeyword']
+            if type(colDataKeyword)==str:
+                #only a single data item
+                self.colData[colName] = list([data[rowNum][colDataKeyword] for rowData, rowNum in sortList])
+                
+            else:
+                #multiple data items
+                colData = []
+                for rowData, rowNum in sortList:
+                    colData.append(list([data[rowNum][singleDataKeyword] for singleDataKeyword in colDataKeyword]))
+                self.colData[colName] = colData
+                
+        #set new item length if rows got added or removed
+        newDataAmount = len(sortList)
+        if newDataAmount != oldDataAmount:
+            self.SetItemCount(newDataAmount)
+                
+        #refresh currently displayed items
+        firstDisplayedRow = self.GetTopItem()
+        lastDisplayedRow = min(firstDisplayedRow + self.GetCountPerPage(), newDataAmount)
+        self.RefreshItems(firstDisplayedRow, lastDisplayedRow)
+        
+        #windows is a bit strange and requires this call - welcome flickering, here you go ...
+        if sys.platform == 'win32':
+            self.Refresh()
+            
     
     ##event functions
 
@@ -188,56 +241,24 @@ class VirtualListCtrl(wx.ListCtrl):
         self.lock.release()
         
         
-    ##update
+    ##external functions - data
+    
+    def clear(self):
+        self.lock.acquire()
+        self._dataUpdate([])
+        self.lock.release()
+        
+        
+    def changeUpdateFunc(self, updateFunc):
+        self.lock.acquire()
+        self.updateFunc = updateFunc
+        self.lock.release()
+        
     
     def dataUpdate(self):
         self.lock.acquire()
-        oldDataAmount = len(self.colData[self.colMapper[0]])
-        
-        #get new data
         data = self.updateFunc()
-        
-        #create sort list
-        colName = self.colMapper[self.sortColumn]
-        dataKeyword = self.colInfo[colName]['dataKeyword']
-        sortList = []
-        place = 0
-        while place < len(data):
-            sortList.append((data[place][dataKeyword], place))
-            place += 1
-        sortList.sort()
-        if self.sortDirection == 'DESC':
-            sortList.reverse()
-            
-        #create new data list
-        for colName in self.colData.keys():
-            #fill one column
-            colDataKeyword = self.colInfo[colName]['dataKeyword']
-            if type(colDataKeyword)==str:
-                #only a single data item
-                self.colData[colName] = list([data[rowNum][colDataKeyword] for rowData, rowNum in sortList])
-                
-            else:
-                #multiple data item
-                colData = []
-                for rowData, rowNum in sortList:
-                    colData.append(list([data[rowNum][singleDataKeyword] for singleDataKeyword in colDataKeyword]))
-                self.colData[colName] = colData
-                
-        #set new item length if rows got added or removed
-        newDataAmount = len(sortList)
-        if newDataAmount != oldDataAmount:
-            self.SetItemCount(newDataAmount)
-                
-        #refresh currently displayed items
-        firstDisplayedRow = self.GetTopItem()
-        lastDisplayedRow = min(firstDisplayedRow + self.GetCountPerPage(), newDataAmount)
-        self.RefreshItems(firstDisplayedRow, lastDisplayedRow)
-        
-        #windows is a bit strange and requires this call - welcome flickering, here you go ...
-        if sys.platform == 'win32':
-            self.Refresh()
-        
+        self._dataUpdate(data)
         self.lock.release()
 
 

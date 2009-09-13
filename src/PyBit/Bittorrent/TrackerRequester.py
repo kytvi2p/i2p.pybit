@@ -28,12 +28,12 @@ from Bencoding import bdecode
 from Utilities import logTraceback
 
 class TrackerRequester:
-    def __init__(self, eventScheduler,  peerId, connPool, ownAddrFunc, httpRequester,
+    def __init__(self, eventScheduler,  peerId, peerPool, ownAddrFunc, httpRequester,
                  inMeasure, outMeasure, storage, torrent, torrentIdent):
         #global stuff
         self.sched = eventScheduler
         self.peerId = peerId
-        self.connPool = connPool
+        self.peerPool = peerPool
         self.ownAddrFunc = ownAddrFunc
         self.httpRequester = httpRequester
         
@@ -76,7 +76,7 @@ class TrackerRequester:
             for trackerAddr in tier:
                 #single tracker url
                 result = self.trackerUrlSplitter.match(trackerAddr)
-                assert result is not None, 'invalid tracker url, this should have been checked before!'
+                assert result is not None, 'tracker url "%s" is invalid, this should have been checked before!' % (trackerAddr,)
                 prioList[tierNum].append(trackerId)
                 trackerList[trackerId] = {'addr':result.group(1),
                                           'url':result.group(3),
@@ -163,8 +163,8 @@ class TrackerRequester:
     
     def _parseResponse(self, trackerSet, data):
         url = trackerSet['logUrl']
-
-        success = False
+        valid = False
+        
         try:
             response = bdecode(data)
         except:
@@ -175,8 +175,9 @@ class TrackerRequester:
         if response is not None:
             if not type(response)==dict:
                 #whatever this is, its not a standard response
-                self.log.info('Response from tracker "%s" is in an unknown format', url)
+                self.log.error('Response from tracker "%s" is in an unknown format', url)
             else:
+                valid = True
                 if 'failure reason' in response:
                     #request failed
                     self.log.warn('Request to Tracker "%s" failed: "%s"', url, str(response['failure reason']))
@@ -188,38 +189,41 @@ class TrackerRequester:
                     if not 'peers' in response:
                         #no peers in response
                         self.log.info('Tracker "%s" did not supply any peers', url)
+                    
+                    elif not type(response['peers'])==list:
+                        #probably a compact response - can only be used for IPs, so how should this be used with I2P?
+                        self.log.error('Tracker "%s" responded with a compact response - not interpretable!', url)
+                    
+                    elif len(response['peers'])==0:
+                        #no peers in response
+                        self.log.info('Tracker "%s" did not supply any peers', url)
+                        
                     else:
-                        if len(response['peers'])==0:
-                            #no peers in response
-                            self.log.info('Tracker "%s" did not supply any peers', url)
-                        else:
-                            if not type(response['peers'])==list:
-                                #probably a compact response - can only be used for IPs, so how should this be used with I2P?
-                                self.log.info('Tracker "%s" responded with a compact response - not interpretable!', url)
+                        #something valid
+                        ownAddr = self.ownAddrFunc()
+                        for peer in response['peers']:
+                            #check each peer
+                            if not type(peer)==dict:
+                                #whatever this is, its nothing normal
+                                self.log.error('Tracker "%s" supplied peers in an unknown format', url)
+                            
+                            elif not 'ip' in peer:
+                                #uhm, a peer without ip?!
+                                self.log.error('Tracker "%s" supplied peer data without IPs!', url)
                             else:
-                                for peer in response['peers']:
-                                    #check each peer
-                                    if not type(peer)==dict:
-                                        #whatever this is, its nothing normal
-                                        self.log.info('Tracker "%s" supplied peers in an unknown format', url)
-                                    else:
-                                        if not 'ip' in peer:
-                                            #uhm, a peer without ip?!
-                                            self.log.info('Tracker "%s" supplied a corrupt peer', url)
-                                        else:
-                                            #finally, all checks passed, now parse the peer address
-                                            parseResult = self.i2pHostChecker.search(peer['ip'])
-                                            if parseResult is None:
-                                                #urgh, address is invalid, all the trouble for nothing
-                                                self.log.info('Got invalid peer with address "%s" from tracker', peer['ip'])
-                                            
-                                            else:
-                                                #valid address
-                                                success = True
-                                                peerAddr = parseResult.group(1)
-                                                self.log.debug('Got valid peer with address "%s" from tracker', peerAddr)
-                                                self.connPool.addPossibleConnections(self.torrentIdent, [peerAddr])
-        return success
+                                #finally, all checks passed, now parse the peer address
+                                parseResult = self.i2pHostChecker.search(peer['ip'])
+                                if parseResult is None:
+                                    #urgh, address is invalid, all the trouble for nothing
+                                    self.log.error('Got invalid peer with address "%s" from tracker', peer['ip'])
+                                
+                                else:
+                                    #valid address
+                                    peerAddr = parseResult.group(1)
+                                    if not peerAddr == ownAddr:
+                                        self.log.debug('Got valid peer with address "%s" from tracker', peerAddr)
+                                        self.peerPool.addPossibleConnections(self.torrentIdent, [peerAddr])
+        return valid
     
     
     def _finishedRequest(self, response, trackerId, event):
@@ -262,9 +266,9 @@ class TrackerRequester:
             self.log.debug('Request to tracker "%s" failed: %s', trackerSet['logUrl'], reason)
             nextTracker = self._getNextTracker(trackerId)
             if nextTracker is None:
-                #try again in 5 mins
-                self.log.debug("Next request in 5 minutes")
-                self.requestEvent = self.sched.scheduleEvent(self.announce, timedelta=300)
+                #try again in 1 min
+                self.log.debug("Next request in 1 minute")
+                self.requestEvent = self.sched.scheduleEvent(self.announce, timedelta=60)
                 
             else:
                 #try next

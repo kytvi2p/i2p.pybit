@@ -29,9 +29,9 @@ import Messages
 from Utilities import logTraceback
 
 class ConnectionHandler:
-    def __init__(self, config, connPool, selectFunc, scheduler, inLimiter, outLimiter, peerId):
+    def __init__(self, config, peerPool, selectFunc, scheduler, inLimiter, outLimiter, peerId):
         self.config = config
-        self.connPool = connPool
+        self.peerPool = peerPool
         self.selectFunc = selectFunc
         self.scheduler = scheduler
         
@@ -64,7 +64,7 @@ class ConnectionHandler:
             #already connected to this peer
             self.log.info('Closing conn to "%s" because we are already connected to that peer', remoteAddr[:10])
             connSock.close()
-            self.connPool.lostConnection(torrentIdent, remoteAddr)
+            self.peerPool.lostConnection(torrentIdent, remoteAddr)
         else:
             #really add this conn
             conn = Connection(torrentIdent, self.connStatus, torrent['globalStatus'], self.scheduler,\
@@ -102,7 +102,7 @@ class ConnectionHandler:
         torrent['requester'].connGotClosed(conn)
         conn.close()
         
-        self.connPool.lostConnection(torrentIdent, remoteAddr, keepInPool)
+        self.peerPool.lostConnection(torrentIdent, remoteAddr, keepInPool)
     
     def _removeAllConnectionsOfTorrent(self, torrentIdent):
         for connId in self.torrents[torrentIdent]['connIds'].copy():

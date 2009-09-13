@@ -58,6 +58,9 @@ class EventScheduler:
     def _addEvent(self, event):
         self.editLock.acquire()
         
+        #add event num to event
+        event['num'] = self.eventNum
+        
         #add event to dict
         eventId = self.eventId
         self.eventId += 1
@@ -81,7 +84,7 @@ class EventScheduler:
         shouldExec = False
         
         #get soonest valid event, if any
-        while event is None and len(self.eventQueue)>0:
+        while event is None and len(self.eventQueue) > 0:
             targetTime, eventNum, eventId = self.eventQueue[0] #take soonest event
             
             if not eventId in self.eventDict:
@@ -90,13 +93,19 @@ class EventScheduler:
                 event = None
                 
             else:
+                #event is known
                 event = self.eventDict[eventId]
                 
-                if targetTime != event['time']:
-                    #event was rescheduled
+                if eventNum != event['num']:
+                    #event was rescheduled to an earlier time
+                    heappop(self.eventQueue)
+                    event = None
+                    
+                elif targetTime != event['time']:
+                    #event was rescheduled to a later time
                     heappop(self.eventQueue)
                     heappush(self.eventQueue, (event['time'], eventNum, eventId))
-                    event = None                
+                    event = None
               
         if event is not None:
             if event['time'] <= time():
@@ -106,8 +115,8 @@ class EventScheduler:
                 
                 if not event['repeat']:
                     #remove for good
-                    del self.eventDict[eventId
-                    ]
+                    del self.eventDict[eventId]
+                    
                 else:
                     #reschedule
                     newEvent = copy(event)
@@ -115,11 +124,12 @@ class EventScheduler:
                         newEvent['time'] += newEvent['repeatdelta']
                     else:
                         newEvent['time'] = time() + newEvent['repeatdelta']
+                    newEvent['num'] = self.eventNum
                     self.eventDict[eventId] = newEvent
                     heappush(self.eventQueue, (newEvent['time'], self.eventNum, eventId))
                     self.eventNum += 1
         
-        self.changeEvent.clear() #clear queue change event        
+        self.changeEvent.clear() #clear queue change event
         self.editLock.release()
         return event, shouldExec
     
@@ -130,19 +140,33 @@ class EventScheduler:
         if eventId in self.eventDict:
             #event exists
             event = self.eventDict[eventId]
-                            
+            oldTime = event['time']
+            
             #apply change
             if timestamp is not None:
                 #absolute target
-                event['time'] = timestamp
+                newTime = timestamp
                 
             elif timedelta is not None:
                 #absolute target - relative to the current time
-                event['time'] = time() + timedelta
+                newTime = time() + timedelta
                 
             else:
                 #relative change, get current event time
-                event['time'] += relativeTimedelta
+                newTime = oldTime + relativeTimedelta
+                
+            if oldTime <= newTime:
+                #rescheduled to a later time, the scheduler will do the work once necessary
+                event['time'] = newTime
+                
+            else:
+                #rescheduled to an earlier time, need to immediately adapt the queue
+                event = copy(event)
+                event['time'] = newTime
+                event['num'] = self.eventNum
+                self.eventDict[eventId] = event
+                heappush(self.eventQueue, (newTime, self.eventNum, eventId))
+                self.eventNum += 1
             
         self.editLock.release()
         
@@ -181,7 +205,7 @@ class EventScheduler:
     def run(self):
         try:
             self.runLock.acquire()
-            while self.shouldStop==False:
+            while not self.shouldStop:
                 event, shouldExec = self._getEvent()
                 if event is None:
                     #nothing in the queue
@@ -196,7 +220,7 @@ class EventScheduler:
                             self.log.error('Execution of event failed:\n%s', logTraceback())
                     else:
                         #wait
-                        self._wait(event['time']-time())
+                        self._wait(event['time'] - time())
             
             self.thread = None
             self.runLock.release()
@@ -236,7 +260,7 @@ class EventScheduler:
     
     def rescheduleEvent(self, eventId, timestamp=None, timedelta=None, relativeTimedelta=None):
         if (timestamp is not None) + (timedelta is not None) + (relativeTimedelta is not None) > 1:
-            raise EventSchedulerException('Only either a timestamp or a timedelta may be given')
+            raise EventSchedulerException('Only one of "timestamp", "timedelta" and "relativeTimedelta" may be given at once')
         
         elif (timestamp is None) and (timedelta is None) and (relativeTimedelta is None):
             timestamp = time()
@@ -323,6 +347,17 @@ if __name__=='__main__':
     print 'Done, activating scheduler ...'
     sched.resume()
     print 'Done, sleeping 20 seconds...'
+    sleep(20)
+    print 'Done, removing all Events, pausing scheduler ...'
+    sched.removeAllEvents()
+    sched.pause()
+    print 'Done, scheduling task in 15 seconds'
+    eventId = sched.scheduleEvent(testEvent, timedelta=15, funcArgs=['arg1','arg2'], funcKw={'Key':'Value','TimeDelta':15, 'TargetTime':time()+15})
+    print 'Done, activating scheduler ...'
+    sched.resume()
+    print 'Done, rescheduling task to run 10 seconds earlier'
+    sched.rescheduleEvent(eventId, relativeTimedelta=-10)
+    print 'Done, waiting 20 seconds'
     sleep(20)
     print 'Done, terminating ...'
     sched.stop()

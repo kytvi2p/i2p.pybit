@@ -31,10 +31,10 @@ from Utilities import logTraceback
 
 class Bt:
     def __init__(self, config, eventSched, httpRequester, ownAddrFunc, peerId, pInMeasure, pOutMeasure,
-                 connPool, connBuilder, connListener, connHandler, torrent, torrentIdent, torrentDataPath):
+                 peerPool, connBuilder, connListener, connHandler, torrent, torrentIdent, torrentDataPath):
         ##global stuff
         self.config = config
-        self.connPool = connPool
+        self.peerPool = peerPool
         self.connBuilder = connBuilder
         self.connListener = connListener
         self.connHandler = connHandler
@@ -47,6 +47,8 @@ class Bt:
         self.log.debug("Creating measure classes")
         self.inRate = Measure(eventSched, 60, [pInMeasure])
         self.outRate = Measure(eventSched, 60, [pOutMeasure])
+        self.inRate.stop()
+        self.outRate.stop()
         
         self.log.debug("Creating storage class")
         self.storage = Storage(torrentIdent, self.torrent, torrentDataPath)
@@ -56,7 +58,7 @@ class Bt:
         self.log.debug("Creating requester class")
         self.requester = Requester(self.torrentIdent, self.globalStatus, self.storage, self.torrent)
         self.log.debug("Creating tracker requester class")
-        self.trackerRequester = TrackerRequester(eventSched, peerId, self.connPool, ownAddrFunc, httpRequester,
+        self.trackerRequester = TrackerRequester(eventSched, peerId, self.peerPool, ownAddrFunc, httpRequester,
                                                  self.inRate, self.outRate, self.storage, self.torrent, self.torrentIdent)
         self.log.debug("Creating choker class")
         self.choker = Choker(self.torrentIdent, eventSched, self.connHandler, self.storage.getStatus())
@@ -92,6 +94,10 @@ class Bt:
                     
             if loaded:
                 #finished loading, add to handlers
+                self.log.debug("Starting transfer measurement")
+                self.inRate.start()
+                self.outRate.start()
+                
                 self.log.debug("Adding us to connection handler")
                 self.connHandler.addTorrent(self.torrentIdent, self.torrent, self.globalStatus, self.inRate, self.outRate, self.storage, self.requester)
                 
@@ -140,6 +146,10 @@ class Bt:
             
             self.log.debug("Removing us from connection handler")
             self.connHandler.removeTorrent(self.torrentIdent)
+            
+            self.log.debug("Stopping transfer measurement")
+            self.inRate.stop()
+            self.outRate.stop()
         
         
     def _stop(self):
@@ -149,7 +159,7 @@ class Bt:
             self.trackerRequester.stop()
             
             self.log.debug("Removing all infos related to use from connection pool")
-            self.connPool.clear(self.torrentIdent)
+            self.peerPool.clear(self.torrentIdent)
             
         else:
             #still running or loading
@@ -177,8 +187,12 @@ class Bt:
                 self.log.debug("Removing us from connection handler")
                 self.connHandler.removeTorrent(self.torrentIdent)
                 
+                self.log.debug("Stopping transfer measurement")
+                self.inRate.stop()
+                self.outRate.stop()
+                
                 self.log.debug("Removing all infos related to us from connection pool")
-                self.connPool.clear(self.torrentIdent)
+                self.peerPool.clear(self.torrentIdent)
         
 
     def start(self):
@@ -218,7 +232,7 @@ class Bt:
         
         #peers
         if wantedStats.get('peers', False):
-            stats.update(self.connPool.getStats(self.torrentIdent))
+            stats.update(self.peerPool.getStats(self.torrentIdent))
             
         #transfer stats
         if wantedStats.get('transfer', False):

@@ -17,13 +17,19 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+##builtin
+from __future__ import with_statement
+import logging
+import os
+import wx
+
 ##own - GUI
 from About import About
-from ChangelogViewer import ChangelogViewer
 from ConfigDialog import ConfigDialog
 from TorrentConnectionList import TorrentConnectionList
 from TorrentList import TorrentList
 from TorrentStats import TorrentStats
+from ScrollableTextViewer import ScrollableTextViewerFrame
 from StatusBar import StatusBar
 from StatusPanel import StatusPanel
 
@@ -33,11 +39,6 @@ from Config import Config
 from Logger import LogController
 from ObjectPersister import ThreadedObjectPersister
 from Utilities import logTraceback, encodeStrForPrinting, FunctionCallConverter
-
-##other
-import logging
-import os
-import wx
 
 
 class Gui(wx.Frame):
@@ -110,7 +111,8 @@ class Gui(wx.Frame):
         menubar.Append(config, '&Config')
         about = wx.Menu()
         about.Append(131, 'About', 'Information about the version and the authors of this software')
-        about.Append(132, 'Show Changelog', 'Show the changlog of the bt client and the GUI')
+        about.Append(132, 'Show Changelog', 'Shows the changlog of PyBit')
+        about.Append(133, 'Show Readme', 'Shows the readme')
         menubar.Append(about, '&About')
         
         self.SetMenuBar(menubar)
@@ -165,6 +167,7 @@ class Gui(wx.Frame):
         self.Bind(wx.EVT_MENU, self.OnConfig, id=121)
         self.Bind(wx.EVT_MENU, self.OnAbout, id=131)
         self.Bind(wx.EVT_MENU, self.OnChangelog, id=132)
+        self.Bind(wx.EVT_MENU, self.OnReadme, id=133)
 
         #toolbar events        
         self.Bind(wx.EVT_TOOL, self.OnAddFromFile, id=201)
@@ -197,8 +200,7 @@ class Gui(wx.Frame):
             if not self.stopFlag:
                 #update Torrentlist
                 self.torrentList.manualUpdate()
-                self.torrentStats.manualUpdate()
-                self.torrentConnectionList.manualUpdate()
+                self.childWindows.manualUpdate()
 
                 #update Statusbar
                 self.sb.manualUpdate()
@@ -231,8 +233,8 @@ class Gui(wx.Frame):
                 self.log.info('Trying to read torrent file from "%s"', encodeStrForPrinting(torrentPath))
                 try:
                     fl = open(torrentPath, 'rb')
-                    data = fl.read()
-                    fl.close()
+                    with fl:
+                        data = fl.read()
                 except:
                     data = None
                 
@@ -246,6 +248,8 @@ class Gui(wx.Frame):
                         self.torrentList.addTorrent(data, savePath)
                     except MultiBtException, e:
                         self.log.error('Failed to add torrent, reason: %s"', e.reason)
+                    except Exception, e:
+                        self.log.critical('Crash while adding torrent:\n%s', str(logTraceback()))
             del saveDiag
         del diag
 
@@ -262,7 +266,11 @@ class Gui(wx.Frame):
         
 
     def OnChangelog(self, event):
-        ChangelogViewer(self, os.path.join(self.progPath, u'changelog'))
+        ScrollableTextViewerFrame(self, 'Changelog', os.path.join(self.progPath, u'changelog'))
+        
+    
+    def OnReadme(self, event):
+        ScrollableTextViewerFrame(self, 'Readme', os.path.join(self.progPath, u'changelog'))
         
 
     def OnClose(self, event):

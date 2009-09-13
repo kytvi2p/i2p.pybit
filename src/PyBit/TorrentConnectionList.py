@@ -22,16 +22,10 @@ import wx
 from VirtualListCtrl import VirtualListCtrl
 
 class TorrentConnectionList(VirtualListCtrl):
-    def __init__(self, updateFunc, parent, **kwargs):
+    def __init__(self, rawUpdateFunc, parent, **kwargs):
         self.torrentId = None
-        
-        def upFunc():
-            if self.torrentId==None:
-                return []
-            else:
-                return updateFunc(wantedStats={'bt':self.torrentId}, wantedTorrentStats={'connections':True})['bt']['connections']
-            
-        #Syntax: NameOfColumn, NameOfStat, DataType
+  
+        #Syntax: NameOfColumn, NameOfStat, DataType, ColumnWidth
         cols = [('Addr','addr', 'native', 125),\
                 ('Direction','direction','native', 75),\
                 ('Connected', 'connectedInterval', 'timeInterval', 75),\
@@ -46,20 +40,42 @@ class TorrentConnectionList(VirtualListCtrl):
                 ('RC', 'remoteChoke', 'bool', 30),\
                 ('lReq', 'localRequestCount', 'int', 50),\
                 ('rReq', 'remoteRequestCount', 'int', 50)]
-                
-        VirtualListCtrl.__init__(self, cols, upFunc, parent, **kwargs)
+       
+        self.rawUpdateFunc = rawUpdateFunc
+        self._updateStatKw()
+        func = lambda: self.rawUpdateFunc(**self.statKw)['bt']['connections']
+        VirtualListCtrl.__init__(self, cols, func, parent, **kwargs)
+        
+        
+    def _updateStatKw(self):
+        self.statKw = {'wantedStats':{'bt':self.torrentId},
+                       'wantedTorrentStats':{'connections':True}}
         
 
     def changeTorrentId(self, torrentId):
         self.lock.acquire()
-        if not self.torrentId==torrentId:
-            self.DeleteAllItems()
+        if self.torrentId is not None and torrentId is None:
+            #got disabled
+            self.torrentId = None
+            self.clear()
+            
+        elif self.torrentId is None and torrentId is not None:
+            #got enabled
             self.torrentId = torrentId
-            self.manualUpdate()
+            self._updateStatKw()
+            self.dataUpdate()
+            
+        elif self.torrentId is not None and torrentId is not None:
+            #normal change
+            if not self.torrentId == torrentId:
+                self.torrentId = torrentId
+                self._updateStatKw()
+                self.dataUpdate()
         self.lock.release()
         
 
     def manualUpdate(self):
         self.lock.acquire()
-        self.dataUpdate()
+        if self.torrentId is not None:
+            self.dataUpdate()
         self.lock.release()
