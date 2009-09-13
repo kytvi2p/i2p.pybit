@@ -185,11 +185,11 @@ class TrackerRequester:
                 #whatever this is, its not a standard response
                 self.log.error('Response from tracker "%s" is in an unknown format', url)
             else:
-                valid = True
                 if 'failure reason' in response:
                     #request failed
                     self.log.warn('Request to Tracker "%s" failed: "%s"', url, str(response['failure reason']))
                 else:
+                    valid = True
                     if 'warning message' in response:
                         #just a warning
                         self.log.warn('Request to Tracker "%s" got warned: "%s"', url, str(response['warning message']))

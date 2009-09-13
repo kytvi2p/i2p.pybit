@@ -465,7 +465,63 @@ class Paths_ConfigPanel(wx.Panel):
         optionDict[('paths','torrentFolder')] = self.edit1.GetValue()
         optionDict[('paths','downloadFolder')] = self.edit2.GetValue()
         
+ 
+
+
+class Requester_ConfigPanel(wx.Panel):
+    def __init__(self, config, parent, **kwargs):
+        wx.Panel.__init__(self, parent, **kwargs)
+        self.config = config
+        #stuff
+        vBox = wx.BoxSizer(wx.VERTICAL)
+
+        #build up boxes
+        requesterBox = wx.StaticBox(self, -1, "Requester")
+        requesterBoxSizer = wx.StaticBoxSizer(requesterBox, wx.VERTICAL)
+        requesterBoxItems = wx.FlexGridSizer(cols = 1, vgap = 3, hgap = 5)
+
+        commentBox = wx.StaticBox(self, -1, "Note")
+        commentBoxSizer = wx.StaticBoxSizer(commentBox, wx.VERTICAL)
         
+        #build requester box        
+        requesterRealItems = wx.FlexGridSizer(cols = 2, vgap = 3, hgap = 5)
+
+        #prio
+        label1 = wx.StaticText(self, -1, "Always prioritise by availability:")
+        label1.SetToolTipString('Always prioritise pieces by their availability, regardless of in progress pieces?')
+        requesterRealItems.Add(label1, 1, wx.EXPAND)
+        
+        self.check1 = wx.CheckBox(self, -1)
+        self.check1.SetToolTipString('Always prioritise pieces by their availability, regardless of in progress pieces?')
+        self.check1.SetValue(self.config.getBool('requester','strictAvailabilityPrio'))
+        requesterRealItems.Add(self.check1, 1)
+        
+        #build up comment box 
+        commentLabel = wx.StaticText(self, -1, "Prioritising pieces by their availability and rather starting to request "+\
+                                               "rare new pieces instead of further requesting less rare in-progress pieces "+\
+                                               "is prefferable long term.\n"+\
+                                               "Only disable it if you want to minimalise resource "+\
+                                               "usage as far as possible (the gain is minimal) and/or only run PyBit for one "+\
+                                               "or two hours at once.")
+        commentBoxSizer.Add(commentLabel, 1, flag = wx.EXPAND | wx.ALL, border = 5)
+
+        #build up requester box
+        requesterBoxItems.Add(requesterRealItems, 1, wx.EXPAND | wx.ALL, border = 5)
+        requesterBoxItems.Add(commentBoxSizer, 1, wx.EXPAND | wx.ALL, border = 0)
+        requesterBoxItems.AddGrowableCol(0, 1)
+        requesterBoxItems.AddGrowableRow(1, 1)
+        requesterBoxSizer.Add(requesterBoxItems, 1, wx.EXPAND | wx.ALL, border = 0)
+
+        vBox.Add(requesterBoxSizer, 1, wx.EXPAND | wx.ALL, border = 2)
+        #Line everythign up
+        self.SetSizer(vBox)
+        self.Layout()
+        
+
+    def saveConfig(self, optionDict):
+       optionDict[('requester', 'strictAvailabilityPrio')] = self.check1.GetValue()
+
+
 
 
 class ConfigDialog(wx.Frame):
@@ -485,6 +541,7 @@ class ConfigDialog(wx.Frame):
         n20 = self.tree.AppendItem(root, "Network")
         n21 = self.tree.AppendItem(n20,  "I2P")
         n30 = self.tree.AppendItem(root, "Paths")
+        n40 = self.tree.AppendItem(root, "Requester")
         
         self.tree.Expand(n10)
         self.tree.Expand(n20)
@@ -513,7 +570,8 @@ class ConfigDialog(wx.Frame):
         self.configPanels = {'Logging':Logging_ConfigPanel(self.config, self),\
                              'Network':Network_ConfigPanel(self.config, self),\
                              'I2P':I2P_ConfigPanel(self.config, self),\
-                             'Paths':Paths_ConfigPanel(self.config, self)}
+                             'Paths':Paths_ConfigPanel(self.config, self),\
+                             'Requester':Requester_ConfigPanel(self.config, self)}
         self.activePanel = 'Logging'
         
         for panelName in self.configPanels.keys():
@@ -561,7 +619,8 @@ if __name__ == "__main__":
                                'downloadFolder':('/tmp', 'str')}}
                     
     #bt config options
-    btConfigDefaults = {'network':{'downSpeedLimit':(102400, 'int'),
+    btConfigDefaults = {'requester':{'strictAvailabilityPrio':(True, 'bool')},
+                        'network':{'downSpeedLimit':(102400, 'int'),
                                    'upSpeedLimit':(10240, 'int')},
                         'i2p':{'samIp':('127.0.0.1', 'ip'),
                                'samPort':(7656, 'port'),

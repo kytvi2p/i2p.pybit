@@ -3,10 +3,10 @@ General
 - cleanup log messages
 - get the profiler to profile all threads, not just the GUI (main-) thread
 - fix flickering problem which occurs if PyBit is run with Windows
-- fix CPU-usage bugs (Requester and some places in ConnectionHandler for example)
 - don't generate different loggers for instances of the same class
 - add a few more tabs (logs, block/pieces, tracker, files)
 - add support for bob
+- add support for hiding to systray?
 - webinterface? (with support to only start the webinterface = headless mode?)
 - persist gui changes with ObjectPersister (enabled columns, ordering, ...) ? Would need a fail-safe way to reset to defaults in case of screwed up changes.
 
@@ -18,7 +18,6 @@ Bittorrent.Bt:
 - report status changes (loading/running/completed/error) back to MultiBt (for status changes and such)
 
 Bittorrent.ConnectionBuilder:
-- maximum connection limit per torrent
 - maximum connection limit per torrent, calculated from a global limit (and shared, like the bandwidth limit)
 
 Bittorrent.ConnectionHandler:
@@ -37,11 +36,12 @@ Bittorrent.MultiBt:
 - only load a certain number of torrents at the same time (number should be configurable)
 - add some kind of scheduling?
 
-Bittorrent.Requester
-- really prefer rare pieces, regardless of current in-progress pieces (RAM vs efficiency tradeoff = optional?)
-
-Bittorrent.Torrent
+Bittorrent.Torrent:
 - add more sanity checks for the torrents content
+
+Bittorrent.TrackerRequester:
+- change the number of requested peer adresses depending on the number of already connected peers
+- don't ask for peers when stopping
 
 
 Gui:
@@ -52,7 +52,10 @@ InfoPanel:
 - add more sizing support
 
 TorrentConnectionList:
-- add columns (peer client, score, raw byte counts, ...) => should probably only be done after persisting GUI changes
+- add columns (score, raw byte counts, ...) => should probably only be done after persisting GUI changes
+
+TorrentStats:
+- add some kind of "bar", which shows the availability for each piece. Perhaps optional, depends on resource usage.
  
 
 Won't fix

@@ -56,12 +56,15 @@ class Bt:
         self.log.debug("Creating global status class")
         self.globalStatus = GlobalStatus(self.torrent.getTotalAmountOfPieces())
         self.log.debug("Creating requester class")
-        self.requester = Requester(self.torrentIdent, self.globalStatus, self.storage, self.torrent)
+        self.requester = Requester(self.config, self.torrentIdent, self.globalStatus, self.storage, self.torrent)
         self.log.debug("Creating tracker requester class")
         self.trackerRequester = TrackerRequester(eventSched, peerId, self.peerPool, ownAddrFunc, httpRequester,
                                                  self.inRate, self.outRate, self.storage, self.torrent, self.torrentIdent)
         self.log.debug("Creating choker class")
         self.choker = Choker(self.torrentIdent, eventSched, self.connHandler, self.storage.getStatus())
+        
+        ##callbacks
+        self._initCallbacks()
         
         ##status
         self.started = False
@@ -72,6 +75,74 @@ class Bt:
         self.loadLock = threading.Lock()
         self.lock = threading.Lock()
         
+    ##internal functions - callbacks
+    
+    def _initCallbacks(self):
+        pass
+    
+    
+    def _addCallbacks(self):
+        pass
+    
+        
+    def _removeCallbacks(self):
+       pass
+            
+            
+    ##internal functions - start/pause/stop - common
+            
+    def _halt(self, stop):
+        if self.paused and stop:
+            #stopping and already paused, only need to stop the tracker requester and clear some infos
+            self.log.debug("Stopping tracker requester")
+            self.trackerRequester.stop()
+            
+            self.log.debug("Removing all infos related to use from connection pool")
+            self.peerPool.clear(self.torrentIdent)
+        
+        else:
+            #either pausing or stopping and still running or loading
+            self.log.debug("Aborting storage loading just in case")
+            self.storage.abortLoad()
+            self.loadLock.acquire()
+            self.loadLock.release()
+            
+            if self.started:
+                #were already running
+                self.started = False
+                
+                self.log.debug("Removing callbacks")
+                self._removeCallbacks()
+                
+                if not stop:
+                    self.log.debug("Pausing tracker requester")
+                    self.trackerRequester.pause()
+                else:
+                    self.log.debug("Stopping tracker requester")
+                    self.trackerRequester.stop()
+                
+                self.log.debug("Stopping choker")
+                self.choker.stop()
+                
+                self.log.debug("Removing us from connection builder")
+                self.connBuilder.removeTorrent(self.torrentIdent)
+                
+                self.log.debug("Removing us from connection listener")
+                self.connListener.removeTorrent(self.torrent.getTorrentHash())
+                
+                self.log.debug("Removing us from connection handler")
+                self.connHandler.removeTorrent(self.torrentIdent)
+                
+                self.log.debug("Stopping transfer measurement")
+                self.inRate.stop()
+                self.outRate.stop()
+                
+                if stop:
+                    self.log.debug("Removing all infos related to us from connection pool")
+                    self.peerPool.clear(self.torrentIdent)
+                
+    
+    ##internal functions - start/pause/stop - specific
     
     def _start(self):
         self.loadLock.acquire()
@@ -113,6 +184,9 @@ class Bt:
                 self.log.debug("Starting tracker requester")
                 self.trackerRequester.start()
                 
+                self.log.debug("Adding callbacks")
+                self._addCallbacks()
+                
                 self.started = True
                 
         except:
@@ -120,80 +194,9 @@ class Bt:
             self.log.error("Error in load function:\n%s", logTraceback())
             
         self.loadLock.release()
-        
-    
-    def _pause(self):
-        self.log.debug("Aborting storage loading just in case")
-        self.storage.abortLoad()
-        self.loadLock.acquire()
-        self.loadLock.release()
-        
-        if self.started:
-            #were already running
-            self.started = False
-            
-            self.log.debug("Stopping choker")
-            self.choker.stop()
-            
-            self.log.debug("Pausing tracker requester")
-            self.trackerRequester.pause()
-            
-            self.log.debug("Removing us from connection builder")
-            self.connBuilder.removeTorrent(self.torrentIdent)
-            
-            self.log.debug("Removing us from connection listener")
-            self.connListener.removeTorrent(self.torrent.getTorrentHash())
-            
-            self.log.debug("Removing us from connection handler")
-            self.connHandler.removeTorrent(self.torrentIdent)
-            
-            self.log.debug("Stopping transfer measurement")
-            self.inRate.stop()
-            self.outRate.stop()
-        
-        
-    def _stop(self):
-        if self.paused:
-            #already paused, only need to stop the tracker requester and clear some infos
-            self.log.debug("Stopping tracker requester")
-            self.trackerRequester.stop()
-            
-            self.log.debug("Removing all infos related to use from connection pool")
-            self.peerPool.clear(self.torrentIdent)
-            
-        else:
-            #still running or loading
-            self.log.debug("Aborting storage loading just in case")
-            self.storage.abortLoad()
-            self.loadLock.acquire()
-            self.loadLock.release()
-            
-            if self.started:
-                #were already running
-                self.started = False
                 
-                self.log.debug("Stopping choker")
-                self.choker.stop()
                 
-                self.log.debug("Stopping tracker requester")
-                self.trackerRequester.stop()
-                
-                self.log.debug("Removing us from connection builder")
-                self.connBuilder.removeTorrent(self.torrentIdent)
-                
-                self.log.debug("Removing us from connection listener")
-                self.connListener.removeTorrent(self.torrent.getTorrentHash())
-                
-                self.log.debug("Removing us from connection handler")
-                self.connHandler.removeTorrent(self.torrentIdent)
-                
-                self.log.debug("Stopping transfer measurement")
-                self.inRate.stop()
-                self.outRate.stop()
-                
-                self.log.debug("Removing all infos related to us from connection pool")
-                self.peerPool.clear(self.torrentIdent)
-        
+    ##external functions - start/pause/stop
 
     def start(self):
         self.lock.acquire()
@@ -207,7 +210,7 @@ class Bt:
     def pause(self):
         self.lock.acquire()
         if not (self.paused or self.stopped):
-            self._pause()
+            self._halt(False)
             self.paused = True
             self.stopped = False
         self.lock.release()
@@ -216,7 +219,7 @@ class Bt:
     def stop(self):
         self.lock.acquire()
         if not self.stopped:
-            self._stop()
+            self._halt(True)
             self.paused = False
             self.stopped = True
         self.lock.release()

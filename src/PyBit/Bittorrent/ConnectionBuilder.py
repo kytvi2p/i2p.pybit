@@ -85,7 +85,7 @@ class ConnectionBuilder:
                 sock.connect(peerAddr)
                 sockNum = sock.fileno()
                 
-                self.log.info('%s - conn \"%d\": trying to connect to \"%s\"', torrentIdent, sockNum, peerAddr)
+                self.log.info('%s - conn %i: trying to connect to \"%s\"', torrentIdent, sockNum, peerAddr)
                 
                 #create timeout event
                 timeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=300, funcArgs=[sockNum])
@@ -106,7 +106,7 @@ class ConnectionBuilder:
                                 
     def _removeConn(self, connId):
         torrentIdent = self.conns[connId]['torrentIdent']
-        self.log.info('%s - conn \"%d\": removing', torrentIdent, connId)
+        self.log.info('%s - conn %i: removing', torrentIdent, connId)
         
         #remove from sets
         self.allConns.remove(connId)
@@ -128,7 +128,7 @@ class ConnectionBuilder:
         torrentIdent = self.conns[connId]['torrentIdent']
         connSet = self.conns[connId]
         conn = connSet['sock']
-        self.log.info('%s - conn \"%d\": closing', torrentIdent, connId)
+        self.log.info('%s - conn %i: closing', torrentIdent, connId)
         
         #remove from sets
         self.allConns.remove(connId)
@@ -173,7 +173,7 @@ class ConnectionBuilder:
                 
             else:
                 #no connection to this address exists up to now
-                self.log.info("Conn \"%d\": Got valid handshake, established connections", connId)
+                self.log.info("Conn %i: Got valid handshake, established connections", connId)
                 
                 #add to handler
                 self.connHandler.addConnection(connSet['torrentIdent'], connSet['sock'], 'out', remotePeerId)

@@ -26,7 +26,9 @@ class TorrentConnectionList(VirtualListCtrl):
         self.torrentId = None
   
         #Syntax: NameOfColumn, NameOfStat, DataType, ColumnWidth
-        cols = [('Addr','addr', 'native', 125),\
+        cols = [('Id','id', 'int', 40),\
+                ('Addr','addr', 'native', 125),\
+                ('Client','peerClient', 'native', 100),\
                 ('Direction','direction','native', 75),\
                 ('Connected', 'connectedInterval', 'timeInterval', 75),\
                 ('Progress', 'peerProgress', 'percent', 75),\

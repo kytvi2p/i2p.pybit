@@ -1,3 +1,23 @@
+0.0.9 - 03.03.2009
+-----------------------
+Blub:
+- fixed bug in "Bittorrent.Connection": the outrequests were stored in a deque instead of in a list, which sucked CPU time when requests were removed in the middle of the queue
+- fixed bug in "Bittorrent.TrackerRequester": failed tracker requests with valid tracker responses (parsing didn't fail but the tracker reported a failure) didn't trigger a retry
+- improved "Bittorrent.Connection": if requests for data are not yet send to the peer when it already chokes us again, the messages are deleted from the outgoing buffer; outrequests and inrequests are now stored in a way which can deal with much larger queues
+- improved "Bittorrent.ConnectionHandler": reduced CPU usage slightly, changed structure of log messages to the one used in other classes, changed a few loglevels
+- improved "Bittorrent.Requester": maximum requests per connection is no longer hardcoded but determined by a function of the connection object, added support for strict prioritisation by piece availability (less prioritisation of in progress pieces)
+- addition to "Bittorrent.Bt": added functions which will later add and remove the callbacks of per-torrent classes, slightly reorganised functions for starting, pausing and stopping a torrent
+- addition to "Bittorrent.Connection": added functions to calculate and get the maximum amount of outrequests (maximum depends on peer client)
+- addition to "Bittorrent.Conversion.py": added function to convert peer id to client name
+- addition to "Bittorrent.GlobalStatus": added function for sorting piece lists by priority, needed for strict prioritisation by piece availability
+- addition to "ConfigDialog": added panel "Requester" for configuring all requester related config options
+- addition to "TorrentConnectionList": added "id"- and "client"-column to "TorrentConnectionList"
+- change in "Bittorrent.ConnectionHandler": changed max queued out requests to 256 (the old reason for a small limit is gone, 256 shouldn't cause performance problems)
+- change in "Bittorrent.MultiBt": reduced out buffer size for i2p sockets from 32768b to 5120b (4096b for one block and another 1024b for message overhead and such)
+- change in "Bittorrent.Requester": reduced request size from 16384b to 4096b
+- updated PySamLib from v0.2.2 to v0.2.3
+
+
 0.0.8 - 28.02.2009
 -----------------------
 Blub:

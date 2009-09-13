@@ -108,7 +108,7 @@ class ConnectionListener:
     def _closeConn(self, connId, reason):
         #close the connection
         connSet = self.conns[connId]
-        self.log.info("Conn \"%d\": Closing, reason: %s", connId, reason)
+        self.log.info("Conn %d: Closing, reason: %s", connId, reason)
         
         #close conn, remove from local structs
         connSet['sock'].close(force=True)
@@ -149,7 +149,7 @@ class ConnectionListener:
                 #no connection to this address exists up to now
                 success = True
                 connSet['added'] = True
-                self.log.info("Conn \"%d\": Got valid handshake, sending response", connId)
+                self.log.info("Conn %d: Got valid handshake, sending response", connId)
                 connSet['sock'].send(Messages.generateHandshake(infohash, self.peerId))
                 
             else:
@@ -160,7 +160,7 @@ class ConnectionListener:
     
     
     def _gotFullHandshake(self, connId, connSet):
-        self.log.info("Conn \"%d\": Got complete handshake, connection established", connId)
+        self.log.info("Conn %i: Got complete handshake, connection established", connId)
         data = ''.join(connSet['inBuffer'])
         
         #decode handshake
@@ -210,7 +210,7 @@ class ConnectionListener:
                             
                         else:
                             #received data
-                            self.log.debug('Conn \"%d\": Received data', connId)
+                            self.log.debug('Conn %i: Received data', connId)
                             self._recvFromConn(connId)
             
             self.thread = None

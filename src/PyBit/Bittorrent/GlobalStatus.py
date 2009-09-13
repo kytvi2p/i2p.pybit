@@ -17,7 +17,9 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from random import choice
+from collections import deque
+from random import choice, shuffle
+import logging
 
 class GlobalStatus:
     def __init__(self, pieceAmount):
@@ -27,6 +29,8 @@ class GlobalStatus:
         while count < pieceAmount:
             self.pieces[count] = 0
             count += 1
+            
+        self.log = logging.getLogger('GlobalStatus')
             
     def getPieceAmount(self):
         return len(self.pieces)
@@ -92,4 +96,49 @@ class GlobalStatus:
             return choice(pieceIndexs)
         else:
             return pieceIndexs[0]
+        
+        
+    def sortPieceList(self, *pieceLists):
+        #get first raw list for sorting
+        sortList = []
+        place = 0
+        while place < len(pieceLists):
+            sortList.extend([(self.pieces[pieceIndex], place, pieceIndex) for pieceIndex in pieceLists[place]])
+            place += 1
+        sortList.sort()
+        
+        if len(sortList) == 0:
+            #nothing to do ...
+            pieces = []
+            
+        else:
+            #randomise equal things
+            pieces = []
+            
+            piece = sortList.pop(0)
+            partList = [piece]
+            availability = piece[0]
+            priority = piece[1]
+            
+            for piece in sortList:
+                if piece[0] == availability and piece[1] == priority:
+                    #equal
+                    partList.append(piece)
+                else:
+                    #unequal
+                    shuffle(partList)
+                    pieces.extend(partList)
+                    partList = [piece]
+                    availability = piece[0]
+                    priority = piece[1]
+            
+            shuffle(partList)
+            pieces.extend(partList)
+            
+        #self.log.debug('Piece prio list:\n%s', '\n'.join([str(piece) for piece in pieces]))
+                
+        #remove everything from list except the index
+        pieces = map(lambda x: x[2], pieces)
+        
+        return pieces
             

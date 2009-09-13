@@ -1,3 +1,9 @@
+0.2.3 - 02.03.2009
+-----------------------
+Blub:
+- fixed bug in "SelectingAsyncSocketManager": On shutdown sockets where closed directly instead of letting the thread do it. This can cause a whole bunch of different problems.
+
+
 0.2.2 - 28.02.2009
 -----------------------
 Blub:

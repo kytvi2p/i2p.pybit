@@ -199,7 +199,7 @@ class SelectingAsyncSocketManager:
     def _closeAll(self):
         for pseudoSockNum in self.sockets.keys():
             #close each socket
-            self._close(pseudoSockNum)
+            self.socksToClose.add(pseudoSockNum)
             
         
     def _connError(self, realSockNum):
@@ -299,7 +299,7 @@ class SelectingAsyncSocketManager:
             #check if we need to wait
             if finished==False:
                 self.lock.release()
-                if timeout==None:
+                if timeout is None:
                     self.socketActEvent.wait()
                 else:
                     self.socketActEvent.wait(timeout + startTime - time())       
@@ -768,7 +768,7 @@ class PollingAsyncSocketManager:
             #check if we need to wait
             if finished==False:
                 self.lock.release()
-                if timeout==None:
+                if timeout is None:
                     self.socketActEvent.wait()
                 else:
                     self.socketActEvent.wait(timeout + startTime - time())       

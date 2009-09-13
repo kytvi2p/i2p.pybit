@@ -190,10 +190,12 @@ class Gui(wx.Frame):
         
         
     def __del__(self):
-        self.torrentHandler.stop()
-        self.persister.stop()
-        self.logController.shutdown()
-
+        try:
+            self.torrentHandler.stop()
+            self.persister.stop()
+            self.logController.shutdown()
+        except:
+            logTraceback()
 
     def OnTimer(self, event):
         try:

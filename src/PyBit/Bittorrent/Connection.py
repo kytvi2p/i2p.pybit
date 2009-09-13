@@ -18,8 +18,10 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+from Conversion import peerIdToClient
 from Measure import Measure
 from Status import Status
+from Storage import StorageException
 from Utilities import logTraceback
 import Messages
 
@@ -47,6 +49,7 @@ class Connection:
         #peer
         self.remotePeerAddr = remotePeerAddr
         self.remotePeerId = remotePeerId
+        self.remoteClient = peerIdToClient(remotePeerId)
         
         #conn status
         self.connStatus = connStatus
@@ -72,12 +75,19 @@ class Connection:
         self.remoteChoke = True
         self.closed = False
         
-        #data and request buffer
+        #data buffer
         self.inBuffer = []
-        self.outBuffer = deque()
-        self.outRequests = {'inFlight':0,
-                            'requests':deque()}
-        self.inRequests = []
+        self.outBufferQueue = deque()
+        self.outBufferMessages = {}
+        self.outBufferMessageId = 0
+        
+        #requests
+        self.outRequestsInFlight = 0
+        self.outRequestQueue = []
+        self.outRequestHandles = {}
+        self.maxInRequests = self._calculateMaxAmountOfInRequests()
+        self.inRequestQueue = []
+        self.inRequestInfo = {}
         
         #log
         #self.log = logging.getLogger(torrentIdent+'-Conn '+str(self.connIdent))
@@ -152,43 +162,72 @@ class Connection:
         self.sched.rescheduleEvent(self.sendTimeoutEvent, timedelta=300)
         self.sched.rescheduleEvent(self.keepaliveEvent, timedelta=100)
         
-        while len(self.outBuffer) > 0:
-            message = self.outBuffer.popleft()
-            messageLen = len(message[1])
-            wantedBytes = min(messageLen, self.conn.getFreeOutBufferSpace())
-            allowedBytes = self.outLimiter.claimUnits(self.connIdent, wantedBytes)
-            
-            if allowedBytes == 0:
-                #must not send a single byte ...
-                self.outBuffer.appendleft(message)
-                break
+        while len(self.outBufferQueue) > 0:
+            messageId = self.outBufferQueue[0]
+            if not messageId in self.outBufferMessages:
+                #message send got aborted
+                self.outBufferQueue.popleft()
+                
+                if len(self.outBufferQueue) == 0:
+                    #nothing to send anymore, notify
+                    self.connStatus.wantsToSend(False, self.connIdent)
+                    
             else:
-                #at least something may be send        
-                sendBytes = self.conn.send(message[1][:allowedBytes])
-                self.outRate.updateRate(sendBytes)
-                    
-                if sendBytes < messageLen:
-                    #but not all was send
-                    message[1] = message[1][sendBytes:]
-                    self.outBuffer.appendleft(message)
+                #something to send
+                message = self.outBufferMessages[messageId]
+                messageLen = len(message[1])
+                wantedBytes = min(messageLen, self.conn.getFreeOutBufferSpace())
+                allowedBytes = self.outLimiter.claimUnits(self.connIdent, wantedBytes)
+                
+                if allowedBytes == 0:
+                    #may not even send a single byte ...
                     break
-                    
                 else:
-                    #all was send
-                    if len(self.outBuffer) == 0:
-                        #nothing to send anymore, notify
-                        self.connStatus.wantsToSend(False, self.connIdent)
+                    #at least something may be send        
+                    sendBytes = self.conn.send(message[1][:allowedBytes])
+                    self.outRate.updateRate(sendBytes)
+                    message[2] = True
                         
-                    if message[0] == 'outrequest':
-                        #was a outrequest
-                        self._outRequestGotSend()
+                    if sendBytes < messageLen:
+                        #but not all was send
+                        message[1] = message[1][sendBytes:]
+                        break
                         
+                    else:
+                        #all was send
+                        self.outBufferQueue.popleft()
+                        del self.outBufferMessages[messageId]
+                        
+                        if len(self.outBufferQueue) == 0:
+                            #nothing to send anymore, notify
+                            self.connStatus.wantsToSend(False, self.connIdent)
+                                
+                        if message[0] == 'outrequest':
+                            #was a outrequest
+                            self._outRequestGotSend()
+                            
 
     def _queueSend(self, data, dataType='normal'):
-        if len(self.outBuffer)==0:
+        if len(self.outBufferQueue) == 0:
             #first queued item, notify about send interest
             self.connStatus.wantsToSend(True, self.connIdent)
-        self.outBuffer.append([dataType, data])
+        messageId = self.outBufferMessageId
+        self.outBufferMessageId += 1
+        self.outBufferQueue.append(messageId)
+        self.outBufferMessages[messageId] = [dataType, data, False]
+        return messageId
+    
+    
+    def _abortSend(self, messageId):
+        aborted = False
+        message = self.outBufferMessages.get(messageId, None)
+        if message is not None:
+            #still queued
+            if not message[2]:
+                #send did not start up to now
+                aborted = True
+                del self.outBufferMessages[messageId]
+        return aborted
                     
                     
     def _fail(self, reason=''):
@@ -224,7 +263,9 @@ class Connection:
         
         #clear buffers
         self.inBuffer = []
-        self.outBuffer.clear()
+        self.outBufferQueue.clear()
+        self.outBufferMessages.clear()
+        self.outBufferMessageId = 0
         
         #remove requests
         self._delAllOutRequests()        
@@ -238,105 +279,118 @@ class Connection:
     
     ##internal functions - inrequests
     
-    
     def _addInRequest(self, pieceIndex, offset, length, callback=None, callbackArgs=[], callbackKw={}):
-        self.inRequests.append({'pieceIndex':pieceIndex,
-                                'offset':offset,
-                                'length':length,
-                                'func':callback,
-                                'funcArgs':callbackArgs,
-                                'funcKw':callbackKw})
-        
-        self._queueSend(Messages.generateRequest(pieceIndex, offset, length))
+        messageId = self._queueSend(Messages.generateRequest(pieceIndex, offset, length))
+        inRequest = (pieceIndex, offset, length)
+        self.inRequestQueue.append(inRequest)
+        self.inRequestInfo[inRequest] = {'messageId':messageId,
+                                         'func':callback,
+                                         'funcArgs':callbackArgs,
+                                         'funcKw':callbackKw}
 
 
     def _getInRequestsOfPiece(self, pieceIndex):
-        requests = set()
-        for i in xrange(0, len(self.inRequests)):
-            if self.inRequests[i]['pieceIndex'] == pieceIndex:
-                requests.add(self.inRequests[i]['offset'])
+        requests = set([inRequest[1] for inRequest in self.inRequestQueue if inRequest[0] == pieceIndex])
         return requests
-    
-        
-    def _findInRequest(self, pieceIndex, offset, length):
-        #try to find the request
-        place = None
-        for i in xrange(0, len(self.inRequests)):
-            request = self.inRequests[i]
-            if request['pieceIndex'] == pieceIndex and \
-               request['offset'] == offset and \
-               request['length'] == length:
-                #found it
-                place = i
-                break;
-        return place
         
         
     def _finishedInRequest(self, pieceIndex, offset, length):
         #try to find the request and delete it if found
-        place = self._findInRequest(pieceIndex, offset, length)
-        if place is not None:
-            #found it, delete it
-            request = self.inRequests[place]
-            del self.inRequests[place]            
+        inRequest = (pieceIndex, offset, length)
+        if inRequest in self.inRequestInfo:
+            self.inRequestQueue.remove(inRequest)
+            del self.inRequestInfo[inRequest]
             
             
     def _cancelInRequest(self, pieceIndex, offset, length):
         #try to find the request, send cancel and then delete it
-        place = self._findInRequest(pieceIndex, offset, length)
-        if place is not None:
-            #found it, send cancel and then delete it
-            request = self.inRequests[place]
-            self._queueSend(Messages.generateCancel(request['pieceIndex'], request['offset'], request['length']))
-            del self.inRequests[place]
+        inRequest = (pieceIndex, offset, length)
+        if inRequest in self.inRequestInfo:
+            self.inRequestQueue.remove(inRequest)
+            requestInfo = self.inRequestInfo.pop(inRequest)
+            if not self._abortSend(requestInfo['messageId']):
+                #the request was already send
+                self._queueSend(Messages.generateCancel(pieceIndex, offset, length))
             
             
     def _cancelAllInRequests(self):
-        for request in self.inRequests:
+        for request in list(self.inRequestQueue):
             #abort request
-            self._queueSend(Messages.generateCancel(request['pieceIndex'], request['offset'], request['length']))
-        self.inRequests = []
+            self._cancelInRequest(request[0], request[1], request[2])
+        assert len(self.inRequestQueue) == 0 and len(self.inRequestInfo) == 0, 'All canceled but some left?! Queue length %i, info length %i' % (len(self.inRequestQueue), len(self.inRequestInfo))
         
         
     def _delInRequest(self, pieceIndex, offset, length):
         #try to find the request, call callback and then delete it
-        place = self._findInRequest(pieceIndex, offset, length)
-        if place is not None:
-            #found it, call callback and then delete it
-            request = self.inRequests[place]
-            del self.inRequests[place]
-            if request['func'] is not None:
-                apply(request['func'], request['funcArgs'], request['funcKw'])
+        inRequest = (pieceIndex, offset, length)
+        requestInfo = self.inRequestInfo.pop(inRequest, None)
+        if requestInfo is not None:
+            self.inRequestQueue.remove(inRequest)
+            self._abortSend(requestInfo['messageId'])
+            if requestInfo['func'] is not None:
+                apply(requestInfo['func'], requestInfo['funcArgs'], requestInfo['funcKw'])
             
         
         
     def _delAllInRequests(self):
-        for request in self.inRequests:
+        for requestInfo in self.inRequestInfo.itervalues():
             #call callback of failed request
-            if request['func'] is not None:
-                apply(request['func'], request['funcArgs'], request['funcKw'])
-        self.inRequests = []
+            self._abortSend(requestInfo['messageId'])
+            if requestInfo['func'] is not None:
+                apply(requestInfo['func'], requestInfo['funcArgs'], requestInfo['funcKw'])
+        self.inRequestQueue = []
+        self.inRequestInfo = {}
         
 
     def _hasThisInRequest(self, pieceIndex, offset, length):
         #try to find request
-        place = self._findInRequest(pieceIndex, offset, length)
-        return (place is not None)
+        return (pieceIndex, offset, length) in self.inRequestInfo
     
     
     def _amountOfInRequests(self):
-        return len(self.inRequests)
+        return len(self.inRequestQueue)
+    
+    
+    def _calculateMaxAmountOfInRequests(self):
+        if self.remoteClient.startswith('Azureus'):
+            limit = 16
+        
+        elif self.remoteClient.startswith('I2PRufus'):
+            limit = 16
+            
+        elif self.remoteClient.startswith('I2PSnark'):
+            limit = 32
+        
+        elif self.remoteClient.startswith('PyBit'):
+            version = list([int(digit) for digit in self.remoteClient.split(' ')[1].split('.')])
+            if version < (0, 0, 9):
+                limit = 32
+            else:
+                limit = 64
+            
+        elif self.remoteClient.startswith('Robert'):
+            limit = 31
+            
+        else:
+            #I2P-Bt and unknown
+            limit = 16
+            
+        return limit
+        
+    
+    def _getMaxAmountOfInRequests(self):
+        return self.maxInRequests
         
     
     ##internal functions - outrequests
     
     def _sendOutRequest(self):
         #queue one outrequest in the outbuffer
-        outRequest = self.outRequests['requests'].popleft()
+        outRequest = self.outRequestQueue.pop(0)
         try:
             #try to get data
-            data = outRequest['dataHandle']()
-        except:
+            data = self.outRequestHandles.pop(outRequest)()
+        except StorageException:
             #failed to get data
             self.log.error("Failed to get data for outrequest:\n%s", logTraceback())
             data = None
@@ -344,63 +398,52 @@ class Connection:
             
         if data is not None:
             #got data
-            message = Messages.generatePiece(outRequest['pieceIndex'], outRequest['offset'], data)
-            self.outRate.updatePayloadCounter(outRequest['length'])
-            self.outRequests['inFlight'] += 1
-            self._queueSend(message, 'outrequest')
+            if not len(data) == outRequest[2]:
+                 self.log.error("Did not get enough data for outrequest: expected %i, got %i!", outRequest[2], len(data))
+                 self._fail("could not get data for outrequest")
+            else:
+                message = Messages.generatePiece(outRequest[0], outRequest[1], data)
+                self.outRate.updatePayloadCounter(outRequest[2])
+                self.outRequestsInFlight += 1
+                self._queueSend(message, 'outrequest')
         
 
     def _outRequestGotSend(self):
-        self.outRequests['inFlight'] -= 1
-        assert self.outRequests['inFlight'] == 0, 'multiple out requests in flight?!'
-        if len(self.outRequests['requests']) > 0 and self.outRequests['inFlight']==0:
+        self.outRequestsInFlight -= 1
+        assert self.outRequestsInFlight == 0, 'multiple out requests in flight?!'
+        assert len(self.outRequestQueue) == len(self.outRequestHandles), 'out of sync: queue length %i but %i handles!' % (len(self.outRequestQueue), len(self.outRequestHandles))
+        if len(self.outRequestQueue) > 0 and self.outRequestsInFlight == 0:
             self._sendOutRequest()
         
         
     
-    def _addOutRequest(self, pieceIndex, offset, length, dataHandle):        
-        self.outRequests['requests'].append({'pieceIndex':pieceIndex,
-                                             'offset':offset,
-                                             'length':length,
-                                             'dataHandle':dataHandle})
-        if self.outRequests['inFlight']==0:
+    def _addOutRequest(self, pieceIndex, offset, length, dataHandle):
+        self.outRequestQueue.append((pieceIndex, offset, length))
+        self.outRequestHandles[(pieceIndex, offset, length)] = dataHandle
+        if self.outRequestsInFlight == 0:
             #no outrequest is currently being send, send one directly
             self._sendOutRequest()
             
     
     def _hasThisOutRequest(self, pieceIndex, offset, length):
-        found = False
-        #try to find the request
-        for i in xrange(0, len(self.outRequests['requests'])):
-            request = self.outRequests['requests'][i]
-            if request['pieceIndex'] == pieceIndex and \
-               request['offset'] == offset and \
-               request['length'] == length:
-                #found it
-                found = True
-                break;
-            
-        return found
+        return (pieceIndex, offset, length) in self.outRequestHandles
         
         
     def _getAmountOfOutRequests(self):
-        return len(self.outRequests['requests'])
+        return len(self.outRequestQueue)
     
     
     def _delOutRequest(self, pieceIndex, offset, length):
         #try to find the request and delete it if found
-        for i in xrange(0, len(self.outRequests['requests'])):
-            request = self.outRequests['requests'][i]
-            if request['pieceIndex'] == pieceIndex and \
-               request['offset'] == offset and \
-               request['length'] == length:
-                #found it
-                del self.outRequests['requests'][i]
-                break;
+        outRequest = (pieceIndex, offset, length)
+        if outRequest in self.outRequestHandles:
+            self.outRequestQueue.remove(outRequest)
+            del self.outRequestHandles[outRequest]
             
             
     def _delAllOutRequests(self):
-        self.outRequests['requests'].clear()
+        self.outRequestQueue = []
+        self.outRequestHandles.clear()
     
     
     ##internal functions - choking and interest
@@ -607,20 +650,6 @@ class Connection:
             self._cancelAllInRequests()
         self.lock.release()
         
-        
-    def delInRequest(self, pieceIndex, offset, length):
-        self.lock.acquire()
-        if not self.closed:
-            self._delInRequest(pieceIndex, offset, length)
-        self.lock.release()
-        
-        
-    def delAllInRequests(self):
-        self.lock.acquire()
-        if not self.closed:
-            self._delAllInRequests()
-        self.lock.release()
-        
 
     def hasThisInRequest(self, pieceIndex, offset, length):
         self.lock.acquire()
@@ -632,6 +661,13 @@ class Connection:
     def getAmountOfInRequests(self):
         self.lock.acquire()
         value = self._amountOfInRequests()
+        self.lock.release()
+        return value
+        
+    
+    def getMaxAmountOfInRequests(self):
+        self.lock.acquire()
+        value = self._getMaxAmountOfInRequests()
         self.lock.release()
         return value
         
@@ -651,26 +687,18 @@ class Connection:
         self.lock.release()
         return value
     
+    
+    def delOutRequest(self, pieceIndex, offset, length):
+        self.lock.acquire()
+        self._delOutRequest(pieceIndex, offset, length)
+        self.lock.release()
+    
         
     def getAmountOfOutRequests(self):
         self.lock.acquire()
         value = self._getAmountOfOutRequests()
         self.lock.release()
         return value
-    
-    
-    def delOutRequest(self, pieceIndex, offset, length):
-        self.lock.acquire()
-        if not self.closed:
-            self._delOutRequest(pieceIndex, offset, length)
-        self.lock.release()
-        
-            
-    def delAllOutRequests(self):
-        self.lock.acquire()
-        if not self.closed:
-            self._delAllOutRequests()
-        self.lock.release()
         
 
     ##external functions - other
@@ -751,10 +779,12 @@ class Connection:
     def getStats(self):
         self.lock.acquire()
         stats = {}
+        stats['id'] = self.connIdent
         stats['addr'] = self.conn.getpeername()
         stats['direction'] = self.direction
         stats['connectedInterval'] = time() - self.connectTime
         stats['peerProgress'] = self.status.getPercent()
+        stats['peerClient'] = self.remoteClient
         stats['inPayloadBytes'] = self.inRate.getTotalTransferedPayloadBytes()
         stats['outPayloadBytes'] = self.outRate.getTotalTransferedPayloadBytes()
         stats['inRawSpeed'] = self.inRate.getCurrentRate()
@@ -763,7 +793,7 @@ class Connection:
         stats['remoteInterest'] = self.remoteInterest
         stats['localChoke'] = self.localChoke
         stats['remoteChoke'] = self.remoteChoke
-        stats['localRequestCount'] = len(self.inRequests)
-        stats['remoteRequestCount'] = self.outRequests['inFlight'] + len(self.outRequests['requests'])
+        stats['localRequestCount'] = len(self.inRequestQueue)
+        stats['remoteRequestCount'] = self.outRequestsInFlight + len(self.outRequestQueue)
         self.lock.release()
         return stats

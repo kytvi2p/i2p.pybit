@@ -195,3 +195,30 @@ def hashToInt(toHash):
 
 def hashToHex(toHash):
     return binascii.hexlify(sha.sha(toHash).digest()).upper()
+
+
+##bt specific
+
+def peerIdToClient(peerId):
+    client = 'unknown'
+                    
+    if peerId[:3] == '-PB':
+        client = 'PyBit ' + '.'.join([str(binaryToShortInt(byte)) for byte in peerId[3:6]])
+        
+        
+    elif peerId[:3] == '-AZ':
+        client = 'Azureus'
+        
+    elif peerId[2:4] == 'RS':
+        client = 'I2PRufus ' + '.'.join([str(digit) for digit in (ord(peerId[0]), ord(peerId[1])/10, ord(peerId[1])%10)])
+        
+    elif peerId[2:4] == 'FU':
+        client = 'Robert ' + '.'.join([str(digit) for digit in (ord(peerId[0]), ord(peerId[1])/10, ord(peerId[1])%10)])
+        
+    elif peerId[:9] == chr(0)*9:
+        client = 'I2PSnark'
+        
+    elif peerId[:12] == chr(0)*12:
+        client = 'I2P-Bt'
+        
+    return client        

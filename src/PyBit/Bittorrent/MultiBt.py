@@ -42,7 +42,7 @@ from PySamLib.I2PSocketManager import I2PSocketManager
 #DEBUG
 #import gc
 
-VERSION = '0.0.8'
+VERSION = '0.0.9'
 
 
 class MultiBtException(Exception):
@@ -66,7 +66,8 @@ class MultiBt:
         self.log = logging.getLogger('MultiBt')
         
         #set config defaults
-        configDefaults = {'network':{'downSpeedLimit':(102400, 'int'),
+        configDefaults = {'requester':{'strictAvailabilityPrio':(True, 'bool')},
+                          'network':{'downSpeedLimit':(102400, 'int'),
                                      'upSpeedLimit':(10240, 'int')},
                           'i2p':{'samIp':('127.0.0.1', 'ip'),
                                  'samPort':(7656, 'port'),
@@ -106,7 +107,8 @@ class MultiBt:
         self.destNum = self.samSockManager.addDestination(self.config.get('i2p','samIp'),
                                                           self.config.get('i2p','samPort'),
                                                           self.config.get('i2p','samSessionName'),
-                                                          'tcp', 'both', samSessionOptions)
+                                                          'tcp', 'both', samSessionOptions,
+                                                          defaultOutMaxQueueSize=5120)
         
         #create event scheduler
         self.eventSched = EventScheduler()
