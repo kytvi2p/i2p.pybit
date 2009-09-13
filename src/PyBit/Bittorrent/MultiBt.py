@@ -41,7 +41,7 @@ from PySamLib.SamSocketManager import SamSocketManager
 #DEBUG
 #import gc
 
-VERSION = '0.0.2'
+VERSION = '0.0.3'
 
 
 class MultiBtException(Exception):

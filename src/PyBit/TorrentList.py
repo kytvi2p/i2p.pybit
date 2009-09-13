@@ -37,8 +37,8 @@ class TorrentList(SortableList):
         #Syntax: NameOfColumn, NameOfStat, DataType, ShouldWatch, ColumnWidth
         cols = [('Pos','pos', 'int', False, 40),\
                 ('Id','id', 'int', True, 40),\
-                ('Status', 'state', 'str', False, 75),\
-                ('Name', 'torrentName', 'str', False, 125),\
+                ('Status', 'state', 'native', False, 75),\
+                ('Name', 'torrentName', 'native', False, 125),\
                 ('Size', 'torrentSize', 'dataAmount', False, 75),\
                 ('Got', 'progressBytes', 'dataAmount', False, 75),\
                 ('Progress', 'progressPercent', 'percent', False, 75),\

@@ -26,6 +26,7 @@ from collections import deque
 def _bencode(obj):
     #bittorrent bencode
     #Supports: dicts, lists, ints and strings
+    #May store: dicts, lists, ints, longs and strings
     result = deque()
     if type(obj)==dict:
         #dict
@@ -44,7 +45,7 @@ def _bencode(obj):
             result.append(_bencode(i))
         result.append('e')
         
-    elif type(obj)==int:
+    elif type(obj)==int or type(obj)==long:
         #int or long
         result.append('i')
         result.append(str(obj))

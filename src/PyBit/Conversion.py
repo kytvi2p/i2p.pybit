@@ -85,6 +85,7 @@ def stringToFullTime(string):
 stringToDataFuncs = {'float':float,\
                      'int':int,\
                      'str':str,\
+                     'native':lambda x: x,\
                      'date':stringToDate,\
                      'fullTime':stringToFullTime,\
                      'timeInterval':stringToTimeInterval,\
@@ -176,6 +177,7 @@ def fullTimeToString(timestamp):
 dataToStringFuncs  = {'float':str,\
                       'int':str,\
                       'str':str,\
+                      'native':lambda x: x,\
                       'date':dateToString,\
                       'fullTime':fullTimeToString,\
                       'timeInterval':timeIntervalToString,\

@@ -102,13 +102,13 @@ class Torrent:
         if torrentdata.has_key('comment'):
             self.comment = unicode(torrentdata['comment'], self.charset, 'ignore')
         else:
-            self.comment = None
+            self.comment = ''
         
         #creator of the torrent
         if torrentdata.has_key('created by'):
             self.createdBy = unicode(torrentdata['created by'], self.charset, 'ignore')
         else:
-            self.createdBy = None
+            self.createdBy = ''
         
         #torrent hash and name
         info = torrentdata['info']

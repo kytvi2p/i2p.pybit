@@ -1,3 +1,10 @@
+0.0.3 - 08.02.2009
+-----------------------
+Blub:
+- fixed unicode handling within the GUI: Because of a stupid mistake any non-ascii char was causing errors!
+- fixed a possible torrent encoding/decoding error
+
+
 0.0.2 - 07.02.2009
 -----------------------
 Blub:

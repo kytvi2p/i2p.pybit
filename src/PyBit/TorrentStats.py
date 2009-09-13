@@ -30,14 +30,14 @@ class TorrentStats(InfoPanel):
                     
                     
         torrent = ( ('Size:','torrentSize', 'dataAmount',0),\
-                    ('Name:','torrentName', 'str', ''),\
+                    ('Name:','torrentName', 'native', ''),\
                     ('Trackers:', 'trackerAmount', 'int',0),\
                     ('Files:','fileAmount','int',0),\
                     ('Pieces:', 'pieceAmount','int',0),\
                     ('Size of a Piece:','pieceLength','dataAmount',0),\
-                    ('Creator:','torrentCreator','str',''),\
+                    ('Creator:','torrentCreator','native',''),\
                     ('Creationdate:','torrentCreationDate','date',0),\
-                    ('Comment:','torrentComment','str',''))
+                    ('Comment:','torrentComment','native',''))
                     
                     
         connections = (('Known Peers:','knownPeers','int',0),\

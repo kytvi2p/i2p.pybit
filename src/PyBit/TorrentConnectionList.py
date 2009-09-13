@@ -32,8 +32,8 @@ class TorrentConnectionList(SortableList):
                 return updateFunc(wantedStats={'bt':self.torrentId}, wantedTorrentStats={'connections':True})['bt']['connections']
             
         #Syntax: NameOfColumn, NameOfStat, DataType, ShouldWatch
-        cols = [('Addr','addr', 'str', False, 125),\
-                ('Direction','direction','str', False, 75),\
+        cols = [('Addr','addr', 'native', False, 125),\
+                ('Direction','direction','native', False, 75),\
                 ('Connected', 'connectedInterval', 'timeInterval', False, 75),\
                 ('Progress', 'peerProgress', 'percent', False, 75),\
                 ('Downloaded', 'inPayloadBytes', 'dataAmount', False, 75),\
