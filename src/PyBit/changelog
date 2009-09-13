@@ -1,3 +1,18 @@
+0.1.2 - 19.04.2009
+-----------------------
+Blub:
+- fixed bug in "PyBit.py": errors couldn't be logged because of a missing import
+- fixed bug in "ConfigCallback": A certain type of callback ("value-funcArgAll") was broken (and not used in the last few versions because of this)
+- fixed bug in "Bittorrent.TrackerRequester": Invalid replies and failed requests with responses (got data from tracker but it was invalid etc.) caused too frequent retries, multiple tracker were incorrectly handled
+- added "Bittorrent.HttpUtilities.py": This file contains a bunch of functions and regexes which help to handle tracker urls (I did some related changes to "Bittorrent.HttpRequester", "Bittorrent.HttpRequest" and "Bittorrent.TrackerRequester")
+- added "Bittorrent.ExactRefillingQuotaLimiter" (in "Limiter.py"): Contrary to "Bittorrent.RefillingQuotaLimiter" this one does care for "odd units" (present if the given limit cannot be divided by the number of users). Not in use currently.
+- added "Bittorrent.ManualQuotaLimiter" (in "Limiter.py"): A very simple but exact quota limiter, used by "Bittorrent.Choker"
+- improved "Bittorrent.EventScheduler": Support changing already scheduled events further then possible up to now (needed to change the choke interval)
+- improved "Bittorrent.Choker": Added support for configurable slot limits (global/per-torrent and normal/random) and a configurable choke interval (now one instance of the choker is used for all torrents instead of each torrent having its own instance, so a few other classes needed to be changed, mostly "Bittorrent.MultiBt" and "Bittorrent.Bt")
+- added panel to "ConfigDialog": Added another panel ("Choker") to the config dialog for configuring all the choker related things.
+- did a few minor layout changes and similiar things
+
+
 0.1.1 - 10.04.2009
 -----------------------
 Blub:

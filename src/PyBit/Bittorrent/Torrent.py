@@ -18,7 +18,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from Bencoding import bencode, bdecode
-from TrackerRequester import destinationTrackerUrlRegex, dnsTrackerUrlRegex
+from HttpUtilities import i2pHttpUrlRegexObj
 
 from copy import deepcopy
 from sha import sha
@@ -109,9 +109,6 @@ class Torrent:
                 self.amountOfTrackers += len(tier)
                 
         #check urls
-        destTrackerUrl = re.compile(destinationTrackerUrlRegex)
-        dnsTrackerUrl = re.compile(dnsTrackerUrlRegex)
-        
         tierIdx = 0
         while tierIdx < len(self.announce):
             tier = self.announce[tierIdx]
@@ -119,7 +116,7 @@ class Torrent:
             
             #check all url of tier
             while urlIdx < len(tier):
-                if destTrackerUrl.match(tier[urlIdx]) is None and dnsTrackerUrl.match(tier[urlIdx]) is None:
+                if i2pHttpUrlRegexObj.match(tier[urlIdx]) is None:
                     #invalid tracker url
                     self.log.warn('Found invalid tracker url "%s", ignoring it', tier[urlIdx])
                     del tier[urlIdx]

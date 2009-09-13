@@ -22,6 +22,138 @@ import wx
 from wx.lib.masked import NumCtrl, IpAddrCtrl
 
 
+class Choker_ConfigPanel(wx.Panel):
+    def __init__(self, config, parent, **kwargs):
+        wx.Panel.__init__(self, parent, **kwargs)
+        self.config = config
+        #stuff
+        vBox = wx.BoxSizer(wx.VERTICAL)
+
+        #build up boxes
+        chokerBox = wx.StaticBox(self, -1, "Choker")
+        chokerBoxSizer = wx.StaticBoxSizer(chokerBox, wx.VERTICAL)
+        chokerBoxItems = wx.FlexGridSizer(cols = 1, vgap = 3, hgap = 5)
+
+        commentBox = wx.StaticBox(self, -1, "Note")
+        commentBoxSizer = wx.StaticBoxSizer(commentBox, wx.VERTICAL)
+
+        #build choker box
+        chokerItems = wx.FlexGridSizer(cols = 2, vgap = 3, hgap = 5)
+        chokerItems.AddGrowableCol(0, 1)
+        
+        ##general
+        #interval     
+        label = wx.StaticText(self, -1, "Choke interval (seconds):")
+        label.SetToolTipString('The set interval determines how often the choker runs to choke and unchoke connections.')
+        chokerItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL)
+        
+        self.spin1 = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
+        self.spin1.SetRange(60, 300)
+        self.spin1.SetValue(self.config.getInt('choker','chokeInterval'))
+        self.spin1.SetToolTipString('The set interval determines how often the choker runs to choke and unchoke connections.')
+        chokerItems.Add(self.spin1, 1)
+        
+        
+        ##slots
+        chokerSlotsBox = wx.StaticBox(self, -1, "Slots")
+        chokerSlotsBoxSizer = wx.StaticBoxSizer(chokerSlotsBox, wx.VERTICAL)
+        chokerSlotsBoxItems = wx.GridBagSizer(vgap = 3, hgap = 5)
+        chokerSlotsBoxItems.AddGrowableCol(1, 1)
+            
+        #limit scope
+        label = wx.StaticText(self, -1, "Scope of limit:")
+        label.SetToolTipString('Determines if each torrent gets the configured number of slots or if they are spread over all torrents.')
+        chokerSlotsBoxItems.Add(label, (0,0), (1,2), wx.ALIGN_CENTER_VERTICAL)
+        
+        self.combo1 = wx.ComboBox(self, -1, size = wx.Size(85, -1),\
+                                  choices=["Global", "Torrent"], style=wx.CB_READONLY)
+        if self.config.get('choker', 'slotLimitScope').lower() == 'torrent':
+            self.combo1.SetValue('Torrent')
+        else:
+            self.combo1.SetValue('Global')
+        self.combo1.SetToolTipString('Determines if each torrent gets the configured slots or if they are spread over all torrents.')
+        chokerSlotsBoxItems.Add(self.combo1, (0,2), (1,1))
+        
+        #slot limit
+        label = wx.StaticText(self, -1, "Slots:")
+        label.SetToolTipString('How many connections may be unchoked (uploaded to) at once?')
+        chokerSlotsBoxItems.Add(label, (1,0), (1,2), wx.ALIGN_CENTER_VERTICAL)
+        
+        self.spin2 = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
+        self.spin2.SetRange(2, 1048576)
+        self.spin2.SetValue(self.config.getInt('choker','maxSlots'))
+        self.spin2.SetToolTipString('How many connections may be unchoked (uploaded to) at once?')
+        chokerSlotsBoxItems.Add(self.spin2, (1,2), (1,1))
+        
+        #random slot ratio
+        label = wx.StaticText(self, -1, "Random slots:")
+        label.SetToolTipString('How many slots should be used for random-unchoking?')
+        chokerSlotsBoxItems.Add(label, (2,0), (1,1), wx.ALIGN_CENTER_VERTICAL)
+        
+        self.slide = wx.Slider(self, style=wx.SL_AUTOTICKS | wx.SL_HORIZONTAL)
+        self.slide.SetToolTipString('How many slots should be used for random-unchoking?')
+        self.slide.SetRange(1,50)
+        self.slide.SetValue(int(round(self.config.get('choker','randomSlotRatio')*100, 0)))
+        chokerSlotsBoxItems.Add(self.slide, (2,1), (1,1), wx.EXPAND | wx.LEFT, border=10)
+        
+        self.sliderLabel = wx.StaticText(self, -1, "0 Slots (1%)")
+        self.sliderLabel.SetToolTipString('How many slots should be used for random-unchoking?')
+        chokerSlotsBoxItems.Add(self.sliderLabel, (2,2), (1,1), wx.ALIGN_CENTER_VERTICAL)
+        
+        #add item sizer to box sizer
+        chokerSlotsBoxSizer.Add(chokerSlotsBoxItems, 1, wx.EXPAND | wx.ALL, border = 5)
+        
+        ##comment
+        #build up comment box 
+        commentLabel = wx.StaticText(self, -1, 'Random slots are used to unchoke peers randomly, without considering '+\
+                                               'the transfer statistics (how much they uploaded to us etc.). Even peers '+\
+                                               'which don\'t have anything interesting may get randomly unchoked.'+\
+                                               '\n\n'+\
+                                               'These slots are both necessary to find new good peers and to give peers '+\
+                                               'without any finished piece a chance to get one. But of course having too many '+\
+                                               'of them will reduce the effectiveness of the choker and lead to lower transfer rates.')
+        
+        commentBoxSizer.Add(commentLabel, 1, flag = wx.EXPAND | wx.ALL, border = 5)
+        
+        ##main
+        #build up choker box
+        chokerBoxItems.Add(chokerItems, 1, wx.EXPAND | wx.ALL, border = 5)
+        chokerBoxItems.Add(chokerSlotsBoxSizer, 1, wx.EXPAND | wx.ALL, border = 0)
+        chokerBoxItems.Add(commentBoxSizer, 1, wx.EXPAND | wx.ALL, border = 0)
+        chokerBoxItems.AddGrowableCol(0, 1)
+        chokerBoxItems.AddGrowableRow(2, 1)
+        chokerBoxSizer.Add(chokerBoxItems, 1, wx.EXPAND | wx.ALL, border = 0)
+
+        vBox.Add(chokerBoxSizer, 1, wx.EXPAND | wx.ALL, border = 2)
+        
+        #Line everythign up
+        self.SetSizer(vBox)
+        self.Layout()
+        self.UpdateSliderLabel(None)
+        
+        ##events
+        wx.EVT_SLIDER(self, self.slide.GetId(), self.UpdateSliderLabel)
+        wx.EVT_SPINCTRL(self, self.spin2.GetId(), self.UpdateSliderLabel)
+        
+        
+    def UpdateSliderLabel(self, event):
+        maxSlots = self.spin2.GetValue()
+        randomRatio = self.slide.GetValue() / 100.0
+        randomSlots = max(1, int(maxSlots * randomRatio))
+        self.sliderLabel.SetLabel('%i Slots (%i%%)' % (randomSlots, self.slide.GetValue()))
+        self.Update()
+        self.Layout()
+        
+
+    def saveConfig(self, optionDict):
+        optionDict[('choker','chokeInterval')] = self.spin1.GetValue()
+        optionDict[('choker','slotLimitScope')] = self.combo1.GetValue().lower()
+        optionDict[('choker','maxSlots')] = self.spin2.GetValue()
+        optionDict[('choker','randomSlotRatio')] = self.slide.GetValue() / 100.0
+        
+        
+        
+        
 class Logging_ConfigPanel(wx.Panel):
     def __init__(self, config, parent, **kwargs):
         wx.Panel.__init__(self, parent, **kwargs)
@@ -43,7 +175,7 @@ class Logging_ConfigPanel(wx.Panel):
         #down speed        
         label1a = wx.StaticText(self, -1, "Console loglevel:")
         label1a.SetToolTipString('Determines the minimum loglevel a logmessage must have to be printed to the console.')
-        loggingItems.Add(label1a, 1, wx.EXPAND)
+        loggingItems.Add(label1a, 1, wx.EXPAND | wx.ALIGN_CENTER_VERTICAL)
         
         self.combo1 = wx.ComboBox(self, -1, size = wx.Size(85, -1),\
                                   choices=["Critical", "Error", "Warning", "Info", "Debug"], style=wx.CB_READONLY)
@@ -54,7 +186,7 @@ class Logging_ConfigPanel(wx.Panel):
         #up speed        
         label2a = wx.StaticText(self, -1, "File loglevel:")
         label2a.SetToolTipString('Determines the minimum loglevel a logmessage must have to be written to the logfile.')
-        loggingItems.Add(label2a, 1, wx.EXPAND)
+        loggingItems.Add(label2a, 1, wx.EXPAND | wx.ALIGN_CENTER_VERTICAL)
         
         self.combo2 = wx.ComboBox(self, -1, size = wx.Size(85, -1),\
                                   choices=["Critical", "Error", "Warning", "Info", "Debug"], style=wx.CB_READONLY)
@@ -111,7 +243,7 @@ class Network_ConfigPanel(wx.Panel):
         #down speed        
         label1a = wx.StaticText(self, -1, "max Download speed (kb/s):")
         label1a.SetToolTipString('Restricts the client to not download more kilobytes per second then set here')
-        limiterItems.Add(label1a, 1, wx.EXPAND)
+        limiterItems.Add(label1a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
         self.spin1 = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin1.SetRange(1, 1048576)
@@ -122,7 +254,7 @@ class Network_ConfigPanel(wx.Panel):
         #up speed        
         label2a = wx.StaticText(self, -1, "max Upload speed (kb/s):")
         label2a.SetToolTipString('Restricts the client to not upload more kilobytes per second then set here')
-        limiterItems.Add(label2a, 1, wx.EXPAND)
+        limiterItems.Add(label2a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
         self.spin2 = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin2.SetRange(1, 1048576)
@@ -179,7 +311,7 @@ class I2P_ConfigPanel(wx.Panel):
         #ip of sam bridge
         label1a = wx.StaticText(self, -1, "Sam IP:")
         label1a.SetToolTipString('Enter the IP address of the Sam bridge here')
-        samOptionBoxItems.Add(label1a, 1, wx.EXPAND)
+        samOptionBoxItems.Add(label1a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
         self.ipField1 = IpAddrCtrl(self, -1)
         self.ipField1.SetValue(self.config.get('i2p','samIp'))
@@ -190,7 +322,7 @@ class I2P_ConfigPanel(wx.Panel):
         #port of sam bridge
         label2a = wx.StaticText(self, -1, "Sam port:")
         label2a.SetToolTipString('Enter the port of the Sam bridge here')
-        samOptionBoxItems.Add(label2a, 1, wx.EXPAND)
+        samOptionBoxItems.Add(label2a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
         self.spin1 = wx.SpinCtrl(self, -1, size=wx.Size(115,-1))
         self.spin1.SetRange(1, 65535)
@@ -202,7 +334,7 @@ class I2P_ConfigPanel(wx.Panel):
         #sam display name
         label3a = wx.StaticText(self, -1, "Display name:")
         label3a.SetToolTipString('This name will appear in the destinations overview of the i2p router webinterface.')
-        samOptionBoxItems.Add(label3a, 1, wx.EXPAND)
+        samOptionBoxItems.Add(label3a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
         self.edit1 = wx.TextCtrl(self, -1, "", size=wx.Size(115,-1))
         self.edit1.SetValue(self.config.get('i2p','samDisplayName'))        
@@ -213,7 +345,7 @@ class I2P_ConfigPanel(wx.Panel):
         #sam session name
         label4a = wx.StaticText(self, -1, "Session name:")
         label4a.SetToolTipString('This name will be used by the sam bridge to determine which i2p destination should be used for this client, changing it will also change the used destination.')
-        samOptionBoxItems.Add(label4a, 1, wx.EXPAND)
+        samOptionBoxItems.Add(label4a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
         self.edit2 = wx.TextCtrl(self, -1, "", size=wx.Size(115,-1))
         self.edit2.SetValue(self.config.get('i2p','samSessionName'))        
@@ -242,7 +374,7 @@ class I2P_ConfigPanel(wx.Panel):
         #ZeroHops
         label6a = wx.StaticText(self, -1, "Zero Hops:")
         label6a.SetToolTipString('Allow Zero Hops?')
-        tunnelOptionBoxItems.Add(label6a, 1, wx.EXPAND)
+        tunnelOptionBoxItems.Add(label6a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
         self.check1In = wx.CheckBox(self, -1)
         self.check1In.SetToolTipString('Allow Zero Hops for inbound tunnels?')
@@ -258,7 +390,7 @@ class I2P_ConfigPanel(wx.Panel):
         #tunnel quantity
         label7a = wx.StaticText(self, -1, "Number of tunnels:")
         label7a.SetToolTipString('Number of tunnels')
-        tunnelOptionBoxItems.Add(label7a, 1, wx.EXPAND)
+        tunnelOptionBoxItems.Add(label7a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
         self.spin2In = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin2In.SetRange(1, 5)
@@ -276,7 +408,7 @@ class I2P_ConfigPanel(wx.Panel):
         #backup tunnel quantity
         label8a = wx.StaticText(self, -1, "Number of backup tunnels:")
         label8a.SetToolTipString('Number of backup tunnels')
-        tunnelOptionBoxItems.Add(label8a, 1, wx.EXPAND)
+        tunnelOptionBoxItems.Add(label8a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
         self.spin3In = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin3In.SetRange(0, 2)
@@ -294,7 +426,7 @@ class I2P_ConfigPanel(wx.Panel):
         #tunnel length
         label9a = wx.StaticText(self, -1, "Length of tunnels:")
         label9a.SetToolTipString('Length of tunnels')
-        tunnelOptionBoxItems.Add(label9a, 1, wx.EXPAND)
+        tunnelOptionBoxItems.Add(label9a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
         self.spin4In = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin4In.SetRange(0, 3)
@@ -312,7 +444,7 @@ class I2P_ConfigPanel(wx.Panel):
         #tunnel length variance
         label10a = wx.StaticText(self, -1, "Variance of tunnel length:")
         label10a.SetToolTipString('Controls how much the length of the tunnels is randomly changed. If negative, the tunnel length varies +/- the set value, else only + the set value.')
-        tunnelOptionBoxItems.Add(label10a, 1, wx.EXPAND)
+        tunnelOptionBoxItems.Add(label10a, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
         self.spin8In = wx.SpinCtrl(self, -1, size=wx.Size(80,-1))
         self.spin8In.SetRange(-2, 2)
@@ -395,7 +527,7 @@ class Paths_ConfigPanel(wx.Panel):
         #torrent path        
         label2 = wx.StaticText(self, -1, "Torrent Folder:")
         label2.SetToolTipString('This directory is used as a default for any torrent open dialog.')
-        pathsRealItems.Add(label2, 1)
+        pathsRealItems.Add(label2, 1, wx.ALIGN_CENTER_VERTICAL)
 
         self.edit1 = wx.TextCtrl(self, -1, "")
         self.edit1.SetValue(self.config.get('paths','torrentFolder'))        
@@ -410,7 +542,7 @@ class Paths_ConfigPanel(wx.Panel):
         #download Path
         label3 = wx.StaticText(self, -1, "Downloads Folder:")
         label3.SetToolTipString('This directory is used as a default for any save-to dialog.')
-        pathsRealItems.Add(label3, 1)
+        pathsRealItems.Add(label3, 1, wx.ALIGN_CENTER_VERTICAL)
         
         self.edit2 = wx.TextCtrl(self, -1, "")
         self.edit2.SetValue(self.config.get('paths','downloadFolder'))        
@@ -490,7 +622,7 @@ class Requester_ConfigPanel(wx.Panel):
         #prio
         label1 = wx.StaticText(self, -1, "Always prioritise by availability:")
         label1.SetToolTipString('Always prioritise pieces by their availability, regardless of in progress pieces?')
-        requesterRealItems.Add(label1, 1, wx.EXPAND)
+        requesterRealItems.Add(label1, 1, wx.ALIGN_CENTER_VERTICAL)
         
         self.check1 = wx.CheckBox(self, -1)
         self.check1.SetToolTipString('Always prioritise pieces by their availability, regardless of in progress pieces?')
@@ -546,7 +678,7 @@ class Storage_ConfigPanel(wx.Panel):
         #skip file checks
         label1 = wx.StaticText(self, -1, "Skip file checks when possible:")
         label1.SetToolTipString('Only check if the files of a torrent exist and have the right size when the torrent is run for the first time?')
-        storageRealItems.Add(label1, 1, wx.EXPAND)
+        storageRealItems.Add(label1, 1, wx.ALIGN_CENTER_VERTICAL)
         
         self.check1 = wx.CheckBox(self, -1)
         self.check1.SetToolTipString('Only check if the files of a torrent exist and have the right size when the torrent is run for the first time?')
@@ -556,7 +688,7 @@ class Storage_ConfigPanel(wx.Panel):
         #store progress info on disk
         label2 = wx.StaticText(self, -1, "Store progress information on disk:")
         label2.SetToolTipString('Store the information, which piece is already downloaded and which not, on disk?')
-        storageRealItems.Add(label2, 1, wx.EXPAND)
+        storageRealItems.Add(label2, 1, wx.ALIGN_CENTER_VERTICAL)
         
         self.check2 = wx.CheckBox(self, -1)
         self.check2.SetToolTipString('Store the information, which piece is already downloaded and which not, on disk?')
@@ -604,17 +736,21 @@ class ConfigDialog(wx.Frame):
         self.tree = wx.TreeCtrl(parent=self, id=100, size=wx.Size(150,-1),\
                                 style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.TR_HAS_BUTTONS | wx.TR_SINGLE )
         root = self.tree.AddRoot('root')
-        n10 = self.tree.AppendItem(root, "Logging")
-        n20 = self.tree.AppendItem(root, "Network")
-        n21 = self.tree.AppendItem(n20,  "I2P")
-        n30 = self.tree.AppendItem(root, "Paths")
-        n40 = self.tree.AppendItem(root, "Requester")
-        n50 = self.tree.AppendItem(root, "Storage")
+        n10 = self.tree.AppendItem(root, "Choker")
+        n20 = self.tree.AppendItem(root, "Logging")
+        n30 = self.tree.AppendItem(root, "Network")
+        n31 = self.tree.AppendItem(n30,  "I2P")
+        n40 = self.tree.AppendItem(root, "Paths")
+        n50 = self.tree.AppendItem(root, "Requester")
+        n60 = self.tree.AppendItem(root, "Storage")
         
         self.tree.Expand(n10)
         self.tree.Expand(n20)
-        self.tree.Expand(n21)
         self.tree.Expand(n30)
+        self.tree.Expand(n31)
+        self.tree.Expand(n40)
+        self.tree.Expand(n50)
+        self.tree.Expand(n60)
         self.tree.SelectItem(n10)
 
         self.vBox.Add(self.tree, 1, wx.EXPAND)
@@ -635,13 +771,14 @@ class ConfigDialog(wx.Frame):
         self.hBox.Add(self.vBox, 0, wx.EXPAND)
 
         #config panels
-        self.configPanels = {'Logging':Logging_ConfigPanel(self.config, self),\
+        self.configPanels = {'Choker':Choker_ConfigPanel(self.config, self),\
+                             'Logging':Logging_ConfigPanel(self.config, self),\
                              'Network':Network_ConfigPanel(self.config, self),\
                              'I2P':I2P_ConfigPanel(self.config, self),\
                              'Paths':Paths_ConfigPanel(self.config, self),\
                              'Requester':Requester_ConfigPanel(self.config, self),\
                              'Storage':Storage_ConfigPanel(self.config, self)}
-        self.activePanel = 'Logging'
+        self.activePanel = 'Choker'
         
         for panelName in self.configPanels.keys():
             if not panelName==self.activePanel:
@@ -682,7 +819,11 @@ if __name__ == "__main__":
     from Config import Config
     
     #config options
-    configDefaults = {'i2p':{'samIp':('127.0.0.1', 'ip'),
+    configDefaults = {'choker':{'chokeInterval':(60, 'int'),
+                                'randomSlotRatio':(0.1, 'float'),
+                                'maxSlots':(10, 'int'),
+                                'slotLimitScope':('global', 'str')},
+                      'i2p':{'samIp':('127.0.0.1', 'ip'),
                              'samPort':(7656, 'port'),
                              'samDisplayName':('PyBit', 'str'),
                              'samSessionName':('PyBit', 'str'),

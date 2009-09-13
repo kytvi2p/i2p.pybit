@@ -19,17 +19,13 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 
 from sha import sha
 from time import time
-from urllib import quote
 import logging
 import re
 import threading
 
 from Bencoding import bdecode
+from HttpUtilities import joinUrl, splitUrl
 from Utilities import logTraceback
-
-#regex
-destinationTrackerUrlRegex = '^http://([A-Za-z0-9\-~]{512,512}AAAA)(.i2p){0,1}(/.+)'
-dnsTrackerUrlRegex = '^http://([A-Za-z0-9\-~_.]+(.b32){0,1}.i2p)(/.+)'
 
 
 class TrackerRequester:
@@ -55,8 +51,6 @@ class TrackerRequester:
         self.httpRequestId = None
         
         self.i2pHostChecker = re.compile('^([A-Za-z0-9\-~]{512,512}AAAA)(.i2p){0,1}$')
-        self.destinationTrackerUrlSplitter = re.compile(destinationTrackerUrlRegex)
-        self.dnsTrackerUrlSplitter = re.compile(dnsTrackerUrlRegex)
         self.trackerInfos, self.trackerTiers = self._processTrackerList()
         
         #other
@@ -79,19 +73,16 @@ class TrackerRequester:
         for tier in tracker:
             #tier
             prioList.append([])
-            for trackerAddr in tier:
+            for trackerUrl in tier:
                 #single tracker url
-                result = self.destinationTrackerUrlSplitter.match(trackerAddr)
-                if result is None:
-                    result = self.dnsTrackerUrlSplitter.match(trackerAddr)
-                assert result is not None, 'tracker url "%s" is invalid, this should have been checked before!' % (trackerAddr,)
                 prioList[tierNum].append(trackerId)
-                trackerList[trackerId] = {'addr':result.group(1),
-                                          'url':result.group(3),
-                                          'logUrl':'http://i2p/'+result.group(1)[:10]+'...'+result.group(3),
+                trackerList[trackerId] = {'url':splitUrl(trackerUrl),
+                                          'logUrl':trackerUrl,
                                           'tier':tierNum,
                                           'id':trackerId}
+                trackerId += 1
             tierNum += 1
+            
         return trackerList, prioList
     
     
@@ -120,10 +111,10 @@ class TrackerRequester:
         if nextTrackerId is None:
             #that was the last available tracker
             nextTracker = None
-            
         else:
             #get tracker info
             nextTracker = self.trackerInfos[nextTrackerId]
+            
         return nextTracker
     
     
@@ -139,35 +130,43 @@ class TrackerRequester:
     
     ##internal functions - tracker requests
         
-    def _createAnnounceUrl(self, baseUrl):
+    def _createAnnounceUrl(self, url):
         downloadedBytes = self.inMeasure.getTotalTransferedPayloadBytes()
         uploadedBytes = self.outMeasure.getTotalTransferedPayloadBytes()
         missingBytes = self.storage.getAmountOfMissingBytes()
         ownAddr = self.ownAddrFunc()
         self.log.debug("Own addr: %s", ownAddr)
         
-        url = ''.join((baseUrl,'?',\
-              'info_hash=',quote(self.torrent.getTorrentHash()),'&',\
-              'peer_id=',quote(self.peerId),'&',\
-              'no_peer_id=1&',\
-              'port=6881&',
-              'uploaded=',str(uploadedBytes),'&',\
-              'downloaded=',str(downloadedBytes),'&',\
-              'left=',str(missingBytes),'&',\
-              'ip=',ownAddr,'.i2p&',\
-              'numwant=','100'))
+        if ownAddr == '':
+            url = None
+        else:
+            url = url.copy()
+            paras = url.get('parameter', {}).copy()
+            paras['info_hash'] = self.torrent.getTorrentHash()
+            paras['peer_id'] = self.peerId
+            paras['port'] = str(6881)
+            paras['uploaded'] = str(uploadedBytes)
+            paras['downloaded'] = str(downloadedBytes)
+            paras['left'] = str(missingBytes)
+            paras['ip'] = ownAddr+'.i2p'
+            paras['numwant'] = '100'
+            url['parameter'] = paras
 
-        if self.event is not None:
-            url +='&event='+self.event
-        self.log.info('Tracker Announce URL: "%s"', url)
+            if self.event is not None:
+                url['event'] = self.event
+                
+            self.log.info('Tracker Announce URL: "%s"', joinUrl(url))
         return url
     
     
     def _makeRequest(self, trackerSet):
         url = self._createAnnounceUrl(trackerSet['url'])
-        self.httpRequestId = self.httpRequester.makeRequest(trackerSet['addr'], url,
-                                                            self.finishedRequest, callbackArgs=[trackerSet['id'], self.event])
-                                                            
+        if url is not None:
+            self.httpRequestId = self.httpRequester.makeRequest(url, self.finishedRequest, callbackArgs=[trackerSet['id'], self.event])
+        else:
+            self.log.debug("Don't know own address yet, retrying in 1 minute")
+            self.requestEvent = self.sched.scheduleEvent(self.announce, timedelta=60)
+        
     
     def _parseResponse(self, trackerSet, data):
         url = trackerSet['logUrl']
@@ -185,11 +184,11 @@ class TrackerRequester:
                 #whatever this is, its not a standard response
                 self.log.error('Response from tracker "%s" is in an unknown format', url)
             else:
+                valid = True
                 if 'failure reason' in response:
                     #request failed
                     self.log.warn('Request to Tracker "%s" failed: "%s"', url, str(response['failure reason']))
                 else:
-                    valid = True
                     if 'warning message' in response:
                         #just a warning
                         self.log.warn('Request to Tracker "%s" got warned: "%s"', url, str(response['warning message']))
@@ -241,9 +240,9 @@ class TrackerRequester:
         if success:
             #got data
             self.log.debug('Got data from tracker "%s"', trackerSet['logUrl'])
-            success = self._parseResponse(trackerSet, response['data'])
+            valid = self._parseResponse(trackerSet, response['data'])
             
-        if success:
+        if success and valid:
             #request was a success
             self.log.debug('Request to tracker "%s" succeeded', trackerSet['logUrl'])
             self._markTrackerSuccessfull(trackerId)
@@ -274,9 +273,13 @@ class TrackerRequester:
             self.log.debug('Request to tracker "%s" failed: %s', trackerSet['logUrl'], reason)
             nextTracker = self._getNextTracker(trackerId)
             if nextTracker is None:
-                #try again in 1 min
-                self.log.debug("Next request in 1 minute")
-                self.requestEvent = self.sched.scheduleEvent(self.announce, timedelta=60)
+                #try again after some time
+                if success:
+                    self.log.debug("Next request in 10 minute")
+                    self.requestEvent = self.sched.scheduleEvent(self.announce, timedelta=600)
+                else:
+                    self.log.debug("Next request in 1 minute")
+                    self.requestEvent = self.sched.scheduleEvent(self.announce, timedelta=60)
                 
             else:
                 #try next

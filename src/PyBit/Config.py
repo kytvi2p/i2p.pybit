@@ -332,7 +332,7 @@ class ConfigCallbackManager:
         self.nextCallbackId += 1
         
         #add callback object
-        self.callbackObjs[callbackId] = {'callback':ConfigCallback(func, funcArgs, funcKw, valueArgPlace, callType, optionTranslationTable),
+        self.callbackObjs[callbackId] = {'callback':ConfigCallback(options, func, funcArgs, funcKw, valueArgPlace, callType, optionTranslationTable),
                                          'options':options,
                                          'callWithAllOptions':callWithAllOptions}
                                          
@@ -384,7 +384,8 @@ class ConfigCallbackManager:
         
         
 class ConfigCallback:
-    def __init__(self, func, funcArgs=[], funcKw={}, valueArgPlace=0, callType='value-funcArgSingle', optionTranslationTable={}):
+    def __init__(self, options, func, funcArgs=[], funcKw={}, valueArgPlace=0, callType='value-funcArgSingle', optionTranslationTable={}):
+        self.options = options
         self.func = func
         self.funcArgs = funcArgs
         self.funcKw = funcKw
@@ -392,6 +393,13 @@ class ConfigCallback:
         self.callType = callType
         self.optionTranslationTable = optionTranslationTable
         self.log = logging.getLogger('ConfigCallback')
+        
+    def _getSortedOptionValues(self, changedOptions):
+        sortedValues = []
+        for option in self.options:
+            sortedValues.append(changedOptions[option])
+        return sortedValues
+        
         
     def _execFunction(self, func, funcArgs, funcKw):
         self.log.debug('Calling function "%s" with arguments "%s" and keywords "%s"',
@@ -403,6 +411,7 @@ class ConfigCallback:
         for option, value in changedOptions.iteritems():
             self.log.debug('Got option in section "%s" with name "%s" and value "%s"',
                            option[0], option[1], value)
+            assert option in self.options, 'Not in options list, why did we get called with this?!'
 
         if self.callType == 'value-funcArgSingle':
             #call callback with value of one changed option as argument
@@ -412,7 +421,7 @@ class ConfigCallback:
                 
         elif self.callType == 'value-funcArgAll':
             #call callback with values of all changed options as arguments
-            funcArgs = self.funcArgs[:self.valueArgPlace] + changedOptions.values() + self.funcArgs[self.valueArgPlace:]
+            funcArgs = self.funcArgs[:self.valueArgPlace] + self._getSortedOptionValues(changedOptions) + self.funcArgs[self.valueArgPlace:]
             self._execFunction(self.func, funcArgs, self.funcKw)
             
         elif self.callType == 'item-funcKwSingle':

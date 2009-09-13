@@ -26,6 +26,7 @@ import threading
 
 ##own classes
 from Bt import Bt
+from Choker import Choker
 from Conversion import shortIntToBinary
 from ConnectionBuilder import ConnectionBuilder
 from ConnectionHandler import ConnectionHandler
@@ -33,7 +34,7 @@ from ConnectionListener import ConnectionListener
 from PeerPool import PeerPool
 from EventScheduler import EventScheduler
 from HttpRequester import HttpRequester
-from Limiter import RefillingQuotaLimiter
+from Limiter import SelfRefillingQuotaLimiter
 from Measure import Measure
 from OwnAddressWatcher import OwnAddressWatcher
 from Torrent import Torrent, TorrentException
@@ -43,7 +44,7 @@ from PySamLib.I2PSocketManager import I2PSocketManager
 #DEBUG
 #import gc
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 
 
 class MultiBtException(Exception):
@@ -95,8 +96,8 @@ class MultiBt:
         self.eventSched = EventScheduler()
         
         #create traffic related classes
-        self.inLimiter = RefillingQuotaLimiter(self.eventSched, self.config.get('network','downSpeedLimit'))
-        self.outLimiter = RefillingQuotaLimiter(self.eventSched, self.config.get('network','upSpeedLimit'))
+        self.inLimiter = SelfRefillingQuotaLimiter(self.eventSched, self.config.get('network','downSpeedLimit'))
+        self.outLimiter = SelfRefillingQuotaLimiter(self.eventSched, self.config.get('network','upSpeedLimit'))
         self.inRate = Measure(self.eventSched, 60)
         self.outRate = Measure(self.eventSched, 60)
         
@@ -106,6 +107,9 @@ class MultiBt:
                                              self.inLimiter, self.outLimiter, self.peerId)
         self.connListener = ConnectionListener(self.eventSched, self.connHandler, self.peerPool, self.destNum, self.samSockManager, self.peerId)
         self.connBuilder = ConnectionBuilder(self.eventSched, self.connHandler, self.peerPool, self.destNum, self.samSockManager, self.peerId)
+        
+        #create choker
+        self.choker = Choker(self.config, self.eventSched, self.connHandler)
         
         #create own address watcher class
         self.ownAddrWatcher = OwnAddressWatcher(self.destNum, self.samSockManager)
@@ -324,7 +328,7 @@ class MultiBt:
                 
                 self.log.debug('Torrent %i: creating bt class', torrentId)
                 btObj = Bt(self.config, self.eventSched, self.httpRequester, self.ownAddrWatcher.getOwnAddr, self.peerId, self.persister, self.inRate, self.outRate,
-                           self.peerPool, self.connBuilder, self.connListener, self.connHandler, torrent, 'Bt'+str(torrentId), torrentDataPath)
+                           self.peerPool, self.connBuilder, self.connListener, self.connHandler, self.choker, torrent, 'Bt'+str(torrentId), torrentDataPath)
                 
                 #add to queue
                 self.log.debug('Torrent %i: adding to queue', torrentId)
@@ -531,6 +535,10 @@ class MultiBt:
         #stop http requester
         self.log.info("Stopping http requester")
         self.httpRequester.stop()
+        
+        #stop choker
+        self.log.info("Stopping choker")
+        self.choker.stop()
         
         #stop all connection related classes
         self.log.info("Stopping all connection related classes")

@@ -21,7 +21,6 @@ import logging
 import threading
 
 from BtObjectPersister import BtObjectPersister
-from Choker import Choker
 from PieceStatus import PieceStatus
 from Measure import Measure
 from Requester import Requester
@@ -32,13 +31,14 @@ from Utilities import logTraceback
 
 class Bt:
     def __init__(self, config, eventSched, httpRequester, ownAddrFunc, peerId, persister, pInMeasure, pOutMeasure,
-                 peerPool, connBuilder, connListener, connHandler, torrent, torrentIdent, torrentDataPath):
+                 peerPool, connBuilder, connListener, connHandler, choker, torrent, torrentIdent, torrentDataPath):
         ##global stuff
         self.config = config
         self.peerPool = peerPool
         self.connBuilder = connBuilder
         self.connListener = connListener
         self.connHandler = connHandler
+        self.choker = choker
         
         ##own stuff
         self.log = logging.getLogger(torrentIdent)
@@ -66,11 +66,8 @@ class Bt:
         self.log.debug("Creating tracker requester class")
         self.trackerRequester = TrackerRequester(eventSched, peerId, self.peerPool, ownAddrFunc, httpRequester,
                                                  self.inRate, self.outRate, self.storage, self.torrent, self.torrentIdent)
-                                                
-        self.log.debug("Creating choker class")
-        self.choker = Choker(self.torrentIdent, eventSched, self.connHandler, self.storage.getStatus())
         
-        ##calbacks
+        ##callbacks
         self.log.debug("Adding callbacks")
         self._addCallbacks()
         
@@ -122,8 +119,8 @@ class Bt:
                     self.log.debug("Stopping tracker requester")
                     self.trackerRequester.stop()
                 
-                self.log.debug("Stopping choker")
-                self.choker.stop()
+                self.log.debug("Removing us from choker")
+                self.choker.removeTorrent(self.torrentIdent)
                 
                 self.log.debug("Removing us from connection builder")
                 self.connBuilder.removeTorrent(self.torrentIdent)
@@ -170,8 +167,8 @@ class Bt:
                 self.log.debug("Adding us to connection builder")
                 self.connBuilder.addTorrent(self.torrentIdent, self.torrent.getTorrentHash())
                 
-                self.log.debug("Starting choker")
-                self.choker.start()
+                self.log.debug("Adding us to choker")
+                self.choker.addTorrent(self.torrentIdent, self.storage.getStatus())
                 
                 self.log.debug("Starting tracker requester")
                 self.trackerRequester.start()

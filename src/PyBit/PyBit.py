@@ -30,6 +30,7 @@ from Config import Config
 from Gui import showGui
 from Logger import LogController
 from ObjectPersister import ThreadedObjectPersister
+from Utilities import logTraceback
 
 
 class PyBit:
@@ -49,7 +50,11 @@ class PyBit:
                                                                           'fileMaxRotatedCount':4})))
                             
         #create config, set defaults
-        configDefaults = {'i2p':{'samIp':('127.0.0.1', 'ip'),
+        configDefaults = {'choker':{'chokeInterval':(60, 'int'),
+                                    'randomSlotRatio':(0.1, 'float'),
+                                    'maxSlots':(10, 'int'),
+                                    'slotLimitScope':('global', 'str')},
+                          'i2p':{'samIp':('127.0.0.1', 'ip'),
                                  'samPort':(7656, 'port'),
                                  'samDisplayName':('PyBit', 'str'),
                                  'samSessionName':('PyBit', 'str'),
@@ -99,7 +104,7 @@ class PyBit:
             self.log.debug('Cleanup of log related things')
             self.logController.shutdown()
         except:
-            self.log.error("Failure while shuting down:\n%s", logTraceback())
+            self.log.error("Failure while shutting down:\n%s", logTraceback())
         
         
     def run(self):

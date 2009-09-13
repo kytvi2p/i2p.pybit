@@ -45,7 +45,7 @@ class EventScheduler:
         self.log = logging.getLogger('EventScheduler')
         
         self.editLock = threading.RLock()
-        self.changeEvent = threading.Event()        
+        self.queueChangeEvent = threading.Event()        
         self.runLock = threading.RLock()    
         
         self.shouldStop = False        
@@ -72,7 +72,7 @@ class EventScheduler:
         
         if self.eventQueue[0][2] == eventId:
             #soonest event changed, notify thread
-            self.changeEvent.set()
+            self.queueChangeEvent.set()
         
         self.editLock.release()
         return eventId
@@ -129,7 +129,7 @@ class EventScheduler:
                     heappush(self.eventQueue, (newEvent['time'], self.eventNum, eventId))
                     self.eventNum += 1
         
-        self.changeEvent.clear() #clear queue change event
+        self.queueChangeEvent.clear() #clear queue change event
         self.editLock.release()
         return event, shouldExec
     
@@ -170,7 +170,25 @@ class EventScheduler:
             
         self.editLock.release()
         
-    
+        
+    def _changeEvent(self, eventId, repeatdelta, catchUpLateRepeats):
+        self.editLock.acquire()
+        if eventId in self.eventDict:
+            event = self.eventDict[eventId]
+            if catchUpLateRepeats is not None:
+                event['catchUpRepeats'] = catchUpLateRepeats
+            if repeatdelta is not None:
+                if repeatdelta >= 0:
+                    event['repeat'] = True
+                    event['repeatdelta'] = repeatdelta 
+                    event['catchUpRepeats'] = event.get('catchUpRepeats', False)
+                else:
+                    event['repeat'] = False
+                    event.pop('repeatdelta', None)
+                    event.pop('catchUpRepeats', None)
+        self.editLock.release()
+        
+        
     def _removeEvent(self, eventId):
         self.editLock.acquire()
         if eventId in self.eventDict:
@@ -192,10 +210,10 @@ class EventScheduler:
         #start = time()
         if waittime is None:
             #wait until queue got a new item
-            self.changeEvent.wait()
+            self.queueChangeEvent.wait()
         else:
             #only wait until the queue was changed or the waittime passed, whatever happens first
-            self.changeEvent.wait(waittime)
+            self.queueChangeEvent.wait(waittime)
         #self.log.debug('waited for %f seconds', time()-start)
         self.runLock.acquire()
         
@@ -268,13 +286,17 @@ class EventScheduler:
             
         self._rescheduleEvent(eventId, timestamp=timestamp, timedelta=timedelta, relativeTimedelta=relativeTimedelta)
         
-    
+        
+    def changeEvent(self, eventId, repeatdelta=None, catchUpLateRepeats=None):
+        self._changeEvent(eventId, repeatdelta, catchUpLateRepeats)
+        
+        
     def removeEvent(self, eventId, sync=False):
         self._removeEvent(eventId)
         if sync:
             self.runLock.acquire()
             self.runLock.release()
-    
+        
         
     def removeAllEvents(self):
         self._removeAllEvents()
@@ -299,7 +321,7 @@ class EventScheduler:
         self.shouldStop = True #set flag
         if deleteEvents:
             self._removeAllEvents() #empty eventlist
-        self.changeEvent.set() #set event in case thread is sleeping
+        self.queueChangeEvent.set() #set event in case thread is sleeping
         thread = self.thread
         self.runLock.release()
         thread.join() #wait for thread to terminate

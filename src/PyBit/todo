@@ -29,10 +29,6 @@ Bittorrent.ConnectionListener:
 Bittorrent.ConnectionPool:
 - some kind of backoff if a connect attempt fails (first retry in 1 minute, then 2 minutes, 4, 16, ...)
 
-Bittorrent.Choker:
-- don't just unchoke a fixed (currently 5) number of peers but share a global maximum across all instances
-- change choking strategy once we are seed
-
 Bittorrent.MultiBt:
 - only load a certain number of torrents at the same time (number should be configurable)
 - add some kind of scheduling?
@@ -43,9 +39,6 @@ Bittorrent.Torrent:
 Bittorrent.TrackerRequester:
 - change the number of requested peer adresses depending on the number of already connected peers
 - don't ask for peers when stopping
-- don't just append the url parameters to the tracker announce url but instead check for existing parameters at the end of the url and merge things if needed
-- don't retry a request to the same tracker which just responded to our request with a "request failed"-response (due to torrents which got already removed from the tracker and similair issues)!
-
 
 InfoPanel:
 - fix weird wrapping of text with wxPython 2.8

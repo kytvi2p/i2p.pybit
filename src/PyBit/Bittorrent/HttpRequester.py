@@ -22,6 +22,7 @@ import logging
 import threading
 
 from HttpRequest import HttpGetRequest, HttpRequestException
+from HttpUtilities import i2pDestHttpUrlAddrRegexObj, joinUrl, splitUrl
 from PySamLib.I2PSocket import I2PSocket
 from Utilities import logTraceback
 
@@ -52,7 +53,7 @@ class HttpRequester:
     ##internal functions - requests
         
     def _addRequest(self, addr, host, url, maxSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout): 
-        self.log.debug('Adding request to "%s" for "%s" with maxSize "%d"', addr[:10], url, maxSize)
+        self.log.debug('Adding request to "%s" for "%s" with maxSize "%d"', addr[:10], joinUrl(url), maxSize)
         self.requestId += 1
         
         #create conn
@@ -262,10 +263,32 @@ class HttpRequester:
             
     ##external functions - requests
     
-    def makeRequest(self, addr, url, callback, callbackArgs=[], callbackKws={}, host=None, transferTimeout=120, requestTimeout=300, maxSize=1048576):
-        self.lock.acquire()
+    def makeRequest(self, url, callback, callbackArgs=[], callbackKws={}, addr=None, host=None, transferTimeout=120, requestTimeout=300, maxSize=1048576):
+        if type(url) == str:
+            url = splitUrl(url)
+            
+        #get address and host out of url if not given seperatly
+        if addr is None:
+            addr = url['address']
+            if i2pDestHttpUrlAddrRegexObj.match(addr) is not None and len(addr) == 520:
+                addr = addr[:-4]
         if host is None:
-            host = 'http://'+addr+'.i2p'
+            if i2pDestHttpUrlAddrRegexObj.match(addr) is None:
+                host = addr
+            else:
+                if len(addr) == 520:
+                    host = u'http://'+addr
+                else:
+                    host = u'http://'+addr+u'.i2p'
+                    
+        #convert address and host to unicode if needed
+        if type(addr) == unicode:
+            addr = addr.encode('UTF-8', 'ignore')
+        if type(host) == unicode:
+            host = host.encode('UTF-8', 'ignore')
+        
+        #finally really do the request
+        self.lock.acquire()
         requestId = self._addRequest(addr, host, url, maxSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout)
         self.lock.release()
         return requestId
