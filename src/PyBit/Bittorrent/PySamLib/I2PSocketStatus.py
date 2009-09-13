@@ -64,6 +64,10 @@ class I2PSocketStatus:
         
     def getConnInfo(self, connId):
         return self.connIdToConnInfo[connId]
+    
+    
+    def getConnAmount(self):
+        return len(self.all)
         
         
     ##external functions - status

@@ -66,6 +66,7 @@ class I2PSocketManager:
     def _stop(self):
         assert self.shouldStop==False, 'stopped?! out of sync?'
         assert self.thread is not None, 'no thread but stopping?!'
+        assert self.i2pSockStatus.getConnAmount() == 0, 'stopping but still i2p conns?!'
         
         self.shouldStop = True
         self.i2pSockActEvent.set()
@@ -498,6 +499,7 @@ if __name__ == '__main__':
     print 'Listener',listenSock,'ready:', result
     acceptedSock = mang.accept(listenSock)[0]
     print 'Accepted:',acceptedSock
+    acceptedSock = acceptedSock[0]
     print 'Send:',mang.send(connectSock, 100000*'1')
     print 'Recvable:',mang.select(set((acceptedSock,)), set(), set((acceptedSock, listenSock, connectSock)), 10)
     sleep(11)
@@ -526,5 +528,9 @@ if __name__ == '__main__':
     connectSock = mang.connect(resultC, 'mm3zx3besctrx6peq5wzzueil237jdgscuvn5ugwilxrwzyuajja.b32.i2p')
     result = mang.select(set(), set((connectSock,)), set((connectSock,)), 40)
     print 'connected',connectSock,result
-    print 'Closing thir TCP dest'
+    print 'Connecting to bogus i2p name'
+    connect2Sock = mang.connect(resultC, 'adsgadavcxf4zhgsfduajja.i2p')
+    result = mang.select(set(), set((connect2Sock,)), set((connect2Sock,)), 40)
+    print 'connected',connect2Sock,result
+    print 'Closing third TCP dest'
     mang.removeDestination(resultC)

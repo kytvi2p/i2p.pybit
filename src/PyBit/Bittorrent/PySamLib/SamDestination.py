@@ -66,6 +66,9 @@ class SamBaseDestination:
         
         
     def _closeRealSocket(self):
+        self.inMessage = None
+        self.outQueue.clear()
+        self.outQueue.clear()
         self.realSockStatus.removeConn(self.sockNum)
         self.connected = False
         self.sock.close()
@@ -581,23 +584,32 @@ class SamTcpDestination(SamExtendedDestination):
     def _failDestination(self, reason):
         #fail sockets
         for connId in self.connIdToSamId.keys():
-            self._failI2PSocket(connId, 'SESSION_FAILED')
+            self.i2pSockets[connId].errorEvent('SESSION_FAILED')
             
-        #clear listenign socket if any
+        #clear listening socket if any
         if self.i2pListeningSocket is not None:
             self.i2pListeningSocket.clear()
             
+        #reset status
+        self.nextSamOutId = 1
+        self.nextSamInId = -1
+        
         SamExtendedDestination._failDestination(self, reason)
         
         
     def _removeDestination(self):
         #fail sockets
         for connId in self.connIdToSamId.keys():
-            self._failI2PSocket(connId, 'SESSION_CLOSED')
+            self.i2pSockets[connId].errorEvent('SESSION_CLOSED')
             
         #remove sockets
         for i2pSocket in self.i2pSockets.values():
             i2pSocket.close(force=True)
+            
+        #listening socket
+        if self.i2pListeningSocket is not None:
+            self.i2pSockStatus.removeConn(self.i2pListeningSocket.fileno())
+            self.i2pListeningSocket = None
             
         SamExtendedDestination._removeDestination(self)
         
@@ -627,7 +639,7 @@ class SamTcpDestination(SamExtendedDestination):
         self.samOutIdToConnId[samId] = connId
         
         #create socket object
-        conn = SamTcpSocket(self._sendOverRealSocket, self._removeI2PSocket, self.i2pSockStatus, connId, samId, 'out', remoteDest, 
+        conn = SamTcpSocket(self._sendOverRealSocket, self._failI2PSocket, self._removeI2PSocket, self.i2pSockStatus, connId, samId, 'out', remoteDest, 
                             inMaxQueueSize, outMaxQueueSize, inRecvLimitThreshold)
         self.i2pSockets[connId] = conn
         
@@ -651,7 +663,7 @@ class SamTcpDestination(SamExtendedDestination):
         self.samInIdToConnId[samId] = connId
         
         #create socket object
-        conn = SamTcpSocket(self._sendOverRealSocket, self._removeI2PSocket, self.i2pSockStatus, connId, samId, 'in', remoteDest, 
+        conn = SamTcpSocket(self._sendOverRealSocket, self._failI2PSocket, self._removeI2PSocket, self.i2pSockStatus, connId, samId, 'in', remoteDest, 
                             self.defaultInMaxQueueSize, self.defaultOutMaxQueueSize, self.defaultInRecvLimitThreshold)
         self.i2pSockets[connId] = conn
         
@@ -677,10 +689,10 @@ class SamTcpDestination(SamExtendedDestination):
         if success:
             self.i2pSockets[connId].connect(msg)
         else:
-            self.failI2PSocket(connId, 'FAILED_NAME_LOOKUP')
+            self.i2pSockets[connId].errorEvent('FAILED_NAME_LOOKUP')
             
     
-    def _failI2PSocket(self, connId, reason):
+    def _failI2PSocket(self, connId):
         i2pSocket = self.i2pSockets[connId]
         samId = self.connIdToSamId[connId]
         
@@ -693,25 +705,9 @@ class SamTcpDestination(SamExtendedDestination):
             del self.samInIdToConnId[samId]
         else:
             del self.samOutIdToConnId[samId]
-            
-        #call error event
-        i2pSocket.errorEvent(reason)
         
     
     def _removeI2PSocket(self, connId):
-        if connId in self.connIdToSamId:
-            #conn didn't fail up to now, need to remove from mappers
-            samId = self.connIdToSamId[connId]
-            del self.connIdToSamId[connId]
-            if samId < 0:
-                del self.samInIdToConnId[samId]
-            else:
-                del self.samOutIdToConnId[samId]
-                
-            #remove name queries, if any
-            self._removeNameLookupQuery(connId)
-            
-            
         #remove from socket dict
         del self.i2pSockets[connId]
         
@@ -824,7 +820,8 @@ class SamTcpDestination(SamExtendedDestination):
     
     
     def close(self, connId, force):
-        self.i2pSockets[connId].close(force)
+        if connId in self.i2pSockets:
+            self.i2pSockets[connId].close(force)
         
         
     ##external functions - sockets - listening
@@ -847,6 +844,7 @@ class SamTcpDestination(SamExtendedDestination):
     
     
     def stopListening(self, connId):
+        assert self.i2pListeningSocket.fileno() == connId, 'connId doesn\'t match id of listening socket!'
         self.i2pSockStatus.removeConn(connId)
         self.i2pListeningSocket = None
         

@@ -1,6 +1,7 @@
 General
 -----------------------
 - cleanup log messages
+- get the profiler to profile all threads, not just the GUI (main-) thread
 - fix flickering problem which occurs if PyBit is run with Windows
 - fix CPU-usage bugs (Requester and some places in ConnectionHandler for example)
 - don't generate different loggers for instances of the same class

@@ -34,6 +34,10 @@ class SamTcpListeningSocket:
                 self.i2pSockStatus.setRecvable(True, self.connId)
                 
                 
+    def fileno(self):
+        return self.connId
+                
+                
     def accept(self, max):
         if max==-1 or max >= len(self.newInSockets):
             newConns = list(self.newInSockets)
@@ -66,9 +70,10 @@ class SamTcpListeningSocket:
 
 
 class SamTcpSocket:
-    def __init__(self, sendFunc, removeFunc, i2pSockStatus, connId, samId, direction, remoteDest, 
+    def __init__(self, sendFunc, failFunc, removeFunc, i2pSockStatus, connId, samId, direction, remoteDest, 
                  inMaxQueueSize, outMaxQueueSize, inRecvLimitThreshold):
         self.sendFunc = sendFunc     #func to send message
+        self.failFunc = failFunc     #func to call once the conn fails
         self.removeFunc = removeFunc #func which does the final cleanup after close
         self.i2pSockStatus = i2pSockStatus
         
@@ -79,6 +84,7 @@ class SamTcpSocket:
         self.remoteDest = remoteDest
         
         #socket - state
+        self.state = 'init' #states: init > (connecting) > connected > (failed) > closed
         self.connected = False
         self.waitingForClose = False
         self.errorReason = None
@@ -112,13 +118,16 @@ class SamTcpSocket:
             self.i2pSockStatus.setSendable(False, self.connId)
             
         if self.errorReason is not None:
-            #socket failed
+            #socket failed before
             self.i2pSockStatus.setErrored(False, self.connId)
-        else:
+        
+        elif self.state == 'connected' or self.state == 'connecting':
             #socket was ok
             assert self.samId is not None, 'uhm, we need the id ...'
+            self.failFunc(self.connId)
             self.sendFunc(SamMessages.streamCloseMessage(self.samId))
-            
+        
+        self.state = 'closed'
         self.removeFunc(self.connId)
         
         
@@ -129,11 +138,14 @@ class SamTcpSocket:
         if remoteDest is not None:
             self.remoteDest = remoteDest
         assert self.remoteDest is not None, 'uhm, we need a destination ...'
+        assert self.state == 'init', 'wrong state, expected "init", got "%s"' % (self.state,)
+        self.state = 'connecting'
         self.sendFunc(SamMessages.streamConnectMessage(self.samId, self.remoteDest))
         
     
     def send(self, data):
         #called to queue data for send in outbound queue
+        assert self.state == 'connected', 'wrong state, expected "connected", got "%s"' % (self.state,)
         allowedBytes = self.outMaxQueueSize - self.outQueueSize
         bytesToSend = len(data)
         
@@ -162,6 +174,7 @@ class SamTcpSocket:
     
     def recv(self, maxBytes, peekOnly):
         #called to recv data out of inbound queue
+        assert self.state == 'connected' or self.state == 'failed', 'wrong state, expected "connected" or "failed", got "%s"' % (self.state,)
         availableBytes = self.inQueueSize
         
         if maxBytes == -1 or availableBytes <= maxBytes:
@@ -218,6 +231,8 @@ class SamTcpSocket:
     
     def connectEvent(self):
         #called when the socket connects
+        assert (self.state == 'connecting' and self.direction == 'out') or (self.state == 'init' and self.direction == 'in'), 'wrong state "%s", direction "%s"' % (self.state, self.direction)
+        self.state = 'connected'
         self.connected = True
         self.sendable = True
         self.inRecvLimit = self.inMaxQueueSize
@@ -227,6 +242,8 @@ class SamTcpSocket:
     
     def errorEvent(self, reason):
         #called when the socket fails
+        assert self.state in ('init', 'connecting', 'connected'), 'wrong state "%s"' % (self.state,)
+        
         if self.waitingForClose:
             #was actually pending for close
             self._close()
@@ -238,6 +255,7 @@ class SamTcpSocket:
             self.i2pSockStatus.setErrored(True, self.connId)
             
             #set samSocket status
+            self.state = 'failed'
             self.connected = False
             self.errorReason = reason
             self.outMessage = None,
@@ -245,10 +263,13 @@ class SamTcpSocket:
             self.outQueueSize = 0
             self.sendable = False
             self.samId = None
+            
+            self.failFunc(self.connId)
     
     
     def sendEvent(self):
         #called to send data out of the outbound queue - triggered when the sam bridge allows further sending
+        assert self.state == 'connected', 'wrong state, expected "connected", got "%s"' % (self.state,)
         self.sendable = True
         
         if self.outQueueSize == 0:
@@ -307,11 +328,13 @@ class SamTcpSocket:
             
     def sendSucceededEvent(self):
         #called if the sam bridge acknowledged a send
+        assert self.state == 'connected', 'wrong state, expected "connected", got "%s"' % (self.state,)
         self.outMessage = None
             
             
     def sendFailedEvent(self):
         #called if a send failed to requeue data at the beginning of the outgoing queue
+        assert self.state == 'connected', 'wrong state, expected "connected", got "%s"' % (self.state,)
         if self.errorReason is None:
             self.outQueue.appendleft(self.outMessage)
             self.outQueueSize += len(self.outMessage)
@@ -325,6 +348,7 @@ class SamTcpSocket:
     
     def recvEvent(self, data):
         #called to add data to the inbound queue
+        assert self.state == 'connected', 'wrong state, expected "connected", got "%s"' % (self.state,)
         dataSize = len(data)
         
         if self.inQueueSize == 0:
@@ -336,7 +360,8 @@ class SamTcpSocket:
         
     
     def close(self, force):
-        #called once the socket should be close
+        #called once the socket should be closed
+        assert not self.state == 'closed', 'wrong state, expected anything but "closed"!'
         if self.errorReason is None:
             #socket did not fail up to now
             if (not force) and self.outQueueSize > 0:
