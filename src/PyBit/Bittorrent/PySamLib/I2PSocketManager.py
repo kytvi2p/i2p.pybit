@@ -283,7 +283,7 @@ class I2PSocketManager:
                 
             elif connType == 'tcpListen':
                 #tcp listening socket
-                self.i2pDests[destId]['obj'].stopListening()
+                self.i2pDests[destId]['obj'].stopListening(i2pSocketId)
                     
         self.lock.release()
         

@@ -228,10 +228,13 @@ class SamBaseDestination:
                         messages.append(message)
             else:
                 ##only missing a few bytes here ...
+                assert len(self.inQueue) == 0, 'receiving data but stuff in the inqueue?!'
                 missingBytes = self.inMessage['DataTargetLen'] - self.inMessage['DataCurrentLen']
                 remainingBytes = dataLen - offset
                 if remainingBytes >= missingBytes:
                     #got all
+                    if self.log is not None:
+                        self.log.debug("Got missing %i bytes for message", missingBytes)
                     self.inMessage['Data'].append(data[offset:offset+missingBytes])
                     self.inMessage['DataCurrentLen'] += missingBytes
                     assert self.inMessage['DataCurrentLen'] == self.inMessage['DataTargetLen'], 'message finished but too short?!'
@@ -241,6 +244,8 @@ class SamBaseDestination:
                 
                 else:
                     #still missing a bit
+                    if self.log is not None:
+                        self.log.debug("Got %i bytes for message but still missing %i bytes", remainingBytes, (missingBytes - remainingBytes))
                     self.inMessage['Data'].append(data[offset:])
                     self.inMessage['DataCurrentLen'] += remainingBytes
                     offset += remainingBytes        
@@ -813,6 +818,10 @@ class SamTcpDestination(SamExtendedDestination):
             if connId is not None:
                 #socket still exists
                 self.i2pSockets[connId].recvEvent(''.join(message['Data']))
+                
+        else:
+            if self.log is not None:
+                self.log.error('Got unknown message "%s" with the following paras:\n%s', messageType, '\n'.join(tup[0]+': '+tup[1] for tup in messageParas.iteritems()))
         
         
     ##external functions - sockets - normal

@@ -350,6 +350,7 @@ class SelectingAsyncSocketManager:
                         if allowedBytes > 0:
                             #still want to read, could have changed if the buffer size changed since the select call (not yet implemented)
                             data = sockSet['socket'].recv(allowedBytes)
+                            assert len(data) <= allowedBytes, 'read more then wanted?!'
                             if data=='':
                                 self._connError(realSockNum)
                                 socketAct = True
@@ -813,6 +814,8 @@ class PollingAsyncSocketManager:
                             if allowedBytes > 0:
                                 #still want to read, could have changed if the buffer size changed since the select call (not yet implemented)
                                 data = sockSet['socket'].recv(allowedBytes)
+                                #if self.log is not None:
+                                #    self.log.debug('Received data "%s"', data)
                                 if data=='':
                                     self._connError(realSockNum)
                                     socketAct = True
@@ -882,6 +885,8 @@ class PollingAsyncSocketManager:
                                     
                                     assert len(data)==dataLen,'Wrong send buffer size?!'
                                     bytesSend = sockSet['socket'].send(data)
+                                    #if self.log is not None:
+                                    #    self.log.debug('Send %i of %i bytes, data "%s"', dataLen, bytesSend, data[:bytesSend])
                                     assert bytesSend>0, 'writeable but not a single byte send?!'
                                     #print 'Wrote',bytesSend,'bytes'
                                     sockSet['sendBufSize'] -= bytesSend

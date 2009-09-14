@@ -1,3 +1,10 @@
+0.2.3 - xx.xx.xxxx
+-----------------------
+Blub:
+- fixed bug in "Bittorrent.ConnectionListener": The listening socket wasn't closed when terminating PyBit (harmless because it was implicitly closed but explicit is better)
+- updated PySamLib from v0.2.5 to v0.2.6
+
+
 0.2.2 - 13.09.2009
 -----------------------
 Blub:

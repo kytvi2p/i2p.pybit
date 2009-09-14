@@ -213,6 +213,12 @@ class ConnectionListener:
                             self.log.debug('Conn %i: Received data', connId)
                             self._recvFromConn(connId)
             
+            
+            #close listening conn
+            self.log.debug("Closing listening socket")
+            self.samSockManager.close(self.listenConn, force=True)
+            
+            #really terminate
             self.thread = None
             self.log.info("Stopping")
             self.lock.release()
