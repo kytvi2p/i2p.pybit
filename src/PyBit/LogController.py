@@ -1,7 +1,7 @@
 """
 Copyright 2009  Blub
 
-Logger.py, a collection of classes for managing logging building upon the "logging" facility.
+LogController.py, a class for managing logging building upon the "logging" facility.
 This file is part of PyBit.
 
 PyBit is free software: you can redistribute it and/or modify

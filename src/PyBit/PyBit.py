@@ -31,7 +31,7 @@ import wx
 from Bittorrent.MultiBt import MultiBt, MultiBtException
 from Config import Config
 from Gui import showGui
-from Logger import LogController
+from LogController import LogController
 from ObjectPersister import ThreadedObjectPersister
 from Utilities import logTraceback
 
