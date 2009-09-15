@@ -4,6 +4,8 @@ Blub:
 - fixed bug in "Bittorrent.ConnectionListener": The listening socket wasn't closed when terminating PyBit (harmless because it was implicitly closed but explicit is better)
 - fixed bug in "Config": callbacks were called with encoded option values (essentially strings) instead of the real value
 - renamed "Logger.py" to "LogController.py": The class is called "LogController", so the file should be called the same.
+- renamed "HttpRequest" to "HttpResponseParser": More consistent that way, after all it parses responses, not requests.
+- improved "HttpRequest" slightly: Header key preference was backwards in one case (content-length / transfer-encoding), other small changes
 - updated PySamLib from v0.2.5 to v0.2.6
 
 
