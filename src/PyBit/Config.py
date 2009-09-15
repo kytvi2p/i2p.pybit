@@ -374,13 +374,13 @@ class Config:
                     if encValue != self.config.get(option[0], option[1]):
                         #value changed
                         self.log.debug('Option in section "%s" with name "%s" changed, new value "%s"', option[0], option[1], value)
-                        changedOptions[option] = encValue
+                        changedOptions[option] = (value, encValue)
                     else:
                         self.log.debug('Option in section "%s" with name "%s" did not change', option[0], option[1])
             
             #set options
             for option, value in changedOptions.iteritems():
-                self.config.set(option[0], option[1], value)
+                self.config.set(option[0], option[1], value[1])
             
             #write to config file and call callbacks if necessary
             if len(changedOptions) > 0:
@@ -442,7 +442,7 @@ class ConfigCallbackManager:
     def execCallbacks(self, changedOptions):
         for option, value in changedOptions.iteritems():
             self.log.debug('Got changed option in section "%s" with name "%s" and new value "%s"',
-                           option[0], option[1], value)
+                           option[0], option[1], value[1])
                         
         #build map
         callbackMapping = defaultdict(dict)
@@ -453,7 +453,7 @@ class ConfigCallbackManager:
                     #callbacks exist for this option
                     for callbackId in self.optionsToCallbackId[option[0]][option[1]]:
                         #add option
-                        callbackMapping[callbackId][option] = value
+                        callbackMapping[callbackId][option] = value[0]
                         
         #execute callbacks
         for callbackId, options in callbackMapping.iteritems():
