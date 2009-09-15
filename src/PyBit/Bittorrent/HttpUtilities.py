@@ -32,7 +32,9 @@ httpUrlParameterRegex = '(?P<parameterFlag>\??)(?P<parameter>[^@/.:?#]*)'
 httpUrlAnchorRegex = '(?P<anchorFlag>#?)(?P<anchor>[^@/.:?=]*)'
 httpUrlEndRegex = '$'
 httpUrlRegex = ''.join((httpUrlPrefixRegex, httpUrlUserRegex, httpUrlAddrRegex, httpUrlPortRegex, httpUrlPathRegex, httpUrlParameterRegex, httpUrlAnchorRegex, httpUrlEndRegex))
+httpRelativeUrlRegex = ''.join((httpUrlPathRegex, httpUrlParameterRegex, httpUrlAnchorRegex, httpUrlEndRegex))
 httpUrlRegexObj = re.compile(httpUrlRegex)
+httpRelativeUrlRegexObj = re.compile(httpRelativeUrlRegex)
 
 #i2p (subset of normal)
 i2pDestHttpUrlAddrRegex = '(?P<address>[A-Za-z0-9\-~]{512,512}AAAA(.i2p){0,1})'
@@ -49,7 +51,6 @@ i2pHttpUrlRegexObj = re.compile(i2pHttpUrlRegex)
 
 class HttpUtilitiesException(Exception):
     def __init__(self, reason, *args):
-        self.traceback = logTraceback()
         self.reason = reason % args
         Exception.__init__(self, self.reason)
 
@@ -94,33 +95,60 @@ def decodeUrlParameter(paras):
     
 ##decode - complete url
 
-def splitUrl(url):
+def splitUrl(url, allowRelative=False):
     #splits a encoded url into its decoded components
     if type(url) == unicode:
         url = url.encode('UTF-8', 'ignore')
     
     #split url
     urlItems = httpUrlRegexObj.match(url)
+    if urlItems is None and allowRelative == False:
+        #failed
+        raise HttpUrlParseException('Url "%s" is invalid!', url)
+    
+    elif urlItems is None and allowRelative == True:
+        #try relative url
+        splittedUrl = splitRelativeUrl(url)
+    
+    else:
+        #worked, decode url
+        urlDict = urlItems.groupdict()
+        splittedUrl = {}
+        splittedUrl['prefix'] = unicode(unquote(urlDict['prefix']), 'UTF-8', 'ignore')
+        if len(urlDict['userFlag']) > 0:
+            splittedUrl['user'] = unicode(unquote(urlDict['user']), 'UTF-8', 'ignore')
+        splittedUrl['address'] = unicode(unquote(urlDict['address']), 'UTF-8', 'ignore')
+        if len(urlDict['portFlag']) > 0:
+            splittedUrl['port'] = unicode(unquote(urlDict['port']), 'UTF-8', 'ignore')
+        splittedUrl['path'] = unicode(unquote(urlDict['path']), 'UTF-8', 'ignore')
+        if len(urlDict['anchorFlag']) > 0:
+            splittedUrl['anchor'] = unicode(unquote(urlDict['anchor']), 'UTF-8', 'ignore')
+        if len(urlDict['parameterFlag']) > 0:
+            splittedUrl['parameter'] = splitUrlParameter(urlDict['parameter'])
+    return splittedUrl
+    
+
+def splitRelativeUrl(url):
+    #splits a encoded relative url into its decoded components
+    if type(url) == unicode:
+        url = url.encode('UTF-8', 'ignore')
+    
+    #split url
+    urlItems = httpRelativeUrlRegexObj.match(url)
     if urlItems is None:
         raise HttpUrlParseException('Url "%s" is invalid!', url)
         
     #decode url
     urlDict = urlItems.groupdict()
     splittedUrl = {}
-    splittedUrl['prefix'] = unicode(unquote(urlDict['prefix']), 'UTF-8', 'ignore')
-    if len(urlDict['userFlag']) > 0:
-        splittedUrl['user'] = unicode(unquote(urlDict['user']), 'UTF-8', 'ignore')
-    splittedUrl['address'] = unicode(unquote(urlDict['address']), 'UTF-8', 'ignore')
-    if len(urlDict['portFlag']) > 0:
-        splittedUrl['port'] = unicode(unquote(urlDict['port']), 'UTF-8', 'ignore')
     splittedUrl['path'] = unicode(unquote(urlDict['path']), 'UTF-8', 'ignore')
     if len(urlDict['anchorFlag']) > 0:
         splittedUrl['anchor'] = unicode(unquote(urlDict['anchor']), 'UTF-8', 'ignore')
     if len(urlDict['parameterFlag']) > 0:
         splittedUrl['parameter'] = splitUrlParameter(urlDict['parameter'])
     return splittedUrl
-    
-    
+
+
 def decodeUrl(url):
     #splits a encoded url into its decoded components
     if type(url) == unicode:
@@ -176,7 +204,7 @@ def joinRelativeUrl(url):
 
 
 def joinUrl(url):
-    return joinUrlParts(url['address'], url.get('prefix', 'http://'), url.get('user', None), url.get('port', None),
+    return joinUrlParts(url.get('address', None), url.get('prefix', None), url.get('user', None), url.get('port', None),
                         url.get('path', None), url.get('anchor', None), url.get('parameter', None))
     
     

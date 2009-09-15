@@ -1,8 +1,7 @@
 """
 Copyright 2009  Blub
 
-HttpRequest, a collection of classes (currently only HttpGetRequest) which each handle
-one request type of http 1.1
+HttpResponseParser, a class for parsing http responses of http 1.1
 This file is part of PyBit.
 
 PyBit is free software: you can redistribute it and/or modify
@@ -26,7 +25,7 @@ from Conversion import hexToInt
 from HttpUtilities import joinRelativeUrl
 
 
-class HttpRequestException(Exception):
+class HttpResponseParserException(Exception):
     def __init__(self, reason, *args):
         self.reason = reason % args
         Exception.__init__(self, self.reason)
@@ -35,7 +34,7 @@ class HttpRequestException(Exception):
         return self.reason
         
 
-class HttpGetRequest:
+class HttpResponseParser:
     def __init__(self, addr, host, url, maxHeaderSize=1024, maxDataSize=1048576):
         self.addr = addr
         self.host = host
@@ -61,7 +60,7 @@ class HttpGetRequest:
         self.maxBufferSize = self.userHeaderSizeLimit
         
         #log
-        self.log = logging.getLogger('HttpRequest')
+        self.log = logging.getLogger('HttpResponseParser')
         
     
     ##internal functions - request
@@ -108,7 +107,7 @@ class HttpGetRequest:
         
         #check size
         if self.bufferSize > self.maxBufferSize:
-            raise HttpRequestException('buffer size exceeds limit while receiving "%s"', self.step)
+            raise HttpResponseParserException('buffer size exceeds limit while receiving "%s"', self.step)
       
     
     def _clearBuffer(self):
@@ -120,7 +119,7 @@ class HttpGetRequest:
     
     def _increaseDataSizeLimit(self, additionalBytes):
         if self.maxDataSize + additionalBytes > self.userDataSizeLimit:
-            raise HttpRequestException('data size exceeds limit while receiving "%s"', self.step)
+            raise HttpResponseParserException('data size exceeds limit while receiving "%s"', self.step)
         else:
             self.maxDataSize += additionalBytes
             self.log.debug('Increasing max data size by "%i" bytes to "%i" bytes', additionalBytes, self.maxDataSize)
@@ -132,7 +131,7 @@ class HttpGetRequest:
         self.dataSize += len(data)
         
         if self.dataSize > self.maxDataSize:
-            raise HttpRequestException('data size exceeds exptected size while receiving "%s"', self.step)
+            raise HttpResponseParserException('data size exceeds exptected size while receiving "%s"', self.step)
         
     
     def _getData(self):
@@ -154,7 +153,7 @@ class HttpGetRequest:
             else:
                 #merge
                 if place == 0:
-                    raise HttpRequestException('First key:value line in %s is invalid: "%s"', headerName, headerLine)
+                    raise HttpResponseParserException('First key:value line in %s is invalid: "%s"', headerName, headerLine)
                 else:
                     rawHeader[place-1] += headerLine.lstrip()
                     del rawHeader[place]
@@ -172,7 +171,7 @@ class HttpGetRequest:
                     value = ''
                 
             if len(key) == 0:
-                raise HttpRequestException('Invalid key:value line in %s, key is empty: "%s"', headerName, headerline)
+                raise HttpResponseParserException('Invalid key:value line in %s, key is empty: "%s"', headerName, headerline)
             else:
                 headerValues[key] = value
 
@@ -181,15 +180,15 @@ class HttpGetRequest:
     
     def _parseHeader(self, header):
         header = header.split(self.newline)
-        headerStatus = list([part for part in header[0].split(' ') if not part == ''])
+        headerStatus = [part for part in header[0].split(' ') if not part == '']
         headerValues = self._parseHeaderValues(header[1:])
         
         #check for invalid status lines
         if not len(headerStatus) == 3:
-            raise HttpRequestException('Invalid header status line: "%s"', header[0])
+            raise HttpResponseParserException('Invalid header status line: "%s"', header[0])
         
         if not headerStatus[0].lower() in ('http/1.0', 'http/1.1'):
-            raise HttpRequestException('Unsupported http version: "%s"', headerStatus[0])
+            raise HttpResponseParserException('Unsupported http version: "%s"', headerStatus[0])
         
         #check type of response
         if headerStatus[1] == '100':
@@ -201,34 +200,18 @@ class HttpGetRequest:
             self.header = {'code':headerStatus[1],
                            'codeText':headerStatus[2],
                            'values':headerValues}
-            raise HttpRequestException('Request failed, got response "%s %s"', headerStatus[1], headerStatus[2])
+            raise HttpResponseParserException('Request failed, got response "%s %s"', headerStatus[1], headerStatus[2])
         
         else:
             #200 = success
             self.header = {'code':headerStatus[1],
                            'codeText':headerStatus[2],
                            'values':headerValues}
-                        
-            if 'content-length' in headerValues:
-                #no transfer encoding
-                try:
-                    length = int(headerValues['content-length'])
-                except ValueError:
-                    raise HttpRequestException('Invalid value in "content-length" field: "%s"', headerValues['content-length'])
-                
-                self.log.debug('Got response "%s %s" from server: detected plain transfer type, expecting "%i" bytes', headerStatus[1], headerStatus[2], length)
-                
-                #adapt state
-                self.step = 'body'
-                self.data = deque()
-                self.transferEncoding = None
-                self._increaseDataSizeLimit(length)
-                
-                
-            elif 'transfer-encoding' in headerValues:
+            
+            if 'transfer-encoding' in headerValues and not headerValues.get('transfer-encoding', 'none') == 'identity':
                 if not headerValues['transfer-encoding'] == 'chunked':
                     #unsupported transfer encoding
-                    raise HttpRequestException('Unsupported transfer encoding: "%s"', headerValues['transferEncoding'])
+                    raise HttpResponseParserException('Unsupported transfer encoding: "%s"', headerValues['transferEncoding'])
                 else:
                     #chunked encoding
                     self.step = 'chunk header'
@@ -237,9 +220,24 @@ class HttpGetRequest:
                     
                     self.log.debug('Got response "%s %s" from server: detected chunked transfer encoding', headerStatus[1], headerStatus[2])
                     
+            elif 'content-length' in headerValues:
+                #no transfer encoding
+                try:
+                    length = int(headerValues['content-length'])
+                except ValueError:
+                    raise HttpResponseParserException('Invalid value in "content-length" field: "%s"', headerValues['content-length'])
+                
+                self.log.debug('Got response "%s %s" from server: detected plain transfer type, expecting "%i" bytes', headerStatus[1], headerStatus[2], length)
+                
+                #adapt state
+                self.step = 'body'
+                self.data = deque()
+                self.transferEncoding = None
+                self._increaseDataSizeLimit(length)
+                    
             else:
                 #unsupported type of transfer
-                raise HttpRequestException('Malformed or unsupported http header: "%s"', self.newline.join(header))
+                raise HttpResponseParserException('Malformed or unsupported http header: "%s"', self.newline.join(header))
     
     
     def _processHeaderData(self, data):
@@ -305,7 +303,7 @@ class HttpGetRequest:
             try:
                 length = hexToInt(chunkHeader)
             except ValueError:
-                raise HttpRequestException('Invalid chunk length "%s"', chunkHeader)
+                raise HttpResponseParserException('Invalid chunk length "%s"', chunkHeader)
             
             if length == 0:
                 #got all data
@@ -335,7 +333,7 @@ class HttpGetRequest:
             self._storeChunk(data[:neededBytes])
             if not data[neededBytes:neededBytes+newlineLength] == self.newline:
                 #chunk is too long
-                raise HttpRequestException('Received data exceeds expected chunk size')
+                raise HttpResponseParserException('Received data exceeds expected chunk size')
             else:
                 #all ok
                 self._storeData(self._getAllChunks())
@@ -367,7 +365,7 @@ class HttpGetRequest:
             data = (self.newline*2).join(data[1:])
             
             if not data == '':
-                raise HttpRequestException('Received trailing data after end of response')
+                raise HttpResponseParserException('Received trailing data after end of response')
             else:
                 #parse trailer
                 self.log.debug('Got trailer')
@@ -375,7 +373,7 @@ class HttpGetRequest:
                 headerValues = self.header['values']
                 for key, value in trailerValues:
                     if key in headerValues:
-                        raise HttpRequestException('Received key "%s" both in the header and in the trailer', key)
+                        raise HttpResponseParserException('Received key "%s" both in the header and in the trailer', key)
                     else:
                         headerValues[key] = value
                         

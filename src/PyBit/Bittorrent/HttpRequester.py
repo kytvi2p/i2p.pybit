@@ -21,7 +21,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 import logging
 import threading
 
-from HttpRequest import HttpGetRequest, HttpRequestException
+from HttpResponseParser import HttpResponseParser, HttpResponseParserException
 from HttpUtilities import i2pDestHttpUrlAddrRegexObj, joinUrl, splitUrl
 from PySamLib.I2PSocket import I2PSocket
 from Utilities import logTraceback
@@ -82,7 +82,7 @@ class HttpRequester:
         self.connsWithSendInterest.add(sockNum)
                 
         #http request obj
-        requestObj = HttpGetRequest(addr, host, url, maxDataSize=maxSize)
+        requestObj = HttpResponseParser(addr, host, url, maxDataSize=maxSize)
             
         #add to local requestDict
         self.requests[self.requestId] = {'request':requestObj,
@@ -195,7 +195,7 @@ class HttpRequester:
         
         try:
             finished = requestSet['request'].handleData(data)
-        except HttpRequestException, e:
+        except HttpResponseParserException, e:
             finished = False
             self._failRequest(connSet['requestId'], e.getReason())
             
