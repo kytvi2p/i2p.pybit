@@ -24,12 +24,12 @@ from urllib import quote, unquote, quote_plus, unquote_plus
 
 #normal
 httpUrlPrefixRegex = '^(?P<prefix>[^@/.:?=#]*)://'
-httpUrlUserRegex = '(?P<user>[^@/.:?=#]*?)(?P<userFlag>@?)'
+httpUrlUserRegex = '(?P<user>[^@/.:?=#]*?)(?P<userFlag>@)?'
 httpUrlAddrRegex = '(?P<address>[^@/:?=#]*)'
-httpUrlPortRegex = '(?P<portFlag>:?)(?P<port>[^@/.:?=#]*)'
-httpUrlPathRegex = '(?P<path>[^@?=#]*)'
-httpUrlParameterRegex = '(?P<parameterFlag>\??)(?P<parameter>[^@/.:?#]*)'
-httpUrlAnchorRegex = '(?P<anchorFlag>#?)(?P<anchor>[^@/.:?=]*)'
+httpUrlPortRegex = '(?P<portFlag>:)?(?(portFlag)(?P<port>[0-9]*))'
+httpUrlPathRegex = '(?P<path>(/[^@?=#]*)?)'
+httpUrlParameterRegex = '(?P<parameterFlag>\?)?(?(parameterFlag)(?P<parameter>[^@/:?#]*))'
+httpUrlAnchorRegex = '(?P<anchorFlag>#)?(?(anchorFlag)(?P<anchor>[^@/:?=]*))'
 httpUrlEndRegex = '$'
 httpUrlRegex = ''.join((httpUrlPrefixRegex, httpUrlUserRegex, httpUrlAddrRegex, httpUrlPortRegex, httpUrlPathRegex, httpUrlParameterRegex, httpUrlAnchorRegex, httpUrlEndRegex))
 httpRelativeUrlRegex = ''.join((httpUrlPathRegex, httpUrlParameterRegex, httpUrlAnchorRegex, httpUrlEndRegex))
@@ -115,15 +115,15 @@ def splitUrl(url, allowRelative=False):
         urlDict = urlItems.groupdict()
         splittedUrl = {}
         splittedUrl['prefix'] = unicode(unquote(urlDict['prefix']), 'UTF-8', 'ignore')
-        if len(urlDict['userFlag']) > 0:
+        if urlDict['userFlag'] is not None:
             splittedUrl['user'] = unicode(unquote(urlDict['user']), 'UTF-8', 'ignore')
         splittedUrl['address'] = unicode(unquote(urlDict['address']), 'UTF-8', 'ignore')
-        if len(urlDict['portFlag']) > 0:
+        if urlDict['portFlag'] is not None:
             splittedUrl['port'] = unicode(unquote(urlDict['port']), 'UTF-8', 'ignore')
         splittedUrl['path'] = unicode(unquote(urlDict['path']), 'UTF-8', 'ignore')
-        if len(urlDict['anchorFlag']) > 0:
+        if urlDict['anchorFlag'] is not None:
             splittedUrl['anchor'] = unicode(unquote(urlDict['anchor']), 'UTF-8', 'ignore')
-        if len(urlDict['parameterFlag']) > 0:
+        if urlDict['parameterFlag'] is not None:
             splittedUrl['parameter'] = splitUrlParameter(urlDict['parameter'])
     return splittedUrl
     
@@ -142,9 +142,9 @@ def splitRelativeUrl(url):
     urlDict = urlItems.groupdict()
     splittedUrl = {}
     splittedUrl['path'] = unicode(unquote(urlDict['path']), 'UTF-8', 'ignore')
-    if len(urlDict['anchorFlag']) > 0:
+    if urlDict['anchorFlag'] is not None:
         splittedUrl['anchor'] = unicode(unquote(urlDict['anchor']), 'UTF-8', 'ignore')
-    if len(urlDict['parameterFlag']) > 0:
+    if urlDict['parameterFlag'] is not None:
         splittedUrl['parameter'] = splitUrlParameter(urlDict['parameter'])
     return splittedUrl
 
@@ -163,18 +163,18 @@ def decodeUrl(url):
     urlDict = urlItems.groupdict()
     splittedUrl = []
     splittedUrl.append(unicode(unquote(urlDict['prefix']), 'UTF-8', 'ignore'))
-    if len(urlDict['userFlag']) > 0:
+    if urlDict['userFlag'] is not None:
         splittedUrl.append(unicode(unquote(urlDict['user']), 'UTF-8', 'ignore'))
         splittedUrl.append(u'@')
     splittedUrl.append(unicode(unquote(urlDict['address']), 'UTF-8', 'ignore'))
-    if len(urlDict['portFlag']) > 0:
+    if urlDict['portFlag'] is not None:
         splittedUrl.append(u':')
         splittedUrl.append(unicode(unquote(urlDict['port']), 'UTF-8', 'ignore'))
     splittedUrl.append(unicode(unquote(urlDict['path']), 'UTF-8', 'ignore'))
-    if len(urlDict['anchorFlag']) > 0:
+    if urlDict['anchorFlag'] is not None:
         splittedUrl.append(u'#')
         splittedUrl.append(unicode(unquote(urlDict['anchor']), 'UTF-8', 'ignore'))
-    if len(urlDict['parameterFlag']) > 0:
+    if urlDict['parameterFlag'] is not None:
         splittedUrl.append(u'?')
         splittedUrl.append(decodeUrlParameter(urlDict['parameter']))
     return  u''.join(splittedUrl)
