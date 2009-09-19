@@ -27,7 +27,10 @@ import threading
 ##own
 from Bt import Bt
 from BtQueue import BtQueue
+from HttpUtilities import splitUrl, HttpUtilitiesException
 from Torrent import Torrent, TorrentException
+from TorrentHttpFetch import TorrentHttpFetch
+from Utilities import encodeStrForPrinting, logTraceback
 
 
 class BtQueueManagerException(Exception):
@@ -120,7 +123,7 @@ class BtQueueManager:
             with fl:
                 torrentFileData = fl.read()
         except (IOError, OSError):
-            failureMsg = u'Could not read torrent file from "%s"' % torrentFilePath
+            failureMsg = 'Could not read torrent file from "%s"' % encodeStrForPrinting(torrentFilePath)
     
         if failureMsg is None:
             #successfully read the torrent data
@@ -131,7 +134,7 @@ class BtQueueManager:
             except TorrentException, e:
                 failureMsg = e.reason
             except:
-                failureMsg = u'Failed to parse torrent file "%s"!\nTraceback: %s' % (encodeStrForPrinting(torrentFilePath), logTraceback())
+                failureMsg = 'Failed to parse torrent file "%s"!\nTraceback: %s' % (encodeStrForPrinting(torrentFilePath), encodeStrForPrinting(logTraceback()))
         
         return failureMsg, torrent
     
@@ -156,12 +159,68 @@ class BtQueueManager:
         return failureMsg, btObj
     
     
+    ##internal functions - http job
+    
+    def _getHttpFetchObj(self, torrentId, torrentDataPath, torrentUrlStr):
+        httpFetchObj = None
+        failureMsg = None
+        try:
+            torrentUrlSplit = splitUrl(torrentUrlStr)
+        except HttpUtilitiesException, e:
+            failureMsg = e.reason
+            
+        if failureMsg is None:
+            if self.queue.setContains('torrentUrl', torrentUrlStr):
+                #this url is already getting fetched
+                failureMsg = 'Fetch of this url is already queued'
+            else:
+                #not yet on the queue
+                self.queue.setAdd('torrentUrl', torrentUrlStr)
+                self.log.debug('Torrent %i: creating http fetch class', torrentId)
+                httpFetchObj = TorrentHttpFetch(self.config, self.eventSched, self.httpRequester, 'Bt'+str(torrentId), torrentUrlSplit, torrentUrlStr, self.finishedFetch, [torrentId])
+            
+        return failureMsg, httpFetchObj
+    
+    
+    def _replaceHttpFetchObj(self, queueId, torrentData):
+        failureMsg = None
+        info = self.queue.infoGet(queueId)
+        
+        #save torrent file
+        torrentFilePath = self._getTorrentFilePath(queueId)
+        try:
+            fl = open(torrentFilePath, 'wb')
+            with fl:
+                fl.write(torrentData)
+        except (IOError, OSError):
+            failureMsg = 'Failed to save torrent data to "%s"' % (encodeStrForPrinting(torrentFilePath),)
+        
+        if failureMsg is None:
+            #create bt object
+            failureMsg, btObj = self._getBtObj(queueId, info['dataPath'])
+            
+            if failureMsg is None:
+                #remove old job
+                self._removeJob(queueId)
+                
+                #modify info
+                del info['url']
+                info['type'] = 'bt'
+                
+                #add new job
+                self._addJob(queueId, info, btObj)
+        return failureMsg
+    
+    
     ##internal functions - queue
     
     def _getJobObj(self, queueId, queueInfo):
         if queueInfo['type'] == 'bt':
             #normal torrent job
             failureMsg, obj = self._getBtObj(queueId, queueInfo['dataPath'])
+        elif queueInfo['type'] == 'httpFetch':
+            #http fetch of torrent file
+            failureMsg, obj = self._getHttpFetchObj(queueId, queueInfo['dataPath'], queueInfo['url'])
         else:
             #unknown type
             failureMsg = 'Internal error: Unknown job type "%s"' % (queueInfo['type'],)
@@ -169,8 +228,11 @@ class BtQueueManager:
         return failureMsg, obj
     
     
-    def _addJob(self, queueId, queueInfo):
-        failureMsg, obj = self._getJobObj(queueId, queueInfo)
+    def _addJob(self, queueId, queueInfo, obj=None):
+        if obj is not None:
+            failureMsg = None
+        else:
+            failureMsg, obj = self._getJobObj(queueId, queueInfo)
         if failureMsg is None:
             self.queue.queueAdd(queueId, queueInfo)
             self.queueJobs[queueId] = obj
@@ -203,6 +265,9 @@ class BtQueueManager:
             except (IOError, OSError):
                 pass
             
+        elif info['type'] == 'httpFetch':
+            self.queue.setRemove('torrentUrl', info['url'])
+            
     
     ##external functions - torrents
     
@@ -217,8 +282,8 @@ class BtQueueManager:
                 fl = open(torrentFilePath, 'wb')
                 with fl:
                     fl.write(torrentFileData)
-            except:
-                raise BtQueueManagerException(u'Failed to save torrent data to "%s"', torrentFilePath)
+            except (IOError, OSError):
+                raise BtQueueManagerException('Failed to save torrent data to "%s"', encodeStrForPrinting(torrentFilePath))
             
             #add to queue
             info = {'type':'bt',
@@ -228,6 +293,35 @@ class BtQueueManager:
                 self.log.info("Failed to add torrent, reason: %s", failureMsg)
                 raise BtQueueManagerException(failureMsg)
             return torrentId
+        
+        
+    def addTorrentByUrl(self, torrentUrl, torrentDataPath):
+        with self.lock:
+            #get id
+            torrentId = self.queue.queueNextId()
+            
+            #add to queue
+            info = {'type':'httpFetch',
+                    'dataPath':torrentDataPath,
+                    'url':torrentUrl}
+            failureMsg = self._addJob(torrentId, info)
+            if failureMsg is not None:
+                self.log.info("Failed to add torrent, reason: %s", failureMsg)
+                raise BtQueueManagerException(failureMsg)
+            return torrentId
+        
+        
+    ##external functions - http fetches
+    
+    def finishedFetch(self, result, queueId):
+        with self.lock:
+            if queueId in self.queueJobs:
+                if result['success'] == True:
+                    #fetch succeded
+                    failureMsg = self._replaceHttpFetchObj(queueId, result['data'])
+                    if failureMsg is not None:
+                        self.log.info("Torrent %i: failed to add fetched torrent, reason: %s", queueId, failureMsg)
+                        self.queueJobs[queueId].setState('error (%s)' % (failureMsg.split('\n')[0],))
         
         
     ##external functions - queue
@@ -313,3 +407,4 @@ class BtQueueManager:
             self.log.info("Stopping all bt jobs")
             for job in self.queueJobs.itervalues():
                 job.shutdown()
+            self.queueJobs = {}

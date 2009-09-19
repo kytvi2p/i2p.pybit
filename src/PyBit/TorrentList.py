@@ -90,6 +90,12 @@ class TorrentList(PersistentVirtualListCtrl):
             #add Task to the handler
             self.torrentHandler.addTorrentByFile(torrentFileData, savePath)
             self.dataUpdate()
+            
+            
+    def addTorrentByUrl(self, torrentUrl, torrentDataPath):
+        with self.lock:
+            self.torrentHandler.addTorrentByUrl(torrentUrl, torrentDataPath)
+            self.dataUpdate()
     
 
     def OnSelect(self, event):

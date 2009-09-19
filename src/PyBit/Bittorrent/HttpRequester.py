@@ -21,7 +21,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 import logging
 import threading
 
-from HttpResponseParser import HttpResponseParser, HttpResponseParserException
+from HttpResponseParser import HttpResponseParser, HttpResponseParserException, RequestFailedException, InvalidResponseException
 from HttpUtilities import i2pDestHttpUrlAddrRegexObj, joinUrl, splitUrl
 from PySamLib.I2PSocket import I2PSocket
 from Utilities import logTraceback
@@ -127,6 +127,7 @@ class HttpRequester:
         requestId = connSet['requestId']
         requestSet = self.requests[requestId]
         data = requestSet['request'].getData()
+        header = requestSet['request'].getHeader()
         self.log.debug('Request to "%s": finished successfully (response-length: %d)', connSet['sock'].getpeername()[:10], len(data))
         
         #remove request
@@ -134,17 +135,19 @@ class HttpRequester:
         
         #call callback
         result = {'success':True,
-                  'data':data}
+                  'data':data,
+                  'header':header}
         self._reportRequestResult(requestSet, result)
         
     
-    def _failRequest(self, requestId, reason):
+    def _failRequest(self, requestId, reason, header=None):
         requestSet = self.requests[requestId]
         connSet = self.conns[requestSet['connId']]
         self.log.debug('Request to "%s": failed (reason: %s)', connSet['sock'].getpeername()[:10], reason)
         
         self._removeRequest(requestId)
         result = {'success':False,
+                  'header':header,
                   'failureMsg':reason}
         self._reportRequestResult(requestSet, result)
         
@@ -195,6 +198,9 @@ class HttpRequester:
         
         try:
             finished = requestSet['request'].handleData(data)
+        except RequestFailedException, e:
+            finished = False
+            self._failRequest(connSet['requestId'], e.getReason(), requestSet['request'].getHeader())
         except HttpResponseParserException, e:
             finished = False
             self._failRequest(connSet['requestId'], e.getReason())

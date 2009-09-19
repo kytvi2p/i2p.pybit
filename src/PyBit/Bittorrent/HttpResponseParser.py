@@ -32,7 +32,17 @@ class HttpResponseParserException(Exception):
         
     def getReason(self):
         return self.reason
-        
+    
+
+class InvalidResponseException(HttpResponseParserException):
+    pass
+
+
+class RequestFailedException(HttpResponseParserException):
+    pass
+
+
+
 
 class HttpResponseParser:
     def __init__(self, addr, host, url, maxHeaderSize=1024, maxDataSize=1048576):
@@ -107,7 +117,7 @@ class HttpResponseParser:
         
         #check size
         if self.bufferSize > self.maxBufferSize:
-            raise HttpResponseParserException('buffer size exceeds limit while receiving "%s"', self.step)
+            raise InvalidResponseException('buffer size exceeds limit while receiving "%s"', self.step)
       
     
     def _clearBuffer(self):
@@ -119,7 +129,7 @@ class HttpResponseParser:
     
     def _increaseDataSizeLimit(self, additionalBytes):
         if self.maxDataSize + additionalBytes > self.userDataSizeLimit:
-            raise HttpResponseParserException('data size exceeds limit while receiving "%s"', self.step)
+            raise InvalidResponseException('data size exceeds limit while receiving "%s"', self.step)
         else:
             self.maxDataSize += additionalBytes
             self.log.debug('Increasing max data size by "%i" bytes to "%i" bytes', additionalBytes, self.maxDataSize)
@@ -131,7 +141,7 @@ class HttpResponseParser:
         self.dataSize += len(data)
         
         if self.dataSize > self.maxDataSize:
-            raise HttpResponseParserException('data size exceeds exptected size while receiving "%s"', self.step)
+            raise InvalidResponseException('data size exceeds exptected size while receiving "%s"', self.step)
         
     
     def _getData(self):
@@ -153,7 +163,7 @@ class HttpResponseParser:
             else:
                 #merge
                 if place == 0:
-                    raise HttpResponseParserException('First key:value line in %s is invalid: "%s"', headerName, headerLine)
+                    raise InvalidResponseException('First key:value line in %s is invalid: "%s"', headerName, headerLine)
                 else:
                     rawHeader[place-1] += headerLine.lstrip()
                     del rawHeader[place]
@@ -171,7 +181,7 @@ class HttpResponseParser:
                     value = ''
                 
             if len(key) == 0:
-                raise HttpResponseParserException('Invalid key:value line in %s, key is empty: "%s"', headerName, headerline)
+                raise InvalidResponseException('Invalid key:value line in %s, key is empty: "%s"', headerName, headerline)
             else:
                 headerValues[key] = value
 
@@ -184,11 +194,14 @@ class HttpResponseParser:
         headerValues = self._parseHeaderValues(header[1:])
         
         #check for invalid status lines
-        if not len(headerStatus) == 3:
-            raise HttpResponseParserException('Invalid header status line: "%s"', header[0])
+        if not len(headerStatus) >= 3:
+            raise InvalidResponseException('Invalid header status line: "%s"', header[0])
         
         if not headerStatus[0].lower() in ('http/1.0', 'http/1.1'):
-            raise HttpResponseParserException('Unsupported http version: "%s"', headerStatus[0])
+            raise InvalidResponseException('Unsupported http version: "%s"', headerStatus[0])
+        
+        #rejoin 3 header status component
+        headerStatus[2] = ' '.join(headerStatus[2:])
         
         #check type of response
         if headerStatus[1] == '100':
@@ -200,7 +213,7 @@ class HttpResponseParser:
             self.header = {'code':headerStatus[1],
                            'codeText':headerStatus[2],
                            'values':headerValues}
-            raise HttpResponseParserException('Request failed, got response "%s %s"', headerStatus[1], headerStatus[2])
+            raise RequestFailedException('Request failed, got response "%s %s"', headerStatus[1], headerStatus[2])
         
         else:
             #200 = success
@@ -211,7 +224,7 @@ class HttpResponseParser:
             if 'transfer-encoding' in headerValues and not headerValues.get('transfer-encoding', 'none') == 'identity':
                 if not headerValues['transfer-encoding'] == 'chunked':
                     #unsupported transfer encoding
-                    raise HttpResponseParserException('Unsupported transfer encoding: "%s"', headerValues['transferEncoding'])
+                    raise InvalidResponseException('Unsupported transfer encoding: "%s"', headerValues['transferEncoding'])
                 else:
                     #chunked encoding
                     self.step = 'chunk header'
@@ -225,7 +238,7 @@ class HttpResponseParser:
                 try:
                     length = int(headerValues['content-length'])
                 except ValueError:
-                    raise HttpResponseParserException('Invalid value in "content-length" field: "%s"', headerValues['content-length'])
+                    raise InvalidResponseException('Invalid value in "content-length" field: "%s"', headerValues['content-length'])
                 
                 self.log.debug('Got response "%s %s" from server: detected plain transfer type, expecting "%i" bytes', headerStatus[1], headerStatus[2], length)
                 
@@ -237,7 +250,7 @@ class HttpResponseParser:
                     
             else:
                 #unsupported type of transfer
-                raise HttpResponseParserException('Malformed or unsupported http header: "%s"', self.newline.join(header))
+                raise InvalidResponseException('Malformed or unsupported http header: "%s"', self.newline.join(header))
     
     
     def _processHeaderData(self, data):
@@ -303,7 +316,7 @@ class HttpResponseParser:
             try:
                 length = hexToInt(chunkHeader)
             except ValueError:
-                raise HttpResponseParserException('Invalid chunk length "%s"', chunkHeader)
+                raise InvalidResponseException('Invalid chunk length "%s"', chunkHeader)
             
             if length == 0:
                 #got all data
@@ -333,7 +346,7 @@ class HttpResponseParser:
             self._storeChunk(data[:neededBytes])
             if not data[neededBytes:neededBytes+newlineLength] == self.newline:
                 #chunk is too long
-                raise HttpResponseParserException('Received data exceeds expected chunk size')
+                raise InvalidResponseException('Received data exceeds expected chunk size')
             else:
                 #all ok
                 self._storeData(self._getAllChunks())
@@ -365,7 +378,7 @@ class HttpResponseParser:
             data = (self.newline*2).join(data[1:])
             
             if not data == '':
-                raise HttpResponseParserException('Received trailing data after end of response')
+                raise InvalidResponseException('Received trailing data after end of response')
             else:
                 #parse trailer
                 self.log.debug('Got trailer')
@@ -373,7 +386,7 @@ class HttpResponseParser:
                 headerValues = self.header['values']
                 for key, value in trailerValues:
                     if key in headerValues:
-                        raise HttpResponseParserException('Received key "%s" both in the header and in the trailer', key)
+                        raise InvalidResponseException('Received key "%s" both in the header and in the trailer', key)
                     else:
                         headerValues[key] = value
                         
@@ -411,6 +424,10 @@ class HttpResponseParser:
                 data = self._processTrailerData(data)
                 
         return self.finished
+    
+    
+    def getHeader(self):
+        return self.header
     
     
     def getData(self):

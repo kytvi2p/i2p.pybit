@@ -166,6 +166,15 @@ class MultiBt:
             return torrentId
         
         
+    def addTorrentByUrl(self, torrentUrl, torrentDataPath):
+        with self.lock:
+            try:
+                torrentId = self.queue.addTorrentByUrl(torrentUrl, torrentDataPath)
+            except BtQueueManagerException, e:
+                raise MultiBtException(e.reason)
+            return torrentId
+        
+        
     def startTorrent(self, torrentId):
         with self.lock:
             self.queue.startJob(torrentId)

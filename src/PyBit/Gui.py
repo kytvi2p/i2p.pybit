@@ -65,10 +65,11 @@ class Gui(wx.Frame):
         menubar = wx.MenuBar()
         
         file = wx.Menu()
-        file.Append(101, 'Add from file', 'Opens a torrent from your harddisk')
-        file.Append(102, 'Create torrent', 'Creates a new torrent')
+        file.Append(101, 'Add From File', 'Opens a torrent from your harddisk')
+        file.Append(102, 'Add From Url', 'Fetches a torrent via http and adds it afterwards')
+        file.Append(103, 'Create Torrent', 'Creates a new torrent')
         file.AppendSeparator()
-        file.Append(103, 'Quit', 'Terminates the program, this could take a few seconds')
+        file.Append(104, 'Quit', 'Terminates the program, this could take a few seconds')
         menubar.Append(file, '&File')
 
         config = wx.Menu()
@@ -129,8 +130,9 @@ class Gui(wx.Frame):
 
         #menu events
         self.Bind(wx.EVT_MENU, self.OnAddFromFile, id=101)
-        self.Bind(wx.EVT_MENU, self.OnCreateTorrent, id=102)
-        self.Bind(wx.EVT_MENU, self.OnClose, id=103)
+        self.Bind(wx.EVT_MENU, self.OnAddFromUrl, id=102)
+        self.Bind(wx.EVT_MENU, self.OnCreateTorrent, id=103)
+        self.Bind(wx.EVT_MENU, self.OnClose, id=104)
         self.Bind(wx.EVT_MENU, self.OnConfig, id=121)
         self.Bind(wx.EVT_MENU, self.OnAbout, id=131)
         self.Bind(wx.EVT_MENU, self.OnChangelog, id=132)
@@ -219,8 +221,42 @@ class Gui(wx.Frame):
             del saveDiag
         del diag
         
+        
+    def OnAddFromUrl(self, event):
+        #torrentpath
+        downloadDefaultDir = self.config.get('paths','downloadFolder')
+        
+        #let user enter a url
+        diag = wx.TextEntryDialog(self, message='Url:', caption='Enter url', defaultValue='http://')
+        
+        if diag.ShowModal() == wx.ID_OK:
+            #user did select something
+            torrentUrl = diag.GetValue()
+            
+            #directory in which the download data should be stored
+            saveDiag = wx.DirDialog(self, message='Select the directory in which the downloaded data should be stored',\
+                                    defaultPath=downloadDefaultDir, style=wx.DD_NEW_DIR_BUTTON)
+            if saveDiag.ShowModal() == wx.ID_OK:
+                #user selected something
+                savePath = saveDiag.GetPath()
+                
+                #load torrents one by one
+                self.log.info('Adding torrent with data path "%s"', savePath)
+                try:
+                    self.torrentList.addTorrentByUrl(torrentUrl, savePath)
+                except MultiBtException, e:
+                    self.log.error('Failed to add torrent, reason: %s', e.reason)
+                    showErrorMessage(self, '%s.', e.reason)
+                except Exception, e:
+                    self.log.critical('Internal error while adding torrent:\n%s', logTraceback())
+                    showErrorMessage(self, 'Internal error, torrent not added.\n%s.', logTraceback())
+            del saveDiag
+        del diag
+        
+        
     def OnCreateTorrent(self, event):
         TorrentCreateDialog(self.progPath, self)
+        
 
     def OnConfig(self, event):
         ConfigDialog(self.config, self)
