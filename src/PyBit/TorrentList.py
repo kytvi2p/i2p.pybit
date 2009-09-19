@@ -60,6 +60,7 @@ class TorrentList(PersistentVirtualListCtrl):
         statKw = {'wantedStats':{'bt':'all'},
                   'wantedTorrentStats':{'peers':True,
                                         'queue':True,
+                                        'state':True,
                                         'progress':True,
                                         'torrent':True,
                                         'transfer':True,
@@ -83,11 +84,11 @@ class TorrentList(PersistentVirtualListCtrl):
             self.dataUpdate()
         
 
-    def addTorrent(self, torrentFileData, savePath):
+    def addTorrentByFile(self, torrentFileData, savePath):
         #adds a fresh torrent
         with self.lock:
             #add Task to the handler
-            self.torrentHandler.addTorrent(torrentFileData, savePath)
+            self.torrentHandler.addTorrentByFile(torrentFileData, savePath)
             self.dataUpdate()
     
 

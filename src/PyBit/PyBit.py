@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-VERSION = '0.2.3'
+VERSION = '0.2.4'
 
 
 ##builtin

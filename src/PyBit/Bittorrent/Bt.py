@@ -82,6 +82,7 @@ class Bt:
         self._addCallbacks()
         
         ##status
+        self.state = 'stopped'
         self.started = False
         self.paused = True
         
@@ -184,6 +185,7 @@ class Bt:
                 self.trackerRequester.start()
                 
                 self.started = True
+                self.state = 'running'
                 
         except:
             #something failed - hard
@@ -202,6 +204,7 @@ class Bt:
                 self._start(True)
             else:
                 self.storage.load(self._start)
+                self.state = 'loading'
         self.lock.release()
         
         
@@ -211,6 +214,7 @@ class Bt:
         if not self.paused:
             self._halt('stop')
             self.paused = True
+            self.state = 'stopped'
         self.lock.release()
         
         
@@ -219,6 +223,7 @@ class Bt:
         self.lock.acquire()
         self._halt('shutdown')
         self.paused = False
+        self.state = 'stopped'
         self.lock.release()
         
         
@@ -227,6 +232,7 @@ class Bt:
         self.lock.acquire()
         self._halt('remove')
         self.paused = False
+        self.state = 'stopped'
         self.lock.release()
         
         
@@ -235,6 +241,9 @@ class Bt:
     def getStats(self, wantedStats):
         self.lock.acquire()
         stats = {}
+        
+        if wantedStats.get('state', False):
+            stats['state'] = self.state
         
         #connections
         if wantedStats.get('connections', False):
@@ -314,3 +323,12 @@ class Bt:
             else:
                 self.superSeedingHandler.setEnabled(enabled)
         self.lock.release()
+        
+        
+    ##external funcs - other
+    
+    def getInfohash(self):
+        self.lock.acquire()
+        infohash = self.torrent.getTorrentHash()
+        self.lock.release()
+        return infohash

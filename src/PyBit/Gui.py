@@ -39,7 +39,7 @@ from StatusPanel import StatusPanel
 
 ##own - other
 from Bittorrent.MultiBt import MultiBtException
-from Utilities import logTraceback, encodeStrForPrinting, showWarningMessage, showErrorMessage, FunctionCallConverter
+from Utilities import logTraceback, showWarningMessage, showErrorMessage, FunctionCallConverter
 
 
 class Gui(wx.Frame):
@@ -193,29 +193,29 @@ class Gui(wx.Frame):
                 
                 #load torrents one by one
                 for torrentPath in torrentPaths:
-                    self.log.info('Trying to read torrent file from "%s"', encodeStrForPrinting(torrentPath))
+                    self.log.info('Trying to read torrent file from "%s"', torrentPath)
                     try:
                         fl = open(torrentPath, 'rb')
                         with fl:
                             data = fl.read()
-                    except:
+                    except (IOError, OSError):
                         data = None
                     
                     if data is None:
                         #failed to read file
-                        self.log.error('Failed to read torrent file from "%s", torrent not added', encodeStrForPrinting(torrentPath))
+                        self.log.error('Failed to read torrent file from "%s", torrent not added', torrentPath)
                         showErrorMessage(self, 'Failed to read torrent file from "%s".', torrentPath)
                     else:
                         #worked
-                        self.log.info('Adding torrent with data path "%s"', encodeStrForPrinting(savePath))
+                        self.log.info('Adding torrent with data path "%s"', savePath)
                         try:
-                            self.torrentList.addTorrent(data, savePath)
+                            self.torrentList.addTorrentByFile(data, savePath)
                         except MultiBtException, e:
                             self.log.error('Failed to add torrent, reason: %s', e.reason)
                             showErrorMessage(self, '%s.', e.reason)
                         except Exception, e:
-                            self.log.critical('Internal error while adding torrent:\n%s', str(logTraceback()))
-                            showErrorMessage(self, 'Internal error, torrent not added.\n%s.', str(logTraceback()))
+                            self.log.critical('Internal error while adding torrent:\n%s', logTraceback())
+                            showErrorMessage(self, 'Internal error, torrent not added.\n%s.', logTraceback())
             del saveDiag
         del diag
         
