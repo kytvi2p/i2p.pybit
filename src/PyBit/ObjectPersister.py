@@ -24,6 +24,7 @@ from sqlite3 import OperationalError, dbapi2 as sqlite
 import logging
 import os
 import re
+import sys
 import threading
 
 from Bittorrent.Bencoding import bencode, bdecode
@@ -69,7 +70,7 @@ class SimpleObjectPersister:
     ##internal functions - db - basic
         
     def _preDbQueryJobs(self):
-        db = sqlite.connect(self.dbPath)
+        db = sqlite.connect(self.dbPath.encode(sys.getfilesystemencoding(), 'ignore'))
         db.row_factory = sqlite.Row
         db.text_factory = str
         db.create_function("regexp", 2, regexCheck)
