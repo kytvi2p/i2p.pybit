@@ -56,7 +56,8 @@ class Config:
         self._writeConfig()
         
         #main lock
-        self.lock = threading.RLock()
+        self.readLock = threading.RLock()
+        self.writeLock = threading.RLock()
         
         
     ##internal functions - config file
@@ -273,120 +274,123 @@ class Config:
     ##external functions - defaults
     
     def addDefaults(self, configDefaults):
-        self.lock.acquire()
-        self._addDefaults(configDefaults)
-        self._setDefaults(configDefaults)
-        self.lock.release()
+        with self.writeLock:
+            with self.readLock:
+                self._addDefaults(configDefaults)
+                self._setDefaults(configDefaults)
         
         
     ##external functions - callbacks
     
     def addCallback(self, options, func, funcArgs=[], funcKw={}, valueArgPlace=0, callType='value-funcArgSingle', optionTranslationTable={}, callWithAllOptions=False):
-        self.lock.acquire()
-        callbackId = self.callbackManager.addCallback(options, func, funcArgs, funcKw, valueArgPlace, callType, optionTranslationTable, callWithAllOptions)
-        self.lock.release()
-        return callbackId
+        with self.writeLock:
+            with self.readLock:
+                return self.callbackManager.addCallback(options, func, funcArgs, funcKw, valueArgPlace, callType, optionTranslationTable, callWithAllOptions)
     
     
     def removeCallback(self, callbackId):
-        self.lock.acquire()
-        self.callbackManager.removeCallback(callbackId)
-        self.lock.release()
+        with self.writeLock:
+            with self.readLock:
+                self.callbackManager.removeCallback(callbackId)
         
         
     ##external functions - checks
         
     def hasSection(self, section):
-        self.lock.acquire()
-        result = self.config.has_section(section)
-        self.lock.release()
-        return result
+        with self.readLock:
+            return self.config.has_section(section)
     
     
     def hasOption(self, section, option):
-        self.lock.acquire()
-        result = self.config.has_option(section, option)
-        self.lock.release()
-        return result
+        with self.readLock:
+            return self.config.has_option(section, option)
     
         
     ##external functions - getter and setter
     
     
     def get(self, section, name):
-        with self.lock:
+        with self.readLock:
             result = self.config.get(section, name)
             result = self._decodeOptionData(section, name, result)
         return result
     
     def getStr(self, section, name):
-        with self.lock:
-            result = self.config.get(section, name)
-        return result
+        with self.readLock:
+            return self.config.get(section, name)
     
 
     def getInt(self, section, name):
-        with self.lock:
-            result = int(self.config.get(section, name))
-        return result
+        with self.readLock:
+            return int(self.config.get(section, name))
     
 
     def getBool(self, section, name):
-        with self.lock:
-            result = self.config.get(section, name)
-            result = result.lower() == 'true'
-        return result
+        with self.readLock:
+            return (self.config.get(section, name).lower() == 'true')
     
 
     def getFloat(self, section, name):
-        with self.lock:
-            result = float(self.config.get(section, name))
+        with self.readLock:
+            return float(self.config.get(section, name))
         return result
     
 
     def set(self, section, name, value, quiet=False):
         #set value
-        with self.lock:
-            if not self._checkDecodedData(section, name, value):
-                if not quiet:
-                    raise ConfigException('Invalid type: section "%s", name "%s": expected "%s", got "%s" (value: "%s")' % (section, name, self._getOptionType(section, name), type(value), value))
-            else:
-                encValue = self._encodeOptionData(section, name, value)
-                if encValue != self.config.get(section, name):
-                    #value changed
-                    self.config.set(section, name, encValue)
-                    self.callbackManager.execCallbacks({(section, name):value})
-                    self._writeConfig()
+        with self.writeLock:
+            with self.readLock:
+                shouldExec = False
+                if not self._checkDecodedData(section, name, value):
+                    if not quiet:
+                        raise ConfigException('Invalid type: section "%s", name "%s": expected "%s", got "%s" (value: "%s")' % (section, name, self._getOptionType(section, name), type(value), value))
+                else:
+                    encValue = self._encodeOptionData(section, name, value)
+                    if encValue != self.config.get(section, name):
+                        #value changed
+                        self.config.set(section, name, encValue)
+                        self._writeConfig()
+                        shouldExec = True
+            
+            #execute callbacks outside of read lock
+            if shouldExec:
+                self.callbackManager.execCallbacks({(section, name):value})
+
         
         
     def setMany(self, options, quiet=False):
-        with self.lock:
-            changedOptions = {}
-            #check which options changed (and if they have the right type)
-            for option, value in options.iteritems():
-                if not self._checkDecodedData(option[0], option[1], value):
-                    #wrong type
-                    if not quiet:
-                        raise ConfigException('Invalid type: section "%s", option "%s": expected "%s", got "%s" (value: "%s")' % (option[0], option[1], self._getOptionType(option[0], option[1]), type(value), value))
-                else:
-                    #right type
-                    encValue = self._encodeOptionData(option[0], option[1], value)
-                    if encValue != self.config.get(option[0], option[1]):
-                        #value changed
-                        self.log.debug('Option in section "%s" with name "%s" changed, new value "%s"', option[0], option[1], value)
-                        changedOptions[option] = (value, encValue)
+        with self.writeLock:
+            with self.readLock:
+                changedOptions = {}
+                #check which options changed (and if they have the right type)
+                for option, value in options.iteritems():
+                    if not self._checkDecodedData(option[0], option[1], value):
+                        #wrong type
+                        if not quiet:
+                            raise ConfigException('Invalid type: section "%s", option "%s": expected "%s", got "%s" (value: "%s")' % (option[0], option[1], self._getOptionType(option[0], option[1]), type(value), value))
                     else:
-                        self.log.debug('Option in section "%s" with name "%s" did not change', option[0], option[1])
+                        #right type
+                        encValue = self._encodeOptionData(option[0], option[1], value)
+                        if encValue != self.config.get(option[0], option[1]):
+                            #value changed
+                            self.log.debug('Option in section "%s" with name "%s" changed, new value "%s"', option[0], option[1], value)
+                            changedOptions[option] = (value, encValue)
+                        else:
+                            self.log.debug('Option in section "%s" with name "%s" did not change', option[0], option[1])
+                
+                #set options
+                for option, value in changedOptions.iteritems():
+                    self.config.set(option[0], option[1], value[1])
+                    
+                #write to config file if necessary
+                if len(changedOptions) > 0:
+                    self._writeConfig()
             
-            #set options
-            for option, value in changedOptions.iteritems():
-                self.config.set(option[0], option[1], value[1])
-            
-            #write to config file and call callbacks if necessary
+            #call callbacks if necessary
             if len(changedOptions) > 0:
                 #some options were really changed
                 self.callbackManager.execCallbacks(changedOptions)
-                self._writeConfig()
+                
         
         
         
