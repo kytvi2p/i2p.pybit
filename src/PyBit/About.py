@@ -53,7 +53,7 @@ class AboutPanel(wx.Panel):
                                   'Author:   Blub\n'+\
                                   '\n'+\
                                   '\n'+\
-                                  'The icons are part of the tango-icon-theme (see "http://tango.freedesktop.org/")')
+                                  'The icons are part of (or derived from) the tango-icon-theme (see "http://tango.freedesktop.org/")')
         aboutSizer.Add(aboutText, 1, wx.EXPAND | wx.ALL, border = 2)
         vBox.Add(aboutSizer, 1, wx.EXPAND | wx.ALL, border = 2)
 

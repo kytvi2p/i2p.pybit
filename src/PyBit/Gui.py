@@ -65,9 +65,10 @@ class Gui(wx.Frame):
         menubar = wx.MenuBar()
         
         file = wx.Menu()
-        file.Append(101, 'Add From File', 'Opens a torrent from your harddisk')
-        file.Append(102, 'Add From Url', 'Fetches a torrent via http and adds it afterwards')
-        file.Append(103, 'Create Torrent', 'Creates a new torrent')
+        file.Append(101, 'Add (by File)', 'Opens a torrent from your harddisk')
+        file.Append(102, 'Add (by Url)', 'Fetches a torrent via http and adds it afterwards')
+        file.AppendSeparator()
+        file.Append(103, 'Create', 'Creates a new torrent')
         file.AppendSeparator()
         file.Append(104, 'Quit', 'Terminates the program, this could take a few seconds')
         menubar.Append(file, '&File')
@@ -116,7 +117,8 @@ class Gui(wx.Frame):
         toolbar = self.CreateToolBar()
         toolbar.SetToolBitmapSize(wx.Size(22,22))
         toolbar.AddLabelTool(201, 'New', wx.BitmapFromImage(wx.Image('Icons/newFile.png', wx.BITMAP_TYPE_PNG)), shortHelp='Create Torrentfile', longHelp='Use to create a new torrent file')
-        toolbar.AddLabelTool(202, 'Open', wx.BitmapFromImage(wx.Image('Icons/openFile.png', wx.BITMAP_TYPE_PNG)), shortHelp='Open Torrentfile', longHelp='Use to open a torrent file')
+        toolbar.AddLabelTool(202, 'Open File', wx.BitmapFromImage(wx.Image('Icons/openFile.png', wx.BITMAP_TYPE_PNG)), shortHelp='Open Torrentfile', longHelp='Use to open a torrent file')
+        toolbar.AddLabelTool(203, 'Open Url', wx.BitmapFromImage(wx.Image('Icons/openUrl.png', wx.BITMAP_TYPE_PNG)), shortHelp='Fetch and open Torrentfile from url', longHelp='Use to fetch (and add) a torrent file via http')
         toolbar.AddSeparator()
         toolbar.AddLabelTool(211, 'Start',wx.BitmapFromImage(wx.Image('Icons/start.png', wx.BITMAP_TYPE_PNG)), shortHelp='Start', longHelp='Starts all selected torrents')
         toolbar.AddLabelTool(212, 'Stop',wx.BitmapFromImage(wx.Image('Icons/stop.png', wx.BITMAP_TYPE_PNG)), shortHelp='Stop', longHelp='Stops all selected torrents')
@@ -141,6 +143,7 @@ class Gui(wx.Frame):
         #toolbar events
         self.Bind(wx.EVT_TOOL, self.OnCreateTorrent, id=201)
         self.Bind(wx.EVT_TOOL, self.OnAddFromFile, id=202)
+        self.Bind(wx.EVT_TOOL, self.OnAddFromUrl, id=203)
         self.Bind(wx.EVT_TOOL, self.torrentList.OnStart, id=211)
         self.Bind(wx.EVT_TOOL, self.torrentList.OnStop, id=212)
         self.Bind(wx.EVT_TOOL, self.torrentList.OnRemove, id=213)
@@ -227,7 +230,7 @@ class Gui(wx.Frame):
         downloadDefaultDir = self.config.get('paths','downloadFolder')
         
         #let user enter a url
-        diag = wx.TextEntryDialog(self, message='Url:', caption='Enter url', defaultValue='http://')
+        diag = wx.TextEntryDialog(self, message='Enter http url of the torrent file:', caption='Enter url', defaultValue='http://')
         
         if diag.ShowModal() == wx.ID_OK:
             #user did select something
