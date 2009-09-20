@@ -53,9 +53,13 @@ class TorrentHttpFetch:
         
     ##internal functions - state
     
-    def _start(self):
-        self.requestId = self.httpRequester.makeRequest(self.url, self.finishedFetch, transferTimeout=120, requestTimeout=300, maxSize=1048576)
-        self.fetchTries = 1
+    def _fetch(self):
+        self.requestId = self.httpRequester.makeRequest(self.url, self.finishedFetch,\
+                                                        transferTimeout=self.config.get('http', 'torrentFetchTransferTimeout'),\
+                                                        requestTimeout=self.config.get('http', 'torrentFetchRequestTimeout'),\
+                                                        maxHeaderSize=self.config.get('http', 'torrentFetchMaxHeaderSize'),\
+                                                        maxDataSize=self.config.get('http', 'torrentFetchMaxDataSize'))
+        self.fetchTries += 1
         self.state = 'fetching (%i. attempt)' % (self.fetchTries,)
         
         
@@ -74,7 +78,7 @@ class TorrentHttpFetch:
         #called when torrent is started
         self.lock.acquire()
         if not self.running:
-            self._start()
+            self._fetch()
             self.running = True
         self.lock.release()
         
@@ -112,9 +116,7 @@ class TorrentHttpFetch:
     def retryFetch(self):
         self.lock.acquire()
         if self.running:
-            self.requestId = self.httpRequester.makeRequest(self.url, self.finishedFetch, transferTimeout=120, requestTimeout=300, maxSize=1048576)
-            self.fetchTries += 1
-            self.state = 'fetching (%i. attempt)' % (self.fetchTries,)
+            self._fetch()
         self.lock.release()
     
     
@@ -134,7 +136,7 @@ class TorrentHttpFetch:
                 header = result['header']
                 if header is None:
                     #transfer failure, retry in 60 secs
-                    self.eventId = self.eventSched.scheduleEvent(self.retryFetch, timedelta=60)
+                    self.eventId = self.eventSched.scheduleEvent(self.retryFetch, timedelta=self.config.get('http', 'torrentFetchRetryInterval'))
                     self.state = 'fetch scheduled (%i. attempt)' % (self.fetchTries + 1,)
                 else:
                     #server failure, final

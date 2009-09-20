@@ -29,9 +29,10 @@ from Utilities import logTraceback
 
 
 class TrackerRequester:
-    def __init__(self, eventScheduler,  peerId, peerPool, ownAddrFunc, httpRequester,
+    def __init__(self, config, eventScheduler,  peerId, peerPool, ownAddrFunc, httpRequester,
                  inMeasure, outMeasure, storage, torrent, torrentIdent):
         #global stuff
+        self.config = config
         self.sched = eventScheduler
         self.peerId = peerId
         self.peerPool = peerPool
@@ -162,7 +163,11 @@ class TrackerRequester:
     def _makeRequest(self, trackerSet):
         url = self._createAnnounceUrl(trackerSet['url'])
         if url is not None:
-            self.httpRequestId = self.httpRequester.makeRequest(url, self.finishedRequest, callbackArgs=[trackerSet['id'], self.event])
+            self.httpRequestId = self.httpRequester.makeRequest(url, self.finishedRequest, callbackArgs=[trackerSet['id'], self.event],
+                                                                transferTimeout=self.config.get('http', 'trackerRequestTransferTimeout'),\
+                                                                requestTimeout=self.config.get('http', 'trackerRequestTimeout'),\
+                                                                maxHeaderSize=self.config.get('http', 'trackerRequestMaxHeaderSize'),\
+                                                                maxDataSize=self.config.get('http', 'trackerRequestMaxDataSize'))
         else:
             self.log.debug("Don't know own address yet, retrying in 1 minute")
             self.requestEvent = self.sched.scheduleEvent(self.announce, timedelta=60)

@@ -45,7 +45,7 @@ class RequestFailedException(HttpResponseParserException):
 
 
 class HttpResponseParser:
-    def __init__(self, addr, host, url, maxHeaderSize=1024, maxDataSize=1048576):
+    def __init__(self, addr, host, url, maxHeaderSize=4096, maxDataSize=1048576):
         self.addr = addr
         self.host = host
         self.url = url

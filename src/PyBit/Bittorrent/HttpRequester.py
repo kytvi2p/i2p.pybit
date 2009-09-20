@@ -52,8 +52,8 @@ class HttpRequester:
         
     ##internal functions - requests
         
-    def _addRequest(self, addr, host, url, maxSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout): 
-        self.log.debug('Adding request to "%s" for "%s" with maxSize "%d"', addr[:10], joinUrl(url), maxSize)
+    def _addRequest(self, addr, host, url, maxHeaderSize, maxDataSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout): 
+        self.log.debug('Adding request to "%s" for "%s" with maxHeaderSize "%d" and maxDataSize "%d"', addr[:10], joinUrl(url), maxHeaderSize, maxDataSize)
         self.requestId += 1
         
         #create conn
@@ -82,7 +82,7 @@ class HttpRequester:
         self.connsWithSendInterest.add(sockNum)
                 
         #http request obj
-        requestObj = HttpResponseParser(addr, host, url, maxDataSize=maxSize)
+        requestObj = HttpResponseParser(addr, host, url, maxHeaderSize, maxDataSize)
             
         #add to local requestDict
         self.requests[self.requestId] = {'request':requestObj,
@@ -269,7 +269,7 @@ class HttpRequester:
             
     ##external functions - requests
     
-    def makeRequest(self, url, callback, callbackArgs=[], callbackKws={}, addr=None, host=None, transferTimeout=120, requestTimeout=300, maxSize=1048576):
+    def makeRequest(self, url, callback, callbackArgs=[], callbackKws={}, addr=None, host=None, transferTimeout=120, requestTimeout=300, maxHeaderSize=4096, maxDataSize=1048576):
         if type(url) == str:
             url = splitUrl(url)
             
@@ -295,7 +295,7 @@ class HttpRequester:
         
         #finally really do the request
         self.lock.acquire()
-        requestId = self._addRequest(addr, host, url, maxSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout)
+        requestId = self._addRequest(addr, host, url, maxHeaderSize, maxDataSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout)
         self.lock.release()
         return requestId
     

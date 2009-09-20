@@ -289,6 +289,176 @@ class Network_ConfigPanel(wx.Panel):
         
         
 
+class Http_ConfigPanel(wx.Panel):
+    def __init__(self, config, parent, **kwargs):
+        wx.Panel.__init__(self, parent, **kwargs)
+        self.config = config
+        #stuff
+        vBox = wx.BoxSizer(wx.VERTICAL)
+
+        ##build up main box and sizers
+        httpBox = wx.StaticBox(self, -1, "HTTP")
+        httpBoxSizer = wx.StaticBoxSizer(httpBox, wx.VERTICAL)
+        httpBoxItems = wx.FlexGridSizer(cols = 1, vgap = 10, hgap = 5)
+
+
+        ##torrent fetch options
+        torrentFetchBox = wx.StaticBox(self, -1, "Torrent fetches")
+        torrentFetchBoxSizer = wx.StaticBoxSizer(torrentFetchBox, wx.VERTICAL)
+        torrentFetchBoxItems = wx.FlexGridSizer(cols = 2, vgap = 3, hgap = 5)
+        torrentFetchBoxItems.AddGrowableCol(0, 1)
+            
+        #retry interval
+        label = wx.StaticText(self, -1, "Retry interval (seconds):")
+        label.SetToolTipString('Waittime before retrying when a fetch fails')
+        torrentFetchBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.spin1 = wx.SpinCtrl(self, -1, size=wx.Size(115,-1))
+        self.spin1.SetRange(60, 3600)
+        self.spin1.SetValue(self.config.get('http','torrentFetchRetryInterval'))
+        self.spin1.SetToolTipString('Waittime before retrying when a fetch fails')
+        torrentFetchBoxItems.Add(self.spin1, 1)
+        
+        #transfer timeout
+        label = wx.StaticText(self, -1, "Transfer timeout (seconds):")
+        label.SetToolTipString('Maximum waittime between receiving data before the request is timed out')
+        torrentFetchBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.spin2 = wx.SpinCtrl(self, -1, size=wx.Size(115,-1))
+        self.spin2.SetRange(60, 3600)
+        self.spin2.SetValue(self.config.get('http','torrentFetchTransferTimeout'))
+        self.spin2.SetToolTipString('Maximum waittime between receiving data before the request is timed out')
+        torrentFetchBoxItems.Add(self.spin2, 1)
+        
+        #request timeout
+        label = wx.StaticText(self, -1, "Request timeout (seconds):")
+        label.SetToolTipString('Maximum total time until a request is timed out')
+        torrentFetchBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.spin3 = wx.SpinCtrl(self, -1, size=wx.Size(115,-1))
+        self.spin3.SetRange(60, 3600)
+        self.spin3.SetValue(self.config.get('http','torrentFetchRequestTimeout'))
+        self.spin3.SetToolTipString('Maximum total time until a request is timed out')
+        torrentFetchBoxItems.Add(self.spin3, 1)
+        
+        #max header size
+        label = wx.StaticText(self, -1, "Max header size (KB):")
+        label.SetToolTipString('Maximum allowed size of the http header')
+        torrentFetchBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.spin4 = wx.SpinCtrl(self, -1, size=wx.Size(115,-1))
+        self.spin4.SetRange(1, 128)
+        self.spin4.SetValue(self.config.get('http','torrentFetchMaxHeaderSize')/1024)
+        self.spin4.SetToolTipString('Maximum allowed size of the http header')
+        torrentFetchBoxItems.Add(self.spin4, 1)
+        
+        #max header size
+        label = wx.StaticText(self, -1, "Max data size (KB):")
+        label.SetToolTipString('Maximum allowed size of the data part of the http request')
+        torrentFetchBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.spin5 = wx.SpinCtrl(self, -1, size=wx.Size(115,-1))
+        self.spin5.SetRange(128, 1048576)
+        self.spin5.SetValue(self.config.get('http','torrentFetchMaxDataSize')/1024)
+        self.spin5.SetToolTipString('Maximum allowed size of the data part of the http request')
+        torrentFetchBoxItems.Add(self.spin5, 1)
+        
+        #add item sizer to box sizer
+        torrentFetchBoxSizer.Add(torrentFetchBoxItems, 1, wx.EXPAND | wx.ALL, border = 5)
+        
+        
+        ##tracker request options
+        trackerRequestBox = wx.StaticBox(self, -1, "Tracker requests")
+        trackerRequestBoxSizer = wx.StaticBoxSizer(trackerRequestBox, wx.VERTICAL)
+        trackerRequestBoxItems = wx.FlexGridSizer(cols = 2, vgap = 3, hgap = 5)
+        trackerRequestBoxItems.AddGrowableCol(0, 1)
+        
+        #transfer timeout
+        label = wx.StaticText(self, -1, "Transfer timeout (seconds):")
+        label.SetToolTipString('Maximum waittime between receiving data before the request is timed out')
+        trackerRequestBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.spin6 = wx.SpinCtrl(self, -1, size=wx.Size(115,-1))
+        self.spin6.SetRange(60, 3600)
+        self.spin6.SetValue(self.config.get('http','trackerRequestTransferTimeout'))
+        self.spin6.SetToolTipString('Maximum waittime between receiving data before the request is timed out')
+        trackerRequestBoxItems.Add(self.spin6, 1)
+        
+        #request timeout
+        label = wx.StaticText(self, -1, "Request timeout (seconds):")
+        label.SetToolTipString('Maximum total time until a request is timed out')
+        trackerRequestBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.spin7 = wx.SpinCtrl(self, -1, size=wx.Size(115,-1))
+        self.spin7.SetRange(60, 3600)
+        self.spin7.SetValue(self.config.get('http','trackerRequestTimeout'))
+        self.spin7.SetToolTipString('Maximum total time until a request is timed out')
+        trackerRequestBoxItems.Add(self.spin7, 1)
+        
+        #max header size
+        label = wx.StaticText(self, -1, "Max header size (KB):")
+        label.SetToolTipString('Maximum allowed size of the http header')
+        trackerRequestBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.spin8 = wx.SpinCtrl(self, -1, size=wx.Size(115,-1))
+        self.spin8.SetRange(1, 128)
+        self.spin8.SetValue(self.config.get('http','trackerRequestMaxHeaderSize')/1024)
+        self.spin8.SetToolTipString('Maximum allowed size of the http header')
+        trackerRequestBoxItems.Add(self.spin8, 1)
+        
+        #max header size
+        label = wx.StaticText(self, -1, "Max data size (KB):")
+        label.SetToolTipString('Maximum allowed size of the data part of the http request')
+        trackerRequestBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.spin9 = wx.SpinCtrl(self, -1, size=wx.Size(115,-1))
+        self.spin9.SetRange(128, 1048576)
+        self.spin9.SetValue(self.config.get('http','trackerRequestMaxDataSize')/1024)
+        self.spin9.SetToolTipString('Maximum allowed size of the data part of the http request')
+        trackerRequestBoxItems.Add(self.spin9, 1)
+        
+        #add item sizer to box sizer
+        trackerRequestBoxSizer.Add(trackerRequestBoxItems, 1, wx.EXPAND | wx.ALL, border = 5)
+        
+        
+        ##build up comment box 
+        commentBox = wx.StaticBox(self, -1, "Note")
+        commentBoxSizer = wx.StaticBoxSizer(commentBox, wx.VERTICAL)
+        commentLabel = wx.StaticText(self, -1, 'Request timeouts are not changed for already running requests, so'+\
+                                               ' keep that in mind before configuring very long timeouts,\n'+\
+                                               'The same applies to the request interval.')
+        commentBoxSizer.Add(commentLabel, 1, flag = wx.EXPAND | wx.ALL, border = 5)
+
+
+        ##build up i2p box
+        httpBoxItems.Add(torrentFetchBoxSizer, 1, wx.EXPAND | wx.ALL, border = 0)
+        httpBoxItems.Add(trackerRequestBoxSizer, 1, wx.EXPAND | wx.ALL, border = 0)
+        httpBoxItems.Add(commentBoxSizer, 1, wx.EXPAND | wx.ALL, border = 0)
+        httpBoxItems.AddGrowableCol(0, 1)
+        httpBoxItems.AddGrowableRow(2, 1)
+        httpBoxSizer.Add(httpBoxItems, 1, wx.EXPAND | wx.ALL, border = 0)
+
+
+        ##line everything up
+        vBox.Add(httpBoxSizer, 1, wx.EXPAND | wx.ALL, border = 2)
+        self.SetSizer(vBox)
+        self.Layout()
+        
+
+    def saveConfig(self, optionDict):
+        optionDict[('http', 'torrentFetchRetryInterval')] = self.spin1.GetValue()
+        optionDict[('http', 'torrentFetchTransferTimeout')] = self.spin2.GetValue()
+        optionDict[('http', 'torrentFetchRequestTimeout')] = self.spin3.GetValue()
+        optionDict[('http', 'torrentFetchMaxHeaderSize')] = self.spin4.GetValue() * 1024
+        optionDict[('http', 'torrentFetchMaxDataSize')] = self.spin5.GetValue() * 1024
+        optionDict[('http', 'trackerRequestTransferTimeout')] = self.spin6.GetValue()
+        optionDict[('http', 'trackerRequestTimeout')] = self.spin7.GetValue()
+        optionDict[('http', 'trackerRequestMaxHeaderSize')] = self.spin8.GetValue() * 1024
+        optionDict[('http', 'trackerRequestMaxDataSize')] = self.spin9.GetValue() * 1024
+        
+        
+        
+        
 class I2P_ConfigPanel(wx.Panel):
     def __init__(self, config, parent, **kwargs):
         wx.Panel.__init__(self, parent, **kwargs)
@@ -740,7 +910,8 @@ class ConfigDialog(wx.Frame):
         n10 = self.tree.AppendItem(root, "Choker")
         n20 = self.tree.AppendItem(root, "Logging")
         n30 = self.tree.AppendItem(root, "Network")
-        n31 = self.tree.AppendItem(n30,  "I2P")
+        n31 = self.tree.AppendItem(n30,  "Http")
+        n32 = self.tree.AppendItem(n30,  "I2P")
         n40 = self.tree.AppendItem(root, "Paths")
         n50 = self.tree.AppendItem(root, "Requester")
         n60 = self.tree.AppendItem(root, "Storage")
@@ -749,6 +920,7 @@ class ConfigDialog(wx.Frame):
         self.tree.Expand(n20)
         self.tree.Expand(n30)
         self.tree.Expand(n31)
+        self.tree.Expand(n32)
         self.tree.Expand(n40)
         self.tree.Expand(n50)
         self.tree.Expand(n60)
@@ -775,6 +947,7 @@ class ConfigDialog(wx.Frame):
         self.configPanels = {'Choker':Choker_ConfigPanel(self.config, self),\
                              'Logging':Logging_ConfigPanel(self.config, self),\
                              'Network':Network_ConfigPanel(self.config, self),\
+                             'Http':Http_ConfigPanel(self.config, self),\
                              'I2P':I2P_ConfigPanel(self.config, self),\
                              'Paths':Paths_ConfigPanel(self.config, self),\
                              'Requester':Requester_ConfigPanel(self.config, self),\
@@ -782,7 +955,7 @@ class ConfigDialog(wx.Frame):
         self.activePanel = 'Choker'
         
         for panelName in self.configPanels.keys():
-            if not panelName==self.activePanel:
+            if not panelName == self.activePanel:
                 self.configPanels[panelName].Hide()
             self.hBox.Add(self.configPanels[panelName], 1, wx.EXPAND)
 
@@ -824,6 +997,15 @@ if __name__ == "__main__":
                                 'randomSlotRatio':(0.1, 'float'),
                                 'maxSlots':(10, 'int'),
                                 'slotLimitScope':('global', 'str')},
+                      'http':{'torrentFetchRetryInterval':(60, 'int'),
+                                  'torrentFetchTransferTimeout':(120, 'int'),
+                                  'torrentFetchRequestTimeout':(600, 'int'),
+                                  'torrentFetchMaxHeaderSize':(4096, 'int'),
+                                  'torrentFetchMaxDataSize':(1048576, 'int'),
+                                  'trackerRequestTransferTimeout':(120, 'int'),
+                                  'trackerRequestTimeout':(300, 'int'),
+                                  'trackerRequestMaxHeaderSize':(4096, 'int'),
+                                  'trackerRequestMaxDataSize':(1048576, 'int')},
                       'i2p':{'samIp':('127.0.0.1', 'ip'),
                              'samPort':(7656, 'port'),
                              'samDisplayName':('PyBit', 'str'),
