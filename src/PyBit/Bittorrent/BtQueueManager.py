@@ -177,7 +177,7 @@ class BtQueueManager:
                 #not yet on the queue
                 self.queue.setAdd('torrentUrl', torrentUrlStr)
                 self.log.debug('Torrent %i: creating http fetch class', torrentId)
-                httpFetchObj = TorrentHttpFetch(self.config, self.eventSched, self.httpRequester, 'Bt'+str(torrentId), torrentUrlSplit, torrentUrlStr, self.finishedFetch, [torrentId])
+                httpFetchObj = TorrentHttpFetch(self.config, self.eventSched, self.httpRequester, self.inRate, self.outRate, 'Bt'+str(torrentId), torrentUrlSplit, torrentUrlStr, self.finishedFetch, [torrentId])
             
         return failureMsg, httpFetchObj
     
@@ -210,7 +210,7 @@ class BtQueueManager:
                 #modify info
                 del info['url']
                 info['type'] = 'bt'
-                self.queue.setInfo(queueId, info)
+                self.queue.infoSet(queueId, info)
         return failureMsg
     
     

@@ -22,10 +22,11 @@ import threading
 
 ##own
 from Logger import Logger
+from Measure import Measure
 
 
 class TorrentHttpFetch:
-    def __init__(self, config, eventSched, httpRequester, torrentIdent, url, urlStr, resultFunc, resultFuncArgs):
+    def __init__(self, config, eventSched, httpRequester, pInMeasure, pOutMeasure, torrentIdent, url, urlStr, resultFunc, resultFuncArgs):
         ##given stuff
         self.config = config
         self.eventSched = eventSched
@@ -39,9 +40,21 @@ class TorrentHttpFetch:
         ##own stuff
         self.log = Logger('Bt', '%-6s - ', self.torrentIdent)
         
+        #measure
+        self.log.debug("Creating measure classes")
+        self.inRate = Measure(eventSched, 60, [pInMeasure])
+        self.outRate = Measure(eventSched, 60, [pOutMeasure])
+        self.inRate.stop()
+        
+        #requests
         self.fetchTries = 0
         self.requestId = None
         self.eventId = None
+        
+        #stats
+        self.recvBytes = 0
+        self.sendBytes = 0
+        self.gotData = 0
         
         ##status
         self.state = 'stopped'
@@ -51,7 +64,7 @@ class TorrentHttpFetch:
         self.lock = threading.Lock()
         
         
-    ##internal functions - state
+    ##internal functions - requesting
     
     def _fetch(self):
         self.requestId = self.httpRequester.makeRequest(self.url, self.finishedFetch,\
@@ -61,14 +74,34 @@ class TorrentHttpFetch:
                                                         maxDataSize=self.config.get('http', 'torrentFetchMaxDataSize'))
         self.fetchTries += 1
         self.state = 'fetching (%i. attempt)' % (self.fetchTries,)
+        self.recvBytes = 0
+        self.sendBytes = 0
+        self.gotData = 0
+        
+        
+    ##internal functions - state
+        
+    def _start(self):
+        self.log.debug("Starting transfer measurement")
+        self.inRate.start()
+        self.outRate.start()
+        
+        self.log.debug("Starting request")
+        self._fetch()
         
         
     def _halt(self):
+        self.log.debug("Stopping transfer measurement")
+        self.inRate.stop()
+        self.outRate.stop()
+        
         if self.requestId is not None:
+            self.log.debug("Aborting request")
             self.httpRequester.abortRequest(self.requestId)
             self.requestId = None
             
         if self.eventId is not None:
+            self.log.debug("Aborting scheduled request")
             self.eventSched.removeEvent(self.eventId)
         
         
@@ -78,7 +111,7 @@ class TorrentHttpFetch:
         #called when torrent is started
         self.lock.acquire()
         if not self.running:
-            self._fetch()
+            self._start()
             self.running = True
         self.lock.release()
         
@@ -97,6 +130,7 @@ class TorrentHttpFetch:
         #called on shutdown
         self.lock.acquire()
         if self.running:
+            self._halt()
             self.running = False
             self.state = 'stopped'
         self.lock.release()
@@ -106,6 +140,7 @@ class TorrentHttpFetch:
         #called when torrent is removed
         self.lock.acquire()
         if self.running:
+            self._halt()
             self.running = False
             self.state = 'stopped'
         self.lock.release()
@@ -157,8 +192,81 @@ class TorrentHttpFetch:
         self.lock.acquire()
         stats = {}
         
+        #get progress info
+        if self.requestId is None:
+            progress = None
+        else:
+            progress = self.httpRequester.getRequestProgress(self.requestId)
+            
+            #update send bytes
+            sendBytes = progress['sendBytes'] - self.sendBytes
+            if sendBytes > 0:
+                self.sendBytes = progress['sendBytes']
+                self.outRate.updateRate(sendBytes)
+                
+            #update got bytes
+            recvBytes = progress['recvBytes'] - self.recvBytes
+            if recvBytes > 0:
+                self.recvBytes = progress['recvBytes']
+                self.inRate.updateRate(recvBytes)
+                
+            #update payload
+            gotPayload = progress['dataSize'] - self.gotData
+            if gotPayload > 0:
+                self.gotData = progress['dataSize']
+                self.inRate.updatePayloadCounter(gotPayload)
+        
+        
+        ##supported stats (at least partially)
+        
+        #state
         if wantedStats.get('state', False):
             stats['state'] = self.state
+        
+        #progress stats
+        if wantedStats.get('progress', False):
+            if progress is not None:
+                stats['progressBytes'] = progress['dataSize']
+                stats['progressPercent'] = (progress['dataSize'] * 100.0) / max(progress['maxDataSize'], 1.0)
+            else:
+                stats['progressBytes'] = 0
+                stats['progressPercent'] = 0.0
+            
+        #transfer stats
+        if wantedStats.get('transfer', False):
+            stats['inRawBytes'] = self.inRate.getTotalTransferedBytes()
+            stats['outRawBytes'] = self.outRate.getTotalTransferedBytes()
+            stats['inPayloadBytes'] = self.inRate.getTotalTransferedPayloadBytes()
+            stats['outPayloadBytes'] = self.outRate.getTotalTransferedPayloadBytes()
+            stats['inRawSpeed'] = self.inRate.getCurrentRate()
+            stats['outRawSpeed'] = self.outRate.getCurrentRate()
+            stats['protocolOverhead'] = (100.0 * (stats['inRawBytes'] + stats['outRawBytes'] - stats['inPayloadBytes'] - stats['outPayloadBytes'])) / max(stats['inPayloadBytes'] + stats['outPayloadBytes'], 1.0)
+        
+        if wantedStats.get('transferAverages', False):
+            stats['avgInRawSpeed'] = self.inRate.getAverageRate() * 1024
+            stats['avgOutRawSpeed'] = self.outRate.getAverageRate() * 1024
+            stats['avgInPayloadSpeed'] = self.inRate.getAveragePayloadRate() * 1024
+            stats['avgOutPayloadSpeed'] = self.outRate.getAveragePayloadRate() * 1024
+            
+        #torrent stats
+        if wantedStats.get('torrent', False):
+            if progress is not None:
+                stats['torrentSize'] = progress['maxDataSize']
+            else:
+                stats['torrentSize'] = 0
+            stats['torrentName'] = self.urlStr
+            stats['torrentCreator'] = ''
+            stats['torrentCreationDate'] = 0
+            stats['torrentComment'] = ''
+            stats['torrentHash'] = ''
+            stats['trackerAmount'] = 0
+            stats['fileAmount'] = 0
+            stats['pieceAmount'] = 0
+            stats['pieceLength'] = 0
+            stats['superSeeding'] = False
+            
+            
+        ##unsupported stats
         
         #connections
         if wantedStats.get('connections', False):
@@ -173,11 +281,6 @@ class TorrentHttpFetch:
             stats['connectedPeers'] = 0
             stats['knownPeers'] = 0
             
-        #progress stats
-        if wantedStats.get('progress', False):
-            stats['progressBytes'] = 0
-            stats['progressPercent'] = 0.0
-                    
         #requests
         if wantedStats.get('requests', False):
             stats['requests'] = []
@@ -185,36 +288,6 @@ class TorrentHttpFetch:
         #tracker
         if wantedStats.get('tracker', False):
             stats['tracker'] = []
-            
-        #transfer stats
-        if wantedStats.get('transfer', False):
-            stats['inRawBytes'] = 0
-            stats['outRawBytes'] = 0
-            stats['inPayloadBytes'] = 0
-            stats['outPayloadBytes'] = 0
-            stats['inRawSpeed'] = 0.0
-            stats['outRawSpeed'] = 0.0
-            stats['protocolOverhead'] = 0.0
-            
-        if wantedStats.get('transferAverages', False):
-            stats['avgInRawSpeed'] = 0.0
-            stats['avgOutRawSpeed'] = 0.0
-            stats['avgInPayloadSpeed'] = 0.0
-            stats['avgOutPayloadSpeed'] = 0.0
-            
-        #torrent stats
-        if wantedStats.get('torrent', False):
-            stats['torrentName'] = self.urlStr
-            stats['torrentSize'] = 0
-            stats['torrentCreator'] = ''
-            stats['torrentCreationDate'] = 0
-            stats['torrentComment'] = ''
-            stats['torrentHash'] = ''
-            stats['trackerAmount'] = 0
-            stats['fileAmount'] = 0
-            stats['pieceAmount'] = 0
-            stats['pieceLength'] = 0
-            stats['superSeeding'] = False
             
         self.lock.release()
         return stats

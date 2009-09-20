@@ -52,6 +52,9 @@ class HttpResponseParser:
         self.userHeaderSizeLimit = maxHeaderSize
         self.userDataSizeLimit = maxDataSize
         
+        #raw data
+        self.gotRawBytes = 0
+        
         #data
         self.header = None
         self.data = None
@@ -287,6 +290,8 @@ class HttpResponseParser:
         self._storeData(data)
         if self.dataSize == self.maxDataSize:
             self.finished = True
+        elif self.dataSize > self.maxDataSize:
+            raise InvalidResponseException('Received more data then expected: got %i but expected %i!', self.dataSize, self.maxDataSize)
         return ''
     
     
@@ -401,6 +406,8 @@ class HttpResponseParser:
     
         
     def handleData(self, data):
+        self.gotRawBytes += len(data)
+        
         while len(data) > 0:
             #go on until no data is left or a failure occured
             if self.step == 'header':
@@ -432,3 +439,10 @@ class HttpResponseParser:
     
     def getData(self):
         return self._getData()
+    
+    
+    def getProgress(self):
+        progress = {'recvBytes':self.gotRawBytes,
+                    'dataSize':self.dataSize,
+                    'maxDataSize':self.maxDataSize}
+        return progress

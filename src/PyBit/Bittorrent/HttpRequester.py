@@ -70,6 +70,7 @@ class HttpRequester:
         self.conns[sockNum] = {'sock':sock,
                                'connected':False,
                                'outBuffer':None,
+                               'sendBytes':0,
                                'transferTimeout':transferTimeout,
                                'transferTimeoutEvent':transferTimeoutEvent,
                                'requestTimeout':requestTimeout,
@@ -90,7 +91,8 @@ class HttpRequester:
                                          'callbackArgs':callbackArgs,
                                          'callbackKws':callbackKws,
                                          'connId':sockNum}
-                                        
+        return self.requestId
+    
     
     def _removeRequest(self, requestId):
         requestSet = self.requests[requestId]
@@ -172,6 +174,7 @@ class HttpRequester:
             data = connSet['outBuffer']
             dataLen = len(data)
             sendBytes = connSet['sock'].send(data)
+            connSet['sendBytes'] += sendBytes
             
             self.log.debug('Request to "%s": send %d bytes of request', connSet['sock'].getpeername()[:10], sendBytes)
             
@@ -305,6 +308,17 @@ class HttpRequester:
         if requestId in self.requests:
             self._removeRequest(requestId)
         self.lock.release()
+        
+        
+    def getRequestProgress(self, requestId):
+        self.lock.acquire()
+        progress = None
+        if requestId in self.requests:
+            request = self.requests[requestId]
+            progress = request['request'].getProgress()
+            progress['sendBytes'] = self.conns[request['connId']]['sendBytes']
+        self.lock.release()
+        return progress
         
         
     ##external functions - other
