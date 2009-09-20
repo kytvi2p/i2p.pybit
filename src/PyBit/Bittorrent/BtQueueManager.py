@@ -200,15 +200,17 @@ class BtQueueManager:
             failureMsg, btObj = self._getBtObj(queueId, info['dataPath'])
             
             if failureMsg is None:
-                #remove old job
-                self._removeJob(queueId)
+                #replace obj
+                self.queueJobs[queueId].shutdown()
+                self.queueJobs[queueId] = btObj
+                
+                #remove url from set
+                self.queue.setRemove('torrentUrl', info['url'])
                 
                 #modify info
                 del info['url']
                 info['type'] = 'bt'
-                
-                #add new job
-                self._addJob(queueId, info, btObj)
+                self.queue.setInfo(queueId, info)
         return failureMsg
     
     
