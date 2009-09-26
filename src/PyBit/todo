@@ -11,6 +11,9 @@ General
 Classes
 -----------------------
 
+Config:
+- prevent deadlocks because of calling callbacks within the write lock
+
 Gui:
 - if multiple torrents get added and a few ones fail, show one message with the information for all failures, not one message per failure
 

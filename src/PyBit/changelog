@@ -87,6 +87,7 @@ Blub:
 
 0.1.0 - 17.03.2009
 -----------------------
+Blub:
 - splitted "Bittorrent.Connection" up into the class "Connection" (basic socket stuff) and "BtConnection" (bittorrent stuff)
 - improved "Bittorrent.BtConnection": added request timeout (120 seconds for one request, thats more then plenty!)
 - improved "ObjectPersister": added support for removing keys and getting a list of all keys or all matching a certain regex (needed for managing per-torrent persisted data); ensured that all queued jobs get processed before stop() returns
