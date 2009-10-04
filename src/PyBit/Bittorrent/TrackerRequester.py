@@ -25,6 +25,7 @@ import threading
 from Bencoding import bdecode
 from HttpUtilities import joinUrl, splitUrl
 from Logger import Logger
+from TrackerInfo import TrackerInfo
 from Utilities import logTraceback
 
 
@@ -46,88 +47,27 @@ class TrackerRequester:
         self.torrent = torrent
         self.torrentIdent = torrentIdent
         
-        #tracker
+        #tracker - announce
         self.event = None
         self.requestEvent = None
         self.httpRequestId = None
         
+        #tracker - scrape
+        self.scrapeEvent = None
+        self.httpScrapeRequests = {}
+        
+        #tracker - checks
         self.i2pHostChecker = re.compile('^([A-Za-z0-9\-~]{512,512}AAAA)(.i2p){0,1}$')
-        self.trackerInfos, self.trackerTiers = self._processTrackerList()
+        
+        #tracker - info
+        self.trackerInfo = TrackerInfo(self.torrent)
         
         #other
         self.paused = False
         self.stopped = False
         self.log = Logger('TrackerRequester', '%-6s - ', torrentIdent)
         self.lock = threading.Lock()
-        
-    
-    ##internal functions - tracker
-    
-    def _processTrackerList(self):
-        tracker = self.torrent.getTrackerList()
-        trackerList = {}
-        prioList = []
-        
-        tierNum = 0
-        trackerId = 0
-        
-        for tier in tracker:
-            #tier
-            prioList.append([])
-            for trackerUrl in tier:
-                #single tracker url
-                prioList[tierNum].append(trackerId)
-                trackerList[trackerId] = {'url':splitUrl(trackerUrl),
-                                          'logUrl':trackerUrl,
-                                          'tier':tierNum,
-                                          'id':trackerId}
-                trackerId += 1
-            tierNum += 1
-            
-        return trackerList, prioList
-    
-    
-    def _getFirstTracker(self):
-        return self.trackerInfos[0]
-    
-    
-    def _getNextTracker(self, trackerId):
-        tierId = self.trackerInfos[trackerId]['tier']
-        tier = self.trackerTiers[tierId]
-        place = tier.index(trackerId)
-        
-        #get next tracker id
-        if place < len(tier)-1:
-            #just get next tracker from tier
-            nextTrackerId = tier[place+1]
-        
-        elif tierId < len(self.trackerTiers)-1:
-            #last of tier, but there are backup tiers
-            nextTrackerId = self.trackerTiers[tierId+1][0]
-            
-        else:
-            #the last tracker
-            nextTrackerId = None
-            
-        if nextTrackerId is None:
-            #that was the last available tracker
-            nextTracker = None
-        else:
-            #get tracker info
-            nextTracker = self.trackerInfos[nextTrackerId]
-            
-        return nextTracker
-    
-    
-    def _markTrackerSuccessfull(self, trackerId):
-        tierId = self.trackerInfos[trackerId]['tier']
-        tier = self.trackerTiers[tierId]
-        place = tier.index(trackerId)
-        
-        if place > 0:
-            del tier[place]
-            tier.insert(0, trackerId)
-            
+          
     
     ##internal functions - tracker requests
         
@@ -163,7 +103,8 @@ class TrackerRequester:
     def _makeRequest(self, trackerSet):
         url = self._createAnnounceUrl(trackerSet['url'])
         if url is not None:
-            self.httpRequestId = self.httpRequester.makeRequest(url, self.finishedRequest, callbackArgs=[trackerSet['id'], self.event],
+            self.httpRequestId = self.httpRequester.makeRequest(url, self.finishedRequest,
+                                                                callbackArgs=[trackerSet, self.event],
                                                                 transferTimeout=self.config.get('http', 'trackerRequestTransferTimeout'),\
                                                                 requestTimeout=self.config.get('http', 'trackerRequestTimeout'),\
                                                                 maxHeaderSize=self.config.get('http', 'trackerRequestMaxHeaderSize'),\
@@ -238,8 +179,7 @@ class TrackerRequester:
         return valid
     
     
-    def _finishedRequest(self, response, trackerId, event):
-        trackerSet = self.trackerInfos[trackerId]
+    def _finishedRequest(self, response, trackerSet, event):
         success = response['success']
         
         if success:
@@ -250,7 +190,7 @@ class TrackerRequester:
         if success and valid:
             #request was a success
             self.log.debug('Request to tracker "%s" succeeded', trackerSet['logUrl'])
-            self._markTrackerSuccessfull(trackerId)
+            self.trackerInfo.markSuccessful(trackerSet['id'])
             
             if self.paused and event!='stop':
                 #got paused - need to send stop event
@@ -276,7 +216,7 @@ class TrackerRequester:
                 reason = 'invalid response'
                 
             self.log.debug('Request to tracker "%s" failed: %s', trackerSet['logUrl'], reason)
-            nextTracker = self._getNextTracker(trackerId)
+            nextTracker = self.trackerInfo.getNext(trackerSet['id'])
             if nextTracker is None:
                 #try again after some time
                 if success:
@@ -343,17 +283,17 @@ class TrackerRequester:
         self.requestEvent = None
         if not self.stopped:
             self.log.debug("Announcing")
-            self._makeRequest(self._getFirstTracker())
+            self._makeRequest(self.trackerInfo.getFirst())
         else:
             self.log.debug("Race condition - ignoring announce")
         self.lock.release()
         
         
-    def finishedRequest(self, response, trackerId, event):
+    def finishedRequest(self, response, trackerSet, event):
         self.lock.acquire()
         self.httpRequestId = None
         if not self.stopped:
-            self._finishedRequest(response, trackerId, event)
+            self._finishedRequest(response, trackerSet, event)
         self.lock.release()
         
     
@@ -387,13 +327,6 @@ class TrackerRequester:
         
     def getStats(self):
         self.lock.acquire()
-        stats = []
-        for tierNum, tier in enumerate(self.trackerTiers):
-            for trackerNum, trackerId in enumerate(tier):
-                tracker = self.trackerInfos[trackerId]
-                stats.append({'tier':tierNum + 1,
-                              'tierPos':trackerNum + 1,
-                              'trackerUrl':tracker['logUrl'],
-                              'trackerId':trackerId})
+        stats = self.trackerInfo.getStats()
         self.lock.release()
         return stats
