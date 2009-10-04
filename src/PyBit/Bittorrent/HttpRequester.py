@@ -136,7 +136,8 @@ class HttpRequester:
         self._removeRequest(requestId)
         
         #call callback
-        result = {'success':True,
+        result = {'id':requestId,
+                  'success':True,
                   'data':data,
                   'header':header}
         self._reportRequestResult(requestSet, result)
@@ -148,7 +149,8 @@ class HttpRequester:
         self.log.debug('Request to "%s": failed (reason: %s)', connSet['sock'].getpeername()[:10], reason)
         
         self._removeRequest(requestId)
-        result = {'success':False,
+        result = {'id':requestId,
+                  'success':False,
                   'header':header,
                   'failureMsg':reason}
         self._reportRequestResult(requestSet, result)

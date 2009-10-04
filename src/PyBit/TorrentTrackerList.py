@@ -27,9 +27,12 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
         
         #Syntax: NameOfColumn, NameOfStat, DataType, ColumnWidth
         cols = [('Id', 'trackerId', 'int', 75, False),\
-                ('Tier', 'tier', 'int', 75, False),\
-                ('Pos In Tier', 'tierPos', 'int', 75, False),\
-                ('Url', 'trackerUrl', 'native', 700, True)]
+                ('Tier', 'tier', 'int', 75, True),\
+                ('Pos In Tier', 'tierPos', 'int', 75, True),\
+                ('Url', 'trackerUrl', 'native', 700, True),\
+                ('Seeds', 'seeds', 'int', 75, True),\
+                ('Leeches', 'leeches', 'int', 75, True),\
+                ('Downloads', 'downloads', 'int', 75, True)]
        
         self.rawUpdateFunc = rawUpdateFunc
         PersistentVirtualListCtrl.__init__(self, persister, 'TorrentTrackerList-', self._updatePerstData, version,

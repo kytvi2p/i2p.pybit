@@ -1028,7 +1028,8 @@ if __name__ == "__main__":
                                'downloadFolder':(u'/tmp', 'unicode')},
                       'requester':{'strictAvailabilityPrio':(True, 'bool')},
                       'storage':{'persistPieceStatus':(True, 'bool'),
-                                 'skipFileCheck':(False, 'bool')}}
+                                 'skipFileCheck':(False, 'bool')},
+                      'tracker':{'scrapeTrackers':('one', 'string')}}
                                     
     #create config, add bt defaults
     config = Config('config.conf', configDefaults=configDefaults)

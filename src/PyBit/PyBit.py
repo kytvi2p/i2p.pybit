@@ -89,7 +89,8 @@ class PyBit:
                                    'downloadFolder':(self.progPath, 'unicode')},
                           'requester':{'strictAvailabilityPrio':(True, 'bool')},
                           'storage':{'persistPieceStatus':(True, 'bool'),
-                                     'skipFileCheck':(False, 'bool')}}
+                                     'skipFileCheck':(False, 'bool')},
+                          'tracker':{'scrapeTrackers':('one', 'string')}}
                                     
         self.config = Config(os.path.join(self.progPath, u'config.conf'), configDefaults=configDefaults)
         
