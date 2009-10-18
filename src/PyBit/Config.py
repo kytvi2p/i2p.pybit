@@ -85,7 +85,6 @@ class Config:
             fl = open(self.configFile, 'wb')
             with fl:
                 self.config.write(fl)
-                fl.close()
         except:
             self.log.warn("Failed to write to config file!")
             
