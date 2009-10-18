@@ -56,8 +56,8 @@ class Config:
         self._writeConfig()
         
         #main lock
-        self.readLock = threading.RLock()
-        self.writeLock = threading.RLock()
+        self.stdLock = threading.RLock()
+        self.execLock = threading.RLock()
         
         
     ##internal functions - config file
@@ -274,35 +274,32 @@ class Config:
     ##external functions - defaults
     
     def addDefaults(self, configDefaults):
-        with self.writeLock:
-            with self.readLock:
-                self._addDefaults(configDefaults)
-                self._setDefaults(configDefaults)
+        with self.stdLock:
+            self._addDefaults(configDefaults)
+            self._setDefaults(configDefaults)
         
         
     ##external functions - callbacks
     
     def addCallback(self, options, func, funcArgs=[], funcKw={}, valueArgPlace=0, callType='value-funcArgSingle', optionTranslationTable={}, callWithAllOptions=False):
-        with self.writeLock:
-            with self.readLock:
-                return self.callbackManager.addCallback(options, func, funcArgs, funcKw, valueArgPlace, callType, optionTranslationTable, callWithAllOptions)
+        with self.stdLock:
+            return self.callbackManager.addCallback(options, func, funcArgs, funcKw, valueArgPlace, callType, optionTranslationTable, callWithAllOptions)
     
     
     def removeCallback(self, callbackId):
-        with self.writeLock:
-            with self.readLock:
-                self.callbackManager.removeCallback(callbackId)
+        with self.stdLock:
+            self.callbackManager.removeCallback(callbackId)
         
         
     ##external functions - checks
         
     def hasSection(self, section):
-        with self.readLock:
+        with self.stdLock:
             return self.config.has_section(section)
     
     
     def hasOption(self, section, option):
-        with self.readLock:
+        with self.stdLock:
             return self.config.has_option(section, option)
     
         
@@ -310,36 +307,36 @@ class Config:
     
     
     def get(self, section, name):
-        with self.readLock:
+        with self.stdLock:
             result = self.config.get(section, name)
             result = self._decodeOptionData(section, name, result)
         return result
     
     def getStr(self, section, name):
-        with self.readLock:
+        with self.stdLock:
             return self.config.get(section, name)
     
 
     def getInt(self, section, name):
-        with self.readLock:
+        with self.stdLock:
             return int(self.config.get(section, name))
     
 
     def getBool(self, section, name):
-        with self.readLock:
+        with self.stdLock:
             return (self.config.get(section, name).lower() == 'true')
     
 
     def getFloat(self, section, name):
-        with self.readLock:
+        with self.stdLock:
             return float(self.config.get(section, name))
         return result
     
 
     def set(self, section, name, value, quiet=False):
         #set value
-        with self.writeLock:
-            with self.readLock:
+        with self.execLock:
+            with self.stdLock:
                 shouldExec = False
                 if not self._checkDecodedData(section, name, value):
                     if not quiet:
@@ -354,13 +351,16 @@ class Config:
             
             #execute callbacks outside of read lock
             if shouldExec:
-                self.callbackManager.execCallbacks({(section, name):value})
-
+                execJobs = self.callbackManager.execCallbacks({(section, name):value})
+                for func, funcArgs, funcKw in execJobs:
+                    self.log.debug('Calling function "%s" with arguments "%s" and keywords "%s"',
+                                   func, funcArgs, funcKw)
+                    apply(func, funcArgs, funcKw)
         
         
     def setMany(self, options, quiet=False):
-        with self.writeLock:
-            with self.readLock:
+        with self.execLock:
+            with self.stdLock:
                 changedOptions = {}
                 #check which options changed (and if they have the right type)
                 for option, value in options.iteritems():
@@ -386,11 +386,17 @@ class Config:
                 if len(changedOptions) > 0:
                     self._writeConfig()
             
-            #call callbacks if necessary
-            if len(changedOptions) > 0:
-                #some options were really changed
-                self.callbackManager.execCallbacks(changedOptions)
-                
+                #get callbacks which need to be called
+                if len(changedOptions) == 0:
+                    execJobs = []
+                else:
+                    execJobs = self.callbackManager.execCallbacks(changedOptions)
+            
+            #call callbacks
+            for func, funcArgs, funcKw in execJobs:
+                self.log.debug('Calling function "%s" with arguments "%s" and keywords "%s"',
+                               func, funcArgs, funcKw)
+                apply(func, funcArgs, funcKw)
         
         
         
@@ -448,6 +454,8 @@ class ConfigCallbackManager:
             self.log.debug('Got changed option in section "%s" with name "%s" and new value "%s"',
                            option[0], option[1], value[1])
                         
+        execJobs = []
+        
         #build map
         callbackMapping = defaultdict(dict)
         for option, value in changedOptions.iteritems():
@@ -465,7 +473,9 @@ class ConfigCallbackManager:
             callbackSet = self.callbackObjs[callbackId]
             if callbackSet['callWithAllOptions']:
                 self._fillOptionDict(callbackSet['options'], options)
-            callbackSet['callback'].call(options)
+            execJobs.extend(callbackSet['callback'].call(options))
+            
+        return execJobs
         
         
         
@@ -488,13 +498,15 @@ class ConfigCallback:
         return sortedValues
         
         
-    def _execFunction(self, func, funcArgs, funcKw):
-        self.log.debug('Calling function "%s" with arguments "%s" and keywords "%s"',
-                       str(func), str(funcArgs), str(funcKw))
-        apply(func, funcArgs, funcKw)
+    #def _execFunction(self, func, funcArgs, funcKw):
+    #    self.log.debug('Calling function "%s" with arguments "%s" and keywords "%s"',
+    #                   str(func), str(funcArgs), str(funcKw))
+    #    apply(func, funcArgs, funcKw)
         
         
     def call(self, changedOptions):
+        execJobs = []
+        
         for option, value in changedOptions.iteritems():
             self.log.debug('Got option in section "%s" with name "%s" and value "%s"',
                            option[0], option[1], value)
@@ -504,12 +516,12 @@ class ConfigCallback:
             #call callback with value of one changed option as argument
             for value in changedOptions.itervalues():
                 funcArgs = self.funcArgs[:self.valueArgPlace] + [value] + self.funcArgs[self.valueArgPlace:]
-                self._execFunction(self.func, funcArgs, self.funcKw)
+                execJobs.append((self.func, funcArgs, self.funcKw))
                 
         elif self.callType == 'value-funcArgAll':
             #call callback with values of all changed options as arguments
             funcArgs = self.funcArgs[:self.valueArgPlace] + self._getSortedOptionValues(changedOptions) + self.funcArgs[self.valueArgPlace:]
-            self._execFunction(self.func, funcArgs, self.funcKw)
+            execJobs.append((self.func, funcArgs, self.funcKw))
             
         elif self.callType == 'item-funcKwSingle':
             #call callback with value of one changed option as an additional keyword
@@ -517,7 +529,7 @@ class ConfigCallback:
                 funcKw = self.funcKw.copy()
                 option = self.optionTranslationTable.get(option, str(option[1]))
                 funcKw[option] = value
-                self._execFunction(self.func, self.funcArgs, funcKw)
+                execJobs.append((self.func, self.funcArgs, funcKw))
             
         elif self.callType == 'item-funcKwAll':
             #call callback with values of all changed options as additional keywords
@@ -525,7 +537,7 @@ class ConfigCallback:
             for option, value in changedOptions.iteritems():
                 option = self.optionTranslationTable.get(option, str(option[1]))
                 funcKw[option] = value
-            self._execFunction(self.func, self.funcArgs, funcKw)
+            execJobs.append((self.func, self.funcArgs, funcKw))
             
         elif self.callType == 'item-dictArg':
             #call callback with a dict of all changed options and their new values as an argument
@@ -534,10 +546,12 @@ class ConfigCallback:
                 option = self.optionTranslationTable.get(option, str(option[1]))
                 optionDict[option] = value
             funcArgs = self.funcArgs[:self.valueArgPlace] + [optionDict] + self.funcArgs[self.valueArgPlace:]
-            self._execFunction(self.func, funcArgs, self.funcKw)
+            execJobs.append((self.func, funcArgs, self.funcKw))
             
         elif self.callType == 'item-listArg':
             #call callback with a list, which contains tuples with options-value pairs, as an argument
             itemList = list([(self.optionTranslationTable.get(option, str(option[1])), value) for option, value in changedOptions.iteritems()])
             funcArgs = self.funcArgs[:self.valueArgPlace] + [itemList] + self.funcArgs[self.valueArgPlace:]
-            self._execFunction(self.func, funcArgs, self.funcKw)
+            execJobs.append((self.func, funcArgs, self.funcKw))
+            
+        return execJobs
