@@ -52,36 +52,13 @@ class HttpRequester:
         
     ##internal functions - requests
         
-    def _addRequest(self, addr, host, url, maxHeaderSize, maxDataSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout): 
+    def _addRequest(self, addr, host, url, maxHeaderSize, maxDataSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout, maxReqTries): 
         self.log.debug('Adding request to "%s" for "%s" with maxHeaderSize "%d" and maxDataSize "%d"', addr[:10], joinUrl(url), maxHeaderSize, maxDataSize)
         self.requestId += 1
         
-        #create conn
-        sock = I2PSocket(self.samSockManager, self.destNum)
-        sock.setblocking(0)
-        sock.connect(addr)
-        sockNum = sock.fileno()
+        #create conn obj
+        sockNum = self._connect(addr, transferTimeout, requestTimeout, self.requestId)
         
-        #timeout
-        transferTimeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=transferTimeout, funcArgs=[sockNum, 'transfer timeout'])
-        requestTimeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=requestTimeout, funcArgs=[sockNum, 'request timeout'])
-        
-        #add to conn dict
-        self.conns[sockNum] = {'sock':sock,
-                               'connected':False,
-                               'outBuffer':None,
-                               'sendBytes':0,
-                               'transferTimeout':transferTimeout,
-                               'transferTimeoutEvent':transferTimeoutEvent,
-                               'requestTimeout':requestTimeout,
-                               'requestTimeoutEvent':requestTimeoutEvent,
-                               'requestId':self.requestId}
-                               
-        
-        #add to sets
-        self.allConns.add(sockNum)
-        self.connsWithSendInterest.add(sockNum)
-                
         #http request obj
         requestObj = HttpResponseParser(addr, host, url, maxHeaderSize, maxDataSize)
             
@@ -90,30 +67,16 @@ class HttpRequester:
                                          'callback':callback,
                                          'callbackArgs':callbackArgs,
                                          'callbackKws':callbackKws,
-                                         'connId':sockNum}
+                                         'connId':sockNum,
+                                         'reqTries':1,
+                                         'maxReqTries':maxReqTries}
         return self.requestId
     
     
     def _removeRequest(self, requestId):
         requestSet = self.requests[requestId]
-        connId = requestSet['connId']
-        connSet = self.conns[connId]
-        
-        #remove timeout
-        self.sched.removeEvent(connSet['transferTimeoutEvent'])
-        self.sched.removeEvent(connSet['requestTimeoutEvent'])
-        
-        #close conn, remove from sets
-        connSet['sock'].close(force=True)
-        self.allConns.remove(connId)
-        self.connsWithSendInterest.discard(connId)
-        self.connsWithRecvInterest.discard(connId)
-        
-        #remove conn from dict
-        del self.conns[connId]
-        
-        #remove request
-        del self.requests[requestId]
+        del self.requests[requestId] #remove request
+        self._close(requestSet['connId']) #remvoe conn
     
         
     def _reportRequestResult(self, requestSet, result):
@@ -156,7 +119,83 @@ class HttpRequester:
         self._reportRequestResult(requestSet, result)
         
         
+    def _retryRequest(self, requestId, reason):
+        #retry request if retries left
+        requestSet = self.requests[requestId]
+        if requestSet['reqTries'] == requestSet['maxReqTries']:
+            #no retries left
+            self._failRequest(requestId, reason)
+            
+        else:
+            #retries left, retry
+            connId = requestSet['connId']
+            connSet = self.conns[connId]
+            self.log.debug('Request to "%s": failed (reason: %s), retrying (try %i of %i)', connSet['sock'].getpeername()[:10], reason, requestSet['reqTries'], requestSet['maxReqTries'])
+            
+            #get old conn info
+            transferTimeout = connSet['transferTimeout']
+            requestTimeout = connSet['requestTimeout']
+            
+            #close old conn
+            self._close(requestSet['connId'])
+            
+            #create new conn
+            sockNum = self._connect(requestSet['request'].getAddr(), transferTimeout, requestTimeout, requestId)
+            
+            #update request set
+            requestSet['reqTries'] += 1
+            requestSet['connId'] = sockNum
+            requestSet['request'].reset()
+        
+        
     ##internal functions - conns
+    
+    def _connect(self, addr, transferTimeout, requestTimeout, requestId):
+        #create conn
+        sock = I2PSocket(self.samSockManager, self.destNum)
+        sock.setblocking(0)
+        sock.connect(addr)
+        sockNum = sock.fileno()
+        
+        #timeout
+        transferTimeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=transferTimeout, funcArgs=[sockNum, 'transfer timeout'])
+        requestTimeoutEvent = self.sched.scheduleEvent(self.timeout, timedelta=requestTimeout, funcArgs=[sockNum, 'request timeout'])
+        
+        #add to conn dict
+        self.conns[sockNum] = {'sock':sock,
+                               'connected':False,
+                               'outBuffer':None,
+                               'sendBytes':0,
+                               'transferTimeout':transferTimeout,
+                               'transferTimeoutEvent':transferTimeoutEvent,
+                               'requestTimeout':requestTimeout,
+                               'requestTimeoutEvent':requestTimeoutEvent,
+                               'requestId':requestId}
+                               
+        
+        #add to sets
+        self.allConns.add(sockNum)
+        self.connsWithSendInterest.add(sockNum)
+        return sockNum
+    
+    
+    def _close(self, connId):
+        connSet = self.conns[connId]
+        
+        #remove timeout
+        self.sched.removeEvent(connSet['transferTimeoutEvent'])
+        self.sched.removeEvent(connSet['requestTimeoutEvent'])
+        
+        #close conn, remove from sets
+        connSet['sock'].close(force=True)
+        self.allConns.remove(connId)
+        self.connsWithSendInterest.discard(connId)
+        self.connsWithRecvInterest.discard(connId)
+        
+        #remove conn from dict
+        del self.conns[connId]
+
+        
     
     def _send(self, connId):
         connSet = self.conns[connId]
@@ -243,9 +282,9 @@ class HttpRequester:
                     if connId in self.allConns:
                         connSet = self.conns[connId]
                         if connSet['connected']:
-                            self._failRequest(connSet['requestId'], 'connection failed')
+                            self._retryRequest(connSet['requestId'], 'connection failed')
                         else:
-                            self._failRequest(connSet['requestId'], 'connect failed')
+                            self._retryRequest(connSet['requestId'], 'connect failed')
                     
                 for connId in sendable:
                     if connId in self.allConns:
@@ -268,13 +307,13 @@ class HttpRequester:
     def timeout(self, connId, reason):
         self.lock.acquire()
         if connId in self.conns:
-            self._failRequest(self.conns[connId]['requestId'], reason)
+            self._retryRequest(self.conns[connId]['requestId'], reason)
         self.lock.release()
     
             
     ##external functions - requests
     
-    def makeRequest(self, url, callback, callbackArgs=[], callbackKws={}, addr=None, host=None, transferTimeout=120, requestTimeout=300, maxHeaderSize=4096, maxDataSize=1048576):
+    def makeRequest(self, url, callback, callbackArgs=[], callbackKws={}, addr=None, host=None, transferTimeout=120, requestTimeout=300, maxHeaderSize=4096, maxDataSize=1048576, maxReqTries=1):
         if type(url) == str:
             url = splitUrl(url)
             
@@ -300,7 +339,7 @@ class HttpRequester:
         
         #finally really do the request
         self.lock.acquire()
-        requestId = self._addRequest(addr, host, url, maxHeaderSize, maxDataSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout)
+        requestId = self._addRequest(addr, host, url, maxHeaderSize, maxDataSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout, maxReqTries)
         self.lock.release()
         return requestId
     
@@ -342,7 +381,7 @@ class HttpRequester:
         
 if __name__=="__main__":
     from EventScheduler import EventScheduler
-    from PySamLib.SamSocketManager import SamSocketManager
+    from PySamLib.I2PSocketManager import I2PSocketManager
     
     
     #configure logging module
@@ -351,7 +390,7 @@ if __name__=="__main__":
                         format='%(asctime)s %(levelname)-8s %(name)-14s - %(message)s')
     
     #samSockManager
-    samSockManager = SamSocketManager(log='SamSocketManager', asmLog='AsyncSocketManager')
+    samSockManager = I2PSocketManager(log='I2PSocketManager', asmLog='AsyncSocketManager')
     destNum = samSockManager.addDestination('127.0.0.1', 7656, 'TRANSIENT', 'tcp', 'both')
     
     #event scheduler
@@ -368,4 +407,4 @@ if __name__=="__main__":
     url = '/gcache.py?urlfile=1'
     
     requester = HttpRequester(eventSched, destNum, samSockManager)
-    requester.makeRequest(addr, url, callb, callbackArgs=[requester, eventSched, samSockManager, destNum])
+    requester.makeRequest('http://pebcache.i2p'+url, callb, callbackArgs=[requester, eventSched, samSockManager, destNum], maxReqTries=2)

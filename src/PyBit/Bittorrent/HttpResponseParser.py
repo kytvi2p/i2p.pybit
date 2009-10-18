@@ -75,6 +75,30 @@ class HttpResponseParser:
         #log
         self.log = logging.getLogger('HttpResponseParser')
         
+        
+    ##internal functions - general
+    
+    def _reset(self):
+        #raw data
+        self.gotRawBytes = 0
+        
+        #data
+        self.header = None
+        self.data = None
+        self.dataSize = 0
+        self.maxDataSize = 0
+        
+        #state
+        self.step = 'header'
+        self.newline = None
+        self.transferEncoding = None
+        self.finished = False
+        
+        #buffers
+        self.buffer = deque()
+        self.bufferSize = 0
+        self.maxBufferSize = self.userHeaderSizeLimit
+        
     
     ##internal functions - request
     
@@ -446,3 +470,11 @@ class HttpResponseParser:
                     'dataSize':self.dataSize,
                     'maxDataSize':self.maxDataSize}
         return progress
+    
+    
+    def getAddr(self):
+        return self.addr
+    
+    
+    def reset(self):
+        self._reset()

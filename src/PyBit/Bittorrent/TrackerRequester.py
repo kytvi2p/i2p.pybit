@@ -108,7 +108,8 @@ class TrackerRequester:
                                                        transferTimeout=self.config.get('http', 'trackerRequestTransferTimeout'),\
                                                        requestTimeout=self.config.get('http', 'trackerRequestTimeout'),\
                                                        maxHeaderSize=self.config.get('http', 'trackerRequestMaxHeaderSize'),\
-                                                       maxDataSize=self.config.get('http', 'trackerRequestMaxDataSize'))
+                                                       maxDataSize=self.config.get('http', 'trackerRequestMaxDataSize'),\
+                                                       maxReqTries=2)
             self.announceHttpRequests.add(requestId)
         else:
             self.log.debug("Don't know own address yet, retrying in 1 minute")
@@ -186,6 +187,7 @@ class TrackerRequester:
     
     
     def _finishedAnnounceRequest(self, response, trackerSet, event):
+        self.announceHttpRequests.remove(response['id'])
         success = response['success']
         
         if success:
@@ -261,7 +263,8 @@ class TrackerRequester:
                                                    transferTimeout=self.config.get('http', 'trackerRequestTransferTimeout'),\
                                                    requestTimeout=self.config.get('http', 'trackerRequestTimeout'),\
                                                    maxHeaderSize=self.config.get('http', 'trackerRequestMaxHeaderSize'),\
-                                                   maxDataSize=self.config.get('http', 'trackerRequestMaxDataSize'))
+                                                   maxDataSize=self.config.get('http', 'trackerRequestMaxDataSize'),\
+                                                   maxReqTries=2)
         self.scrapeHttpRequests.add(requestId)
         
     
@@ -350,6 +353,7 @@ class TrackerRequester:
     
     
     def _finishedScrapeRequest(self, response, trackerSet):
+        self.scrapeHttpRequests.remove(response['id'])
         success = response['success']
         
         if success:
@@ -439,7 +443,6 @@ class TrackerRequester:
     def finishedAnnounceRequest(self, response, trackerSet, event):
         self.lock.acquire()
         if response['id'] in self.announceHttpRequests:
-            self.announceHttpRequests.remove(response['id'])
             self._finishedAnnounceRequest(response, trackerSet, event)
         self.lock.release()
         
@@ -447,7 +450,6 @@ class TrackerRequester:
     def finishedScrapeRequest(self, response, trackerSet):
         self.lock.acquire()
         if response['id'] in self.scrapeHttpRequests:
-            self.scrapeHttpRequests.remove(response['id'])
             self._finishedScrapeRequest(response, trackerSet)
         self.lock.release()
                 
