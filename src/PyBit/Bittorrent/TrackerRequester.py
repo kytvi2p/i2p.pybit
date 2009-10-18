@@ -67,7 +67,25 @@ class TrackerRequester:
         self.stopped = False
         self.log = Logger('TrackerRequester', '%-6s - ', torrentIdent)
         self.lock = threading.Lock()
-          
+        
+        #init
+        self._addConfigCallbacks()
+        self._updateScrapeStatus(self.config.get('tracker', 'scrapeTrackers'), self.config.get('tracker', 'scrapeWhileStopped'))
+    
+    
+    ##internal functions - callbacks
+    
+    def _addConfigCallbacks(self):
+        callbackScrapeStatusOptions = (('tracker', 'scrapeTrackers'),
+                                       ('tracker', 'scrapeWhileStopped'))
+                                    
+        self.scrapeStatusCallback = self.config.addCallback(callbackScrapeStatusOptions, self.updateScrapeStatus,
+                                                            callType='item-funcArgAll', callWithAllOptions=True)
+                                                            
+        
+    def _removeConfigCallbacks(self):
+        self.config.removeCallback(self.scrapeStatusCallback)
+        
     
     ##internal functions - announces
         
@@ -181,7 +199,7 @@ class TrackerRequester:
                                     #valid address
                                     peerAddr = parseResult.group(1)
                                     if not peerAddr == ownAddr:
-                                        self.log.debug('Tracker "%s" returned valid peer with address "%s" in its announce response', peerAddr)
+                                        self.log.debug('Tracker "%s" returned valid peer with address "%s" in its announce response', url, peerAddr)
                                         self.peerPool.addPossibleConnections(self.torrentIdent, [peerAddr])
         return valid
     
@@ -199,6 +217,9 @@ class TrackerRequester:
             #request was a success
             self.log.debug('Announce request to tracker "%s" succeeded', trackerSet['logUrl'])
             self.trackerInfo.markSuccessful(trackerSet['id'])
+            
+            if self.config.get('tracker', 'scrapeTrackers') == 'active':
+                self._scrapeOneTracker(trackerSet)
             
             if self.paused and event!='stop':
                 #got paused - need to send stop event
@@ -375,7 +396,20 @@ class TrackerRequester:
         for requestId in self.scrapeHttpRequests:
             self.httpRequester.abortRequest(requestId)
         self.scrapeHttpRequests.clear()
-                    
+        
+        
+    def _updateScrapeStatus(self, scrapeTrackers, scrapeWhileStopped):
+        if self.scrapeEvent is None and scrapeTrackers == 'all' and (scrapeWhileStopped or not self.paused) and self.stopped == False:
+            #no scrape event but should be scraping all trackers
+            self.scrapeEvent = self.sched.scheduleEvent(self.scrape, repeatdelta=3600)
+            
+        elif self.scrapeEvent is not None and ((not scrapeTrackers == 'all') or (self.paused and not scrapeWhileStopped) or self.stopped):
+            #scraping all trackers but should not
+            self.sched.removeEvent(self.scrapeEvent)
+            self.scrapeEvent = None
+            self._abortScrapes()
+            self.trackerInfo.clearAllScrapeStats()
+            
                 
     ##internal functions - status
     
@@ -390,8 +424,7 @@ class TrackerRequester:
         elif self.announceEvent is not None:
             self.sched.rescheduleEvent(self.announceEvent)
             
-        if self.scrapeEvent is None:
-            self.scrapeEvent = self.sched.scheduleEvent(self.scrape, repeatdelta=3600)
+        self._updateScrapeStatus(self.config.get('tracker', 'scrapeTrackers'), self.config.get('tracker', 'scrapeWhileStopped'))
             
             
     def _pause(self):
@@ -401,10 +434,7 @@ class TrackerRequester:
         if self.announceEvent is not None:
             self.sched.rescheduleEvent(self.announceEvent)
             
-        if self.scrapeEvent is not None:
-            self.sched.removeEvent(self.scrapeEvent)
-            self.scrapeEvent = None
-            self._abortScrapes()
+        self._updateScrapeStatus(self.config.get('tracker', 'scrapeTrackers'), self.config.get('tracker', 'scrapeWhileStopped'))
             
             
     def _stop(self):
@@ -415,14 +445,11 @@ class TrackerRequester:
             self.sched.removeEvent(self.announceEvent)
             self.announceEvent = None
         
-        if self.scrapeEvent is not None:
-            self.sched.removeEvent(self.scrapeEvent)
-            self.scrapeEvent = None
-            
         self.torrentEvent = None
         self._abortAnnounces()
-        self._abortScrapes()
-            
+        self._updateScrapeStatus(self.config.get('tracker', 'scrapeTrackers'), self.config.get('tracker', 'scrapeWhileStopped'))
+        self._removeConfigCallbacks()
+        
         
     ##internal functions - other
     
@@ -480,6 +507,14 @@ class TrackerRequester:
     def stop(self):
         self.lock.acquire()
         self._stop()
+        self.lock.release()
+        
+        
+    ##external functions - config changes
+    
+    def updateScrapeStatus(self, scrapeTrackers, scrapeWhileStopped):
+        self.lock.acquire()
+        self._updateScrapeStatus(scrapeTrackers, scrapeWhileStopped)
         self.lock.release()
         
     

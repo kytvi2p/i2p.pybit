@@ -1029,7 +1029,8 @@ if __name__ == "__main__":
                       'requester':{'strictAvailabilityPrio':(True, 'bool')},
                       'storage':{'persistPieceStatus':(True, 'bool'),
                                  'skipFileCheck':(False, 'bool')},
-                      'tracker':{'scrapeTrackers':('one', 'string')}}
+                      'tracker':{'scrapeWhileStopped':(False, 'bool'),
+                                 'scrapeTrackers':('active', 'str')}}
                                     
     #create config, add bt defaults
     config = Config('config.conf', configDefaults=configDefaults)

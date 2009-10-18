@@ -90,7 +90,8 @@ class PyBit:
                           'requester':{'strictAvailabilityPrio':(True, 'bool')},
                           'storage':{'persistPieceStatus':(True, 'bool'),
                                      'skipFileCheck':(False, 'bool')},
-                          'tracker':{'scrapeTrackers':('one', 'string')}}
+                          'tracker':{'scrapeWhileStopped':(False, 'bool'),
+                                     'scrapeTrackers':('active', 'str')}}
                                     
         self.config = Config(os.path.join(self.progPath, u'config.conf'), configDefaults=configDefaults)
         
