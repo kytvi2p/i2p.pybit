@@ -112,7 +112,7 @@ class TrackerRequester:
                                                        maxReqTries=2)
             self.announceHttpRequests.add(requestId)
         else:
-            self.log.debug("Don't know own address yet, retrying in 1 minute")
+            self.log.debug("Don't know own address yet, retrying announce in 1 minute")
             self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=60)
         
     
@@ -143,15 +143,15 @@ class TrackerRequester:
                     
                     if not 'peers' in response:
                         #no peers in response
-                        self.log.info('Tracker "%s" did not return any peers', url)
+                        self.log.info('Tracker "%s" did not return any peers in its announce response', url)
                     
                     elif not isinstance(response['peers'], list):
                         #probably a compact response - can only be used for IPs, so how should this be used with I2P?
-                        self.log.error('Tracker "%s" responded with a compact response - not interpretable!', url)
+                        self.log.error('Tracker "%s" responded with a compact response to the announce request - not interpretable!', url)
                     
                     elif len(response['peers'])==0:
                         #no peers in response
-                        self.log.info('Tracker "%s" did not supply any peers', url)
+                        self.log.info('Tracker "%s" did not supply any peers in its announce response', url)
                         
                     else:
                         #something valid
@@ -160,28 +160,28 @@ class TrackerRequester:
                             #check each peer
                             if not isinstance(peer, dict):
                                 #whatever this is, its nothing normal
-                                self.log.error('Tracker "%s" supplied peers in an unknown format', url)
+                                self.log.error('Tracker "%s" supplied peers in an unknown format in its announce response', url)
                             
                             elif not 'ip' in peer:
                                 #uhm, a peer without ip?!
-                                self.log.error('Tracker "%s" supplied peer data without desintations!', url)
+                                self.log.error('Tracker "%s" supplied peer data without desintations in its announce response!', url)
                             
                             elif not isinstance(peer['ip'], str):
                                 #uh, what kind of destination is this?!
-                                self.log.error('Tracker "%s" supplied a peer destination of the type "%s"!', url, type(peer['ip']))
+                                self.log.error('Tracker "%s" supplied a peer destination of the type "%s" in its announce response!', url, type(peer['ip']))
                                 
                             else:
                                 #finally, all checks passed, now parse the peer address
                                 parseResult = self.i2pHostChecker.search(peer['ip'])
                                 if parseResult is None:
                                     #urgh, address is invalid, all the trouble for nothing
-                                    self.log.error('Got invalid peer with address "%s" from tracker', peer['ip'])
+                                    self.log.error('Tracker "%s" returned invalid peer with address "%s" in its announce response', url, peer['ip'])
                                 
                                 else:
                                     #valid address
                                     peerAddr = parseResult.group(1)
                                     if not peerAddr == ownAddr:
-                                        self.log.debug('Got valid peer with address "%s" from tracker', peerAddr)
+                                        self.log.debug('Tracker "%s" returned valid peer with address "%s" in its announce response', peerAddr)
                                         self.peerPool.addPossibleConnections(self.torrentIdent, [peerAddr])
         return valid
     
@@ -192,7 +192,7 @@ class TrackerRequester:
         
         if success:
             #got data
-            self.log.debug('Got data from tracker "%s"', trackerSet['logUrl'])
+            self.log.debug('Got announce response from tracker "%s"', trackerSet['logUrl'])
             valid = self._parseAnnounceResponse(trackerSet, response['data'])
             
         if success and valid:
@@ -212,7 +212,7 @@ class TrackerRequester:
                 
             else:
                 #was not a stop event and not paused
-                self.log.debug("Next request in 60 minutes")
+                self.log.debug("Next announce request in 60 minutes")
                 self.torrentEvent = None
                 self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=3600)
         
@@ -228,10 +228,10 @@ class TrackerRequester:
             if nextTracker is None:
                 #try again after some time
                 if success:
-                    self.log.debug("Next request in 10 minute")
+                    self.log.debug("Next announce request in 10 minute")
                     self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=600)
                 else:
-                    self.log.debug("Next request in 1 minute")
+                    self.log.debug("Next announce request in 1 minute")
                     self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=60)
                 
             else:
@@ -358,8 +358,17 @@ class TrackerRequester:
         
         if success:
             #got data
-            self.log.debug('Got data from tracker "%s"', trackerSet['logUrl'])
+            self.log.debug('Got scrape response from tracker "%s"', trackerSet['logUrl'])
             valid = self._parseScrapeResponse(trackerSet, response['data'])
+        
+        if not (success and valid):
+            if 'failureMsg' in response:
+                reason = response['failureMsg']
+            else:
+                reason = 'invalid response'
+                
+            self.log.debug('Scrape request to tracker "%s" failed: %s', trackerSet['logUrl'], reason)
+            self.trackerInfo.clearScrapeStats(trackerSet['id'])
             
             
     def _abortScrapes(self):
