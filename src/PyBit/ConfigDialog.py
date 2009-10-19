@@ -919,7 +919,7 @@ class Tracker_ConfigPanel(wx.Panel):
         announceOptionsBoxItems.AddGrowableCol(0, 1)
         
         #scrape interval
-        label = wx.StaticText(self, -1, "Announce interval:")
+        label = wx.StaticText(self, -1, "Announce interval (minutes):")
         label.SetToolTipString('How often (in minutes) should announcing be done?')
         announceOptionsBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
@@ -940,7 +940,7 @@ class Tracker_ConfigPanel(wx.Panel):
         scrapeOptionsBoxItems.AddGrowableCol(0, 1)
         
         #scrape interval
-        label = wx.StaticText(self, -1, "Scrape interval:")
+        label = wx.StaticText(self, -1, "Scrape interval (minutes):")
         label.SetToolTipString('How often (in minutes) should scraping be done?')
         scrapeOptionsBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
         
