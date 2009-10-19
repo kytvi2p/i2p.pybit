@@ -69,14 +69,20 @@ def stringToTransferSpeed(string):
 
 
 def stringToDate(string):
-    timeTuple = strptime(string,'%d.%m.%Y')
-    value = mktime(timeTuple)
+    if string == '':
+        value = None
+    else:
+        timeTuple = strptime(string,'%d.%m.%Y')
+        value = mktime(timeTuple)
     return value
 
 
 def stringToFullTime(string):
-    timeTuple = strptime(string,'%H:%M:%S, %d.%m.%Y')
-    value = mktime(timeTuple)
+    if string == '':
+        value = None
+    else:
+        timeTuple = strptime(string,'%H:%M:%S, %d.%m.%Y')
+        value = mktime(timeTuple)
     return value
 
 
@@ -154,21 +160,27 @@ def boolToString(wert):
 
 
 def dateToString(timestamp):
-    timeTuple = localtime(timestamp)
-    value = '.'.join((str(timeTuple[2]), str(timeTuple[1]), str(timeTuple[0])))
+    if timestamp is None:
+        value = ''
+    else:
+        timeTuple = localtime(timestamp)
+        value = '.'.join((str(timeTuple[2]), str(timeTuple[1]), str(timeTuple[0])))
     return value
 
 
 def fullTimeToString(timestamp):
-    timeTuple = localtime(timestamp)
-    timeList = []
-    for i in xrange(0, len(timeTuple)):
-        timeStr = str(timeTuple[i])
-        if len(timeStr) == 1:
-            timeList.append('0' + timeStr)
-        else:
-            timeList.append(timeStr)
-    value = ''.join((timeList[3], ':', timeList[4], ':', timeList[5], ', ', timeList[2], '.', timeList[1], '.', timeList[0]))
+    if timestamp is None:
+        value = ''
+    else:
+        timeTuple = localtime(timestamp)
+        timeList = []
+        for i in xrange(0, len(timeTuple)):
+            timeStr = str(timeTuple[i])
+            if len(timeStr) == 1:
+                timeList.append('0' + timeStr)
+            else:
+                timeList.append(timeStr)
+        value = ''.join((timeList[3], ':', timeList[4], ':', timeList[5], ', ', timeList[2], '.', timeList[1], '.', timeList[0]))
     return value
 
 

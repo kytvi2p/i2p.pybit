@@ -140,7 +140,7 @@ class Torrent:
         if 'creation date' in torrentdata:
             self.creationDate = torrentdata['creation date']
         else:
-            self.creationDate = 0
+            self.creationDate = None
         
         #torrent comment
         if 'comment' in torrentdata:
