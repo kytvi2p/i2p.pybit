@@ -20,6 +20,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 ##builtin
 from __future__ import with_statement
 from copy import deepcopy
+from time import time
 import threading
 
 ##own
@@ -35,6 +36,7 @@ class TrackerInfo:
         self.trackerLeechCounts = {}
         self.trackerDownloadCounts = {}
         self.trackerInfos, self.trackerTiers = self._create()
+        self.activeTracker = None
         self.lock = threading.Lock()
         
     
@@ -59,7 +61,15 @@ class TrackerInfo:
                 trackerInfo = {'url':splitUrl(trackerUrl),
                                'logUrl':trackerUrl,
                                'tier':tierNum,
-                               'id':trackerId}
+                               'id':trackerId,
+                               'announceTryCount':0,
+                               'announceTryTime':None,
+                               'announceSuccessCount':0,
+                               'announceSuccessTime':None,
+                               'scrapeTryCount':0,
+                               'scrapeTryTime':None,
+                               'scrapeSuccessCount':0,
+                               'scrapeSuccessTime':None}
                 trackerInfo['scrapeUrl'] = self._getScrapeUrl(trackerInfo['url'])
                 trackerInfo['scrapeLogUrl'] = joinUrl(trackerInfo['scrapeUrl'])
                 trackerList[trackerId] = trackerInfo
@@ -124,8 +134,26 @@ class TrackerInfo:
         return nextTracker
     
     
-    def _markTrackerSuccessful(self, trackerId):
-        tierId = self.trackerInfos[trackerId]['tier']
+    ##internal functions - announce
+    
+    def _setAnnounceTry(self, trackerId):
+        trackerSet = self.trackerInfos[trackerId]
+        trackerSet['announceTryCount'] += 1
+        trackerSet['announceTryTime'] = time()
+        
+        
+    def _setAnnounceFailure(self, trackerId):
+        if trackerId == self.activeTracker:
+            self.activeTracker = None
+        
+    
+    def _setAnnounceSuccess(self, trackerId):
+        trackerSet = self.trackerInfos[trackerId]
+        trackerSet['announceSuccessCount'] += 1
+        trackerSet['announceSuccessTime'] = time()
+        self.activeTracker = trackerId
+        
+        tierId = trackerSet['tier']
         tier = self.trackerTiers[tierId]
         place = tier.index(trackerId)
         
@@ -133,7 +161,21 @@ class TrackerInfo:
             del tier[place]
             tier.insert(0, trackerId)
             
-            
+    
+    ##internal functions - scrape
+    
+    def _setScrapeTry(self, trackerId):
+        trackerSet = self.trackerInfos[trackerId]
+        trackerSet['scrapeTryCount'] += 1
+        trackerSet['scrapeTryTime'] = time()
+        
+        
+    def _setScrapeSuccess(self, trackerId):
+        trackerSet = self.trackerInfos[trackerId]
+        trackerSet['scrapeSuccessCount'] += 1
+        trackerSet['scrapeSuccessTime'] = time()
+        
+    
     def _setTrackerScrapeStats(self, trackerId, seeds, leeches, downloads):
         self.trackerSeedCounts[trackerId] = seeds
         self.trackerLeechCounts[trackerId] = leeches
@@ -170,11 +212,35 @@ class TrackerInfo:
             return self._getNextTracker(trackerId)
     
     
-    def markSuccessful(self, trackerId):
+    ##external functions - announce
+    
+    def setAnnounceTry(self, trackerId):
         with self.lock:
-            return self._markTrackerSuccessful(trackerId)
+            self._setAnnounceTry(trackerId)
+            
+            
+    def setAnnounceFailure(self, trackerId):
+        with self.lock:
+            self._setAnnounceFailure(trackerId)
+            
+    
+    def setAnnounceSuccess(self, trackerId):
+        with self.lock:
+            self._setAnnounceSuccess(trackerId)
         
-        
+    
+    ##external functions - scrape
+    
+    def setScrapeTry(self, trackerId):
+        with self.lock:
+            self._setScrapeTry(trackerId)
+    
+    
+    def setScrapeSuccess(self, trackerId):
+        with self.lock:
+            self._setScrapeSuccess(trackerId)
+            
+    
     def setScrapeStats(self, trackerId, seeds, leeches, downloads):
         with self.lock:
             self._setTrackerScrapeStats(trackerId, seeds, leeches, downloads)
@@ -197,11 +263,20 @@ class TrackerInfo:
             stats = []
             for tierNum, tier in enumerate(self.trackerTiers):
                 for trackerNum, trackerId in enumerate(tier):
-                    tracker = self.trackerInfos[trackerId]
+                    trackerSet = self.trackerInfos[trackerId]
                     stats.append({'tier':tierNum + 1,
                                   'tierPos':trackerNum + 1,
-                                  'trackerUrl':tracker['logUrl'],
+                                  'trackerUrl':trackerSet['logUrl'],
                                   'trackerId':trackerId,
+                                  'active':(trackerId == self.activeTracker),
+                                  'announceTryCount':trackerSet['announceTryCount'],
+                                  'announceTryTime':trackerSet['announceTryTime'],
+                                  'announceSuccessCount':trackerSet['announceSuccessCount'],
+                                  'announceSuccessTime':trackerSet['announceSuccessTime'],
+                                  'scrapeTryCount':trackerSet['scrapeTryCount'],
+                                  'scrapeTryTime':trackerSet['scrapeTryTime'],
+                                  'scrapeSuccessCount':trackerSet['scrapeSuccessCount'],
+                                  'scrapeSuccessTime':trackerSet['scrapeSuccessTime'],
                                   'seeds':self.trackerSeedCounts[trackerId],
                                   'leeches':self.trackerLeechCounts[trackerId],
                                   'downloads':self.trackerDownloadCounts[trackerId]})

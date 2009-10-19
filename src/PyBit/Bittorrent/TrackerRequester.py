@@ -132,6 +132,7 @@ class TrackerRequester:
                                                        maxDataSize=self.config.get('http', 'trackerRequestMaxDataSize'),\
                                                        maxReqTries=2)
             self.announceHttpRequests.add(requestId)
+            self.trackerInfo.setAnnounceTry(trackerSet['id'])
         else:
             self.log.debug("Don't know own address yet, retrying announce in 1 minute")
             self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=60)
@@ -219,7 +220,7 @@ class TrackerRequester:
         if success and valid:
             #request was a success
             self.log.debug('Announce request to tracker "%s" succeeded', trackerSet['logUrl'])
-            self.trackerInfo.markSuccessful(trackerSet['id'])
+            self.trackerInfo.setAnnounceSuccess(trackerSet['id'])
             
             if self.config.get('tracker', 'scrapeTrackers') == 'active':
                 self._scrapeOneTracker(trackerSet)
@@ -249,9 +250,11 @@ class TrackerRequester:
                 reason = 'invalid response'
                 
             self.log.debug('Announce request to tracker "%s" failed: %s', trackerSet['logUrl'], reason)
+            self.trackerInfo.setAnnounceFailure(trackerSet['id'])
+            
             nextTracker = self.trackerInfo.getNext(trackerSet['id'])
             if nextTracker is None:
-                #try again after some time
+                #no further trackers to try, try again after some time
                 if success:
                     self.log.debug("Next announce request in 10 minute")
                     self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=600)
@@ -291,6 +294,7 @@ class TrackerRequester:
                                                    maxDataSize=self.config.get('http', 'trackerRequestMaxDataSize'),\
                                                    maxReqTries=2)
         self.scrapeHttpRequests.add(requestId)
+        self.trackerInfo.setScrapeTry(trackerSet['id'])
         
     
     def _parseScrapeResponse(self, trackerSet, data):
@@ -386,7 +390,12 @@ class TrackerRequester:
             self.log.debug('Got scrape response from tracker "%s"', trackerSet['logUrl'])
             valid = self._parseScrapeResponse(trackerSet, response['data'])
         
-        if not (success and valid):
+        if success and valid:
+            #success
+            self.log.debug('Scrape request to tracker "%s" succeeded', trackerSet['logUrl'])
+            self.trackerInfo.setScrapeSuccess(trackerSet['id'])
+        else:
+            #failure
             if 'failureMsg' in response:
                 reason = response['failureMsg']
             else:

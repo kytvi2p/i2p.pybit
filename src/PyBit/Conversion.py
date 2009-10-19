@@ -81,7 +81,7 @@ def stringToFullTime(string):
     if string == '':
         value = None
     else:
-        timeTuple = strptime(string,'%H:%M:%S, %d.%m.%Y')
+        timeTuple = strptime(string,'%d.%m.%Y, %H:%M:%S')
         value = mktime(timeTuple)
     return value
 
@@ -180,7 +180,7 @@ def fullTimeToString(timestamp):
                 timeList.append('0' + timeStr)
             else:
                 timeList.append(timeStr)
-        value = ''.join((timeList[3], ':', timeList[4], ':', timeList[5], ', ', timeList[2], '.', timeList[1], '.', timeList[0]))
+        value = ''.join((timeList[2], '.', timeList[1], '.', timeList[0], ', ', timeList[3], ':', timeList[4], ':', timeList[5]))
     return value
 
 

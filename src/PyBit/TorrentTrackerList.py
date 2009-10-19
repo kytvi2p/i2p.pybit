@@ -29,10 +29,19 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
         cols = [('Id', 'trackerId', 'int', 75, False),\
                 ('Tier', 'tier', 'int', 75, True),\
                 ('Pos In Tier', 'tierPos', 'int', 75, True),\
-                ('Url', 'trackerUrl', 'native', 700, True),\
+                ('Url', 'trackerUrl', 'native', 400, True),\
+                ('A', 'active', 'bool', 20, True),\
                 ('Seeds', 'seeds', 'int', 75, True),\
                 ('Leeches', 'leeches', 'int', 75, True),\
-                ('Downloads', 'downloads', 'int', 75, True)]
+                ('Downloads', 'downloads', 'int', 75, True),\
+                ('Last Announce Attempt', 'announceTryTime', 'fullTime', 170, False),\
+                ('Last Announce Success', 'announceSuccessTime', 'fullTime', 170, False),\
+                ('Last Scrape Attempt', 'scrapeTryTime', 'fullTime', 170, False),\
+                ('Last Scrape Success', 'scrapeSuccessTime', 'fullTime', 170, False),\
+                ('Announce Attempts', 'announceTryCount', 'int', 170, False),\
+                ('Announce Successes', 'announceSuccessCount', 'int', 170, False),\
+                ('Scrape Attempts', 'scrapeTryCount', 'int', 170, False),\
+                ('Scrape Successes', 'scrapeSuccessCount', 'int', 170, False)]
        
         self.rawUpdateFunc = rawUpdateFunc
         PersistentVirtualListCtrl.__init__(self, persister, 'TorrentTrackerList-', self._updatePerstData, version,
