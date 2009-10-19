@@ -490,17 +490,12 @@ class ConfigCallback:
         self.optionTranslationTable = optionTranslationTable
         self.log = logging.getLogger('ConfigCallback')
         
+        
     def _getSortedOptionValues(self, changedOptions):
         sortedValues = []
         for option in self.options:
             sortedValues.append(changedOptions[option])
         return sortedValues
-        
-        
-    #def _execFunction(self, func, funcArgs, funcKw):
-    #    self.log.debug('Calling function "%s" with arguments "%s" and keywords "%s"',
-    #                   str(func), str(funcArgs), str(funcKw))
-    #    apply(func, funcArgs, funcKw)
         
         
     def call(self, changedOptions):
@@ -552,5 +547,8 @@ class ConfigCallback:
             itemList = list([(self.optionTranslationTable.get(option, str(option[1])), value) for option, value in changedOptions.iteritems()])
             funcArgs = self.funcArgs[:self.valueArgPlace] + [itemList] + self.funcArgs[self.valueArgPlace:]
             execJobs.append((self.func, funcArgs, self.funcKw))
+            
+        else:
+            self.log.error('Unknown calltype "%s"!', self.callType)
             
         return execJobs

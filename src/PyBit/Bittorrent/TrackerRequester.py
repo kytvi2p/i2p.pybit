@@ -63,7 +63,7 @@ class TrackerRequester:
         self.trackerInfo = TrackerInfo(self.torrent)
         
         #other
-        self.paused = False
+        self.paused = True
         self.stopped = False
         self.log = Logger('TrackerRequester', '%-6s - ', torrentIdent)
         self.lock = threading.Lock()
@@ -80,11 +80,14 @@ class TrackerRequester:
                                        ('tracker', 'scrapeWhileStopped'))
                                     
         self.scrapeStatusCallback = self.config.addCallback(callbackScrapeStatusOptions, self.updateScrapeStatus,
-                                                            callType='item-funcArgAll', callWithAllOptions=True)
+                                                            callType='value-funcArgAll', callWithAllOptions=True)
+                                                            
+        self.scrapeIntervalCallback = self.config.addCallback((('tracker', 'scrapeInterval'),), self.changeScrapeInterval)
                                                             
         
     def _removeConfigCallbacks(self):
         self.config.removeCallback(self.scrapeStatusCallback)
+        self.config.removeCallback(self.scrapeIntervalCallback)
         
     
     ##internal functions - announces
@@ -233,9 +236,10 @@ class TrackerRequester:
                 
             else:
                 #was not a stop event and not paused
-                self.log.debug("Next announce request in 60 minutes")
+                announceInterval = self.config.get('tracker', 'announceInterval')
+                self.log.debug("Next announce request in %i minutes", announceInterval/60)
                 self.torrentEvent = None
-                self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=3600)
+                self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=announceInterval)
         
         else:
             #request failed
@@ -389,7 +393,8 @@ class TrackerRequester:
                 reason = 'invalid response'
                 
             self.log.debug('Scrape request to tracker "%s" failed: %s', trackerSet['logUrl'], reason)
-            self.trackerInfo.clearScrapeStats(trackerSet['id'])
+            if self.config.get('tracker', 'clearOldScrapeStats'):
+                self.trackerInfo.clearScrapeStats(trackerSet['id'])
             
             
     def _abortScrapes(self):
@@ -398,17 +403,24 @@ class TrackerRequester:
         self.scrapeHttpRequests.clear()
         
         
+    def _changeScrapeInterval(self, scrapeInterval):
+        if self.scrapeEvent is not None:
+            self.sched.rescheduleEvent(self.scrapeEvent, timedelta=scrapeInterval)
+        
+        
     def _updateScrapeStatus(self, scrapeTrackers, scrapeWhileStopped):
         if self.scrapeEvent is None and scrapeTrackers == 'all' and (scrapeWhileStopped or not self.paused) and self.stopped == False:
             #no scrape event but should be scraping all trackers
-            self.scrapeEvent = self.sched.scheduleEvent(self.scrape, repeatdelta=3600)
+            scrapeInterval = self.config.get('tracker', 'scrapeInterval')
+            self.scrapeEvent = self.sched.scheduleEvent(self.scrape, repeatdelta=scrapeInterval)
             
         elif self.scrapeEvent is not None and ((not scrapeTrackers == 'all') or (self.paused and not scrapeWhileStopped) or self.stopped):
             #scraping all trackers but should not
             self.sched.removeEvent(self.scrapeEvent)
             self.scrapeEvent = None
             self._abortScrapes()
-            self.trackerInfo.clearAllScrapeStats()
+            if self.config.get('tracker', 'clearOldScrapeStats'):
+                self.trackerInfo.clearAllScrapeStats()
             
                 
     ##internal functions - status
@@ -511,6 +523,12 @@ class TrackerRequester:
         
         
     ##external functions - config changes
+    
+    def changeScrapeInterval(self, scrapeInterval):
+        self.lock.acquire()
+        self._changeScrapeInterval(scrapeInterval)
+        self.lock.release()
+        
     
     def updateScrapeStatus(self, scrapeTrackers, scrapeWhileStopped):
         self.lock.acquire()

@@ -222,6 +222,8 @@ class Logging_ConfigPanel(wx.Panel):
         optionDict[('logging','fileLoglevel')] = str(self.combo2.GetValue().lower())
         
 
+
+
 class Network_ConfigPanel(wx.Panel):
     def __init__(self, config, parent, **kwargs):
         wx.Panel.__init__(self, parent, **kwargs)
@@ -893,6 +895,135 @@ class Storage_ConfigPanel(wx.Panel):
 
 
 
+        
+        
+        
+        
+class Tracker_ConfigPanel(wx.Panel):
+    def __init__(self, config, parent, **kwargs):
+        wx.Panel.__init__(self, parent, **kwargs)
+        self.config = config
+        #stuff
+        vBox = wx.BoxSizer(wx.VERTICAL)
+
+        ##build up main box and sizers
+        trackerBox = wx.StaticBox(self, -1, "Tracker")
+        trackerBoxSizer = wx.StaticBoxSizer(trackerBox, wx.VERTICAL)
+        trackerBoxItems = wx.FlexGridSizer(cols = 1, vgap = 10, hgap = 5)
+        
+        
+        ##announcing
+        announceOptionsBox = wx.StaticBox(self, -1, "Announcing")
+        announceOptionsBoxSizer = wx.StaticBoxSizer(announceOptionsBox, wx.VERTICAL)
+        announceOptionsBoxItems = wx.FlexGridSizer(cols = 2, vgap = 3, hgap = 5)
+        announceOptionsBoxItems.AddGrowableCol(0, 1)
+        
+        #scrape interval
+        label = wx.StaticText(self, -1, "Announce interval:")
+        label.SetToolTipString('How often (in minutes) should announcing be done?')
+        announceOptionsBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.spin1 = wx.SpinCtrl(self, -1, size=wx.Size(85,-1))
+        self.spin1.SetRange(30, 120)
+        self.spin1.SetValue(self.config.get('tracker','announceInterval')/60)
+        self.spin1.SetToolTipString('How often (in minutes) should scraping be done?')
+        announceOptionsBoxItems.Add(self.spin1, 1)
+        
+        #add item sizer to box sizer
+        announceOptionsBoxSizer.Add(announceOptionsBoxItems, 1, wx.EXPAND | wx.ALL, border = 5)
+        
+        
+        ##scraping
+        scrapeOptionsBox = wx.StaticBox(self, -1, "Scraping")
+        scrapeOptionsBoxSizer = wx.StaticBoxSizer(scrapeOptionsBox, wx.VERTICAL)
+        scrapeOptionsBoxItems = wx.FlexGridSizer(cols = 2, vgap = 3, hgap = 5)
+        scrapeOptionsBoxItems.AddGrowableCol(0, 1)
+        
+        #scrape interval
+        label = wx.StaticText(self, -1, "Scrape interval:")
+        label.SetToolTipString('How often (in minutes) should scraping be done?')
+        scrapeOptionsBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.spin2 = wx.SpinCtrl(self, -1, size=wx.Size(85,-1))
+        self.spin2.SetRange(30, 1440)
+        self.spin2.SetValue(self.config.get('tracker','scrapeInterval')/60)
+        self.spin2.SetToolTipString('How often (in minutes) should scraping be done?')
+        scrapeOptionsBoxItems.Add(self.spin2, 1)
+            
+        #scrape trackers
+        label = wx.StaticText(self, -1, "Scrape trackers:")
+        label.SetToolTipString('Determines which trackers should be scraped: None, Active (=the tracker used for announcing) or All.')
+        scrapeOptionsBoxItems.Add(label, 1, wx.EXPAND | wx.ALIGN_CENTER_VERTICAL)
+        
+        self.combo1 = wx.ComboBox(self, -1, size = wx.Size(85, -1),\
+                                  choices=["None", "Active", "All"], style=wx.CB_READONLY)
+        self.combo1.SetValue(self.config.get('tracker','scrapeTrackers').capitalize())
+        self.combo1.SetToolTipString('Determines which trackers should be scraped: None, Active (=the tracker used for announcing) or All.')
+        scrapeOptionsBoxItems.Add(self.combo1, 1)
+        
+        #scrape when stopped
+        label = wx.StaticText(self, -1, "Scrape when stopped:")
+        label.SetToolTipString('Should the trackers of a torrent even get scraped when the torrent is stopped? Only possible if "Scrape trackers" is set to "All".')
+        scrapeOptionsBoxItems.Add(label, 1, wx.EXPAND | wx.ALIGN_CENTER_VERTICAL)
+        
+        self.check1 = wx.CheckBox(self, -1)
+        self.check1.SetToolTipString('Should the trackers of a torrent even get scraped when the torrent is stopped? Only possible if "Scrape trackers" is set to "All".')
+        self.check1.SetValue(self.config.get('tracker','scrapeWhileStopped'))
+        scrapeOptionsBoxItems.Add(self.check1, 1)
+        
+        #clear old scrape stats
+        label = wx.StaticText(self, -1, "Clear old scrape stats:")
+        label.SetToolTipString('Should outdated scrape stats get cleared (when the last scrape failed, scraping gets disabled, ...)?')
+        scrapeOptionsBoxItems.Add(label, 1, wx.EXPAND | wx.ALIGN_CENTER_VERTICAL)
+        
+        self.check2 = wx.CheckBox(self, -1)
+        self.check2.SetToolTipString('Should outdated scrape stats get cleared (when the last scrape failed, scraping gets disabled, ...)?')
+        self.check2.SetValue(self.config.get('tracker','clearOldScrapeStats'))
+        scrapeOptionsBoxItems.Add(self.check2, 1)
+        
+        #add item sizer to box sizer
+        scrapeOptionsBoxSizer.Add(scrapeOptionsBoxItems, 1, wx.EXPAND | wx.ALL, border = 5)
+        
+        
+        ##build up comment box 
+        commentBox = wx.StaticBox(self, -1, "Note")
+        commentBoxSizer = wx.StaticBoxSizer(commentBox, wx.VERTICAL)
+        commentLabel = wx.StaticText(self, -1, 'Announcing is done by doing a http request to a tracker and is both needed for getting '+\
+                                               'peers from a tracker and for adding your own i2p address to the tracker (so that other peers '
+                                               'may get it).\n'+\
+                                               'If you don\'t know exactly what you are doing, don\'t change the announce interval, because '+\
+                                               'too frequent or too infrequent announce requests may cause problems with some trackers.\n\n'+\
+                                               'Scraping reffers to getting seed/leecher/download stats from a tracker using a seperate '+\
+                                               'http request. Since http requests also consume bandwidth (and ressources in general), '+\
+                                               'consider longer scrape intervals or scraping less trackers when you have many torrents queued.')
+        commentBoxSizer.Add(commentLabel, 1, flag = wx.EXPAND | wx.ALL, border = 5)
+
+
+        ##build up i2p box
+        trackerBoxItems.Add(announceOptionsBoxSizer, 1, wx.EXPAND | wx.ALL, border = 0)
+        trackerBoxItems.Add(scrapeOptionsBoxSizer, 1, wx.EXPAND | wx.ALL, border = 0)
+        trackerBoxItems.Add(commentBoxSizer, 1, wx.EXPAND | wx.ALL, border = 0)
+        trackerBoxItems.AddGrowableCol(0, 1)
+        trackerBoxItems.AddGrowableRow(2, 1)
+        trackerBoxSizer.Add(trackerBoxItems, 1, wx.EXPAND | wx.ALL, border = 0)
+
+
+        ##line everything up
+        vBox.Add(trackerBoxSizer, 1, wx.EXPAND | wx.ALL, border = 2)
+        self.SetSizer(vBox)
+        self.Layout()
+        
+
+    def saveConfig(self, optionDict):
+        optionDict[('tracker','announceInterval')] = self.spin1.GetValue() * 60
+        optionDict[('tracker','scrapeInterval')] = self.spin2.GetValue() * 60
+        optionDict[('tracker','clearOldScrapeStats')] = self.check2.GetValue()
+        optionDict[('tracker','scrapeWhileStopped')] = self.check1.GetValue()
+        optionDict[('tracker','scrapeTrackers')] = str(self.combo1.GetValue().lower())
+        
+
+
+
 class ConfigDialog(wx.Frame):
     def __init__(self, config, parent, **kwargs):
         wx.Frame.__init__(self, parent, -1, 'Preferences', size=wx.Size(550, 525),\
@@ -915,6 +1046,7 @@ class ConfigDialog(wx.Frame):
         n40 = self.tree.AppendItem(root, "Paths")
         n50 = self.tree.AppendItem(root, "Requester")
         n60 = self.tree.AppendItem(root, "Storage")
+        n70 = self.tree.AppendItem(root, "Tracker")
         
         self.tree.Expand(n10)
         self.tree.Expand(n20)
@@ -924,6 +1056,7 @@ class ConfigDialog(wx.Frame):
         self.tree.Expand(n40)
         self.tree.Expand(n50)
         self.tree.Expand(n60)
+        self.tree.Expand(n70)
         self.tree.SelectItem(n10)
 
         self.vBox.Add(self.tree, 1, wx.EXPAND)
@@ -944,14 +1077,15 @@ class ConfigDialog(wx.Frame):
         self.hBox.Add(self.vBox, 0, wx.EXPAND)
 
         #config panels
-        self.configPanels = {'Choker':Choker_ConfigPanel(self.config, self),\
-                             'Logging':Logging_ConfigPanel(self.config, self),\
-                             'Network':Network_ConfigPanel(self.config, self),\
-                             'Http':Http_ConfigPanel(self.config, self),\
-                             'I2P':I2P_ConfigPanel(self.config, self),\
-                             'Paths':Paths_ConfigPanel(self.config, self),\
-                             'Requester':Requester_ConfigPanel(self.config, self),\
-                             'Storage':Storage_ConfigPanel(self.config, self)}
+        self.configPanels = {'Choker':Choker_ConfigPanel(self.config, self),
+                             'Logging':Logging_ConfigPanel(self.config, self),
+                             'Network':Network_ConfigPanel(self.config, self),
+                             'Http':Http_ConfigPanel(self.config, self),
+                             'I2P':I2P_ConfigPanel(self.config, self),
+                             'Paths':Paths_ConfigPanel(self.config, self),
+                             'Requester':Requester_ConfigPanel(self.config, self),
+                             'Storage':Storage_ConfigPanel(self.config, self),
+                             'Tracker':Tracker_ConfigPanel(self.config, self)}
         self.activePanel = 'Choker'
         
         for panelName in self.configPanels.keys():
@@ -1029,7 +1163,10 @@ if __name__ == "__main__":
                       'requester':{'strictAvailabilityPrio':(True, 'bool')},
                       'storage':{'persistPieceStatus':(True, 'bool'),
                                  'skipFileCheck':(False, 'bool')},
-                      'tracker':{'scrapeWhileStopped':(False, 'bool'),
+                      'tracker':{'announceInterval':(3600, 'int'),
+                                 'scrapeInterval':(3600, 'int'),
+                                 'clearOldScrapeStats':(True, 'bool'),
+                                 'scrapeWhileStopped':(False, 'bool'),
                                  'scrapeTrackers':('active', 'str')}}
                                     
     #create config, add bt defaults
