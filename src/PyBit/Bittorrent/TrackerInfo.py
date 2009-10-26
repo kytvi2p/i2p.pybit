@@ -40,7 +40,7 @@ class TrackerInfo:
         self.lock = threading.Lock()
         
     
-    ##internal functions - tracker
+    ##internal functions - init
     
     def _create(self):
         tracker = self.torrent.getTrackerList()
@@ -98,12 +98,18 @@ class TrackerInfo:
         return scrapeUrl
     
     
+    ##internal functions - general
+    
     def _getAllTracker(self):
         return [deepcopy(info) for info in self.trackerInfos.itervalues()]
     
         
     def _getFirstTracker(self):
-        return deepcopy(self.trackerInfos[0])
+        if len(self.trackerInfos) > 0:
+            trackerSet = deepcopy(self.trackerInfos[0])
+        else:
+            trackerSet = None
+        return trackerSet
     
     
     def _getNextTracker(self, trackerId):
@@ -195,7 +201,7 @@ class TrackerInfo:
             self.trackerDownloadCounts[trackerId] = 0
     
     
-    ##external functions - tracker
+    ##external functions - general
     
     def getAll(self):
         with self.lock:
@@ -209,46 +215,57 @@ class TrackerInfo:
     
     def getNext(self, trackerId):
         with self.lock:
-            return self._getNextTracker(trackerId)
+            if trackerId in self.trackerInfos:
+                trackerSet = self._getNextTracker(trackerId)
+            else:
+                trackerSet = self._getFirstTracker()
+            return trackerSet
     
     
     ##external functions - announce
     
     def setAnnounceTry(self, trackerId):
         with self.lock:
-            self._setAnnounceTry(trackerId)
+            if trackerId in self.trackerInfos:
+                self._setAnnounceTry(trackerId)
             
             
     def setAnnounceFailure(self, trackerId):
         with self.lock:
-            self._setAnnounceFailure(trackerId)
+            if trackerId in self.trackerInfos:
+                self._setAnnounceFailure(trackerId)
             
     
     def setAnnounceSuccess(self, trackerId):
         with self.lock:
-            self._setAnnounceSuccess(trackerId)
+            if trackerId in self.trackerInfos:
+                self._setAnnounceSuccess(trackerId)
         
     
     ##external functions - scrape
     
     def setScrapeTry(self, trackerId):
         with self.lock:
-            self._setScrapeTry(trackerId)
+            if trackerId in self.trackerInfos:
+                self._setScrapeTry(trackerId)
     
     
     def setScrapeSuccess(self, trackerId):
         with self.lock:
-            self._setScrapeSuccess(trackerId)
+            if trackerId in self.trackerInfos:
+                self._setScrapeSuccess(trackerId)
             
     
     def setScrapeStats(self, trackerId, seeds, leeches, downloads):
         with self.lock:
-            self._setTrackerScrapeStats(trackerId, seeds, leeches, downloads)
+            if trackerId in self.trackerInfos:
+                self._setTrackerScrapeStats(trackerId, seeds, leeches, downloads)
         
         
     def clearScrapeStats(self, trackerId):
         with self.lock:
-            self._clearTrackerScrapeStats(trackerId)
+            if trackerId in self.trackerInfos:
+                self._clearTrackerScrapeStats(trackerId)
             
         
     def clearAllScrapeStats(self):

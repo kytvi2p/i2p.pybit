@@ -486,7 +486,11 @@ class TrackerRequester:
         self.lock.acquire()
         if self.announceEvent is not None:
             self.log.debug("Announcing")
-            self._makeAnnounceRequest(self.trackerInfo.getFirst())
+            trackerSet = self.trackerInfo.getFirst()
+            if trackerSet is None:
+                self.log.warn("No trackers configured, aborting announce")
+            else:
+                self._makeAnnounceRequest()
         self.lock.release()
         
         
