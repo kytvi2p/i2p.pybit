@@ -324,6 +324,14 @@ class Bt:
                 self.superSeedingHandler.setEnabled(enabled)
         self.lock.release()
         
+    ##external funcs - tracker actions
+    
+    def getTrackerInfo(self):
+        self.lock.acquire()
+        trackerInfo = self.trackerRequester.getTrackerInfo()
+        self.lock.release()
+        return trackerInfo
+    
         
     ##external funcs - other
     

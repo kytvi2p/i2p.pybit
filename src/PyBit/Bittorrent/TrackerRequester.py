@@ -548,6 +548,11 @@ class TrackerRequester:
         self._updateScrapeStatus(scrapeTrackers, scrapeWhileStopped)
         self.lock.release()
         
+    ##external functions - tracker actions
+    
+    def getTrackerInfo(self):
+        return self.trackerInfo.getTrackerInfo()
+        
     
     ##external functions - other
     

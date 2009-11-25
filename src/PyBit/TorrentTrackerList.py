@@ -19,10 +19,12 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 
 import wx
 
+from TrackerModifyDialog import TrackerModifyDialog
 from VirtualListCtrl import PersistentVirtualListCtrl
 
 class TorrentTrackerList(PersistentVirtualListCtrl):
-    def __init__(self, persister, version, rawUpdateFunc, parent, **kwargs):
+    def __init__(self, persister, version, rawUpdateFunc, trackerGetFunc, parent, **kwargs):
+        self.trackerGetFunc = trackerGetFunc
         self.torrentId = None
         
         #Syntax: NameOfColumn, NameOfStat, DataType, ColumnWidth
@@ -46,6 +48,8 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
         self.rawUpdateFunc = rawUpdateFunc
         PersistentVirtualListCtrl.__init__(self, persister, 'TorrentTrackerList-', self._updatePerstData, version,
                                            cols, self._getRowData, parent, rowIdCol='Id', **kwargs)
+                                        
+        self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.OnRightClick, self)
        
         
     def _updatePerstData(self, persColData, currentVersion):
@@ -87,3 +91,36 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
         if self.torrentId is not None:
             self.dataUpdate()
         self.lock.release()
+        
+    ##tracker actions
+    
+    def getTrackerInfo(self):
+        self.lock.acquire()
+        trackerInfo = self.trackerGetFunc(self.torrentId)
+        self.lock.release()
+        return trackerInfo
+        
+    
+    ##events
+        
+    def OnRightClick(self, event):
+        diag = TrackerOptionsPopup(self)
+        self.PopupMenu(diag)
+        
+        
+
+
+class TrackerOptionsPopup(wx.Menu):
+    def __init__(self, trackerDiag, *args, **kwargs):
+        wx.Menu.__init__(self, *args, **kwargs)
+        #static
+        self.trackerDiag = trackerDiag
+        
+        #menu
+        id = wx.NewId()
+        self.AppendCheckItem(id, 'Modify Tracker', 'Modify Tracker List')
+        self.Bind(wx.EVT_MENU, self.OnModify, id=id)
+        
+
+    def OnModify(self, event):
+        TrackerModifyDialog(self.trackerDiag, self.trackerDiag.getTrackerInfo())

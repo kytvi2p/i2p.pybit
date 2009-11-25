@@ -35,7 +35,7 @@ class TrackerInfo:
         self.trackerSeedCounts = {}
         self.trackerLeechCounts = {}
         self.trackerDownloadCounts = {}
-        self.trackerInfos, self.trackerTiers = self._create()
+        self.trackerInfos, self.trackerTiers, self.nextTrackerId = self._create()
         self.activeTracker = None
         self.lock = threading.Lock()
         
@@ -82,7 +82,7 @@ class TrackerInfo:
                 trackerId += 1
             tierNum += 1
             
-        return trackerList, prioList
+        return trackerList, prioList, trackerId
     
     
     def _getScrapeUrl(self, trackerUrl):
@@ -199,6 +199,44 @@ class TrackerInfo:
             self.trackerSeedCounts[trackerId] = 0
             self.trackerLeechCounts[trackerId] = 0
             self.trackerDownloadCounts[trackerId] = 0
+            
+            
+    ##internal functions - stats
+    
+    def _getStats(self):
+        stats = {}
+        for tierNum, tier in enumerate(self.trackerTiers):
+            for trackerNum, trackerId in enumerate(tier):
+                trackerSet = self.trackerInfos[trackerId]
+                stats[trackerId] = {'tier':tierNum + 1,
+                                    'tierPos':trackerNum + 1,
+                                    'trackerUrl':trackerSet['logUrl'],
+                                    'trackerId':trackerId,
+                                    'active':(trackerId == self.activeTracker),
+                                    'announceTryCount':trackerSet['announceTryCount'],
+                                    'announceTryTime':trackerSet['announceTryTime'],
+                                    'announceSuccessCount':trackerSet['announceSuccessCount'],
+                                    'announceSuccessTime':trackerSet['announceSuccessTime'],
+                                    'scrapeTryCount':trackerSet['scrapeTryCount'],
+                                    'scrapeTryTime':trackerSet['scrapeTryTime'],
+                                    'scrapeSuccessCount':trackerSet['scrapeSuccessCount'],
+                                    'scrapeSuccessTime':trackerSet['scrapeSuccessTime'],
+                                    'seeds':self.trackerSeedCounts[trackerId],
+                                    'leeches':self.trackerLeechCounts[trackerId],
+                                    'downloads':self.trackerDownloadCounts[trackerId]}
+        return stats
+    
+    
+    ##internal functions - modifying
+    
+    def _getTrackerInfo(self):
+        stats = self._getStats()
+        trackerInfo = []
+        for tierIdx in xrange(0, len(self.trackerTiers)):
+            tier = self.trackerTiers[tierIdx]
+            trackerInfo.append({'groupId':tierIdx, 'groupPos':tierIdx+1, 'groupName':'Group '+str(tierIdx),
+                                 'groupTracker':[stats[trackerId] for trackerId in tier]})
+        return trackerInfo
     
     
     ##external functions - general
@@ -271,30 +309,17 @@ class TrackerInfo:
     def clearAllScrapeStats(self):
         with self.lock:
             self._clearAllTrackerScrapeStats()
+            
+    ##external functions - modifying
+    
+    def getTrackerInfo(self):
+        with self.lock:
+            return self._getTrackerInfo()
         
     
     ##external functions - other
     
     def getStats(self):
         with self.lock:
-            stats = []
-            for tierNum, tier in enumerate(self.trackerTiers):
-                for trackerNum, trackerId in enumerate(tier):
-                    trackerSet = self.trackerInfos[trackerId]
-                    stats.append({'tier':tierNum + 1,
-                                  'tierPos':trackerNum + 1,
-                                  'trackerUrl':trackerSet['logUrl'],
-                                  'trackerId':trackerId,
-                                  'active':(trackerId == self.activeTracker),
-                                  'announceTryCount':trackerSet['announceTryCount'],
-                                  'announceTryTime':trackerSet['announceTryTime'],
-                                  'announceSuccessCount':trackerSet['announceSuccessCount'],
-                                  'announceSuccessTime':trackerSet['announceSuccessTime'],
-                                  'scrapeTryCount':trackerSet['scrapeTryCount'],
-                                  'scrapeTryTime':trackerSet['scrapeTryTime'],
-                                  'scrapeSuccessCount':trackerSet['scrapeSuccessCount'],
-                                  'scrapeSuccessTime':trackerSet['scrapeSuccessTime'],
-                                  'seeds':self.trackerSeedCounts[trackerId],
-                                  'leeches':self.trackerLeechCounts[trackerId],
-                                  'downloads':self.trackerDownloadCounts[trackerId]})
+            stats = self._getStats().values()
             return stats

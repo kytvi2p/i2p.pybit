@@ -376,6 +376,16 @@ class BtQueueManager:
                 obj = self.queueJobs[torrentId]
                 if isinstance(obj, Bt):
                     obj.setSuperSeeding(enabled)
+                    
+    
+    def getTrackerInfo(self, torrentId):
+        with self.lock:
+            trackerInfo = []
+            if torrentId in self.queueJobs:
+                obj = self.queueJobs[torrentId]
+                if isinstance(obj, Bt):
+                    trackerInfo = obj.getTrackerInfo()
+            return trackerInfo
     
     
     ##external functions - stats

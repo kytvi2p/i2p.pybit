@@ -210,6 +210,11 @@ class MultiBt:
     def setSuperSeeding(self, torrentId, enabled):
         with self.lock:
             self.queue.setSuperSeeding(torrentId, enabled)
+            
+            
+    def getTrackerInfo(self, torrentId):
+        with self.lock:
+            return self.queue.getTrackerInfo(torrentId)
         
     
     ##external functions - stats
