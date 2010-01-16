@@ -78,12 +78,14 @@ class TrackerInfo:
         if not splitPath[-1].startswith('announce'):
             #does not support scrape requests
             scrapeUrl = None
+            scrapeLogUrl = ''
         else:
             #supports scrape
             scrapeUrl = trackerUrl.copy()
             splitPath[-1] = 'scrape'+splitPath[-1][8:]
             scrapeUrl['path'] = '/'.join(splitPath)
-        return scrapeUrl
+            scrapeLogUrl = joinUrl(scrapeUrl)
+        return scrapeUrl, scrapeLogUrl
     
     
     def _genTrackerInfo(self, tierIdx, trackerId, trackerUrl):
@@ -99,11 +101,7 @@ class TrackerInfo:
                        'scrapeTryTime':None,
                        'scrapeSuccessCount':0,
                        'scrapeSuccessTime':None}
-        trackerInfo['scrapeUrl'] = self._getScrapeUrl(trackerInfo['url'])
-        if trackerInfo['scrapeUrl'] is None:
-            trackerInfo['scrapeLogUrl'] = ''
-        else:
-            trackerInfo['scrapeLogUrl'] = joinUrl(trackerInfo['scrapeUrl'])
+        trackerInfo['scrapeUrl'], trackerInfo['scrapeLogUrl'] = self._getScrapeUrl(trackerInfo['url'])
         return trackerInfo
     
     
@@ -279,6 +277,7 @@ class TrackerInfo:
                     oldTracker['tier'] = tierIdx
                     oldTracker['url'] = splitUrl(tracker['trackerUrl'])
                     oldTracker['logUrl'] = tracker['trackerUrl']
+                    oldTracker['scrapeUrl'], oldTracker['scrapeLogUrl'] = self._getScrapeUrl(trackerInfo['url'])
                     
             self.trackerTiers.append(trackerIds)
         
