@@ -417,6 +417,7 @@ class TrackerModifyDialog(wx.Frame):
         
     def OnOkButton(self, event):
         self.trackerSetFunc(self.trackerPanel.getTrackerInfo())
+        self.Destroy()
     
     
     def OnCancelButton(self, event):
