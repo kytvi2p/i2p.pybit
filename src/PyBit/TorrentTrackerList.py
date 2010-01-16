@@ -24,6 +24,8 @@ from VirtualListCtrl import PersistentVirtualListCtrl
 
 class TorrentTrackerList(PersistentVirtualListCtrl):
     def __init__(self, persister, version, rawUpdateFunc, trackerGetFunc, trackerSetFunc, parent, **kwargs):
+        self.persister = persister
+        self.version = version
         self.trackerGetFunc = trackerGetFunc
         self.trackerSetFunc = trackerSetFunc
         self.torrentId = None
@@ -169,17 +171,19 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
     ##events
         
     def OnRightClick(self, event):
-        diag = TrackerOptionsPopup(self)
+        diag = TrackerOptionsPopup(self, self.persister, self.version)
         self.PopupMenu(diag)
         
         
 
 
 class TrackerOptionsPopup(wx.Menu):
-    def __init__(self, trackerDiag, *args, **kwargs):
+    def __init__(self, trackerDiag, persister, version, *args, **kwargs):
         wx.Menu.__init__(self, *args, **kwargs)
         #static
         self.trackerDiag = trackerDiag
+        self.persister = persister
+        self.version = version
         
         #menu
         id = wx.NewId()
@@ -216,4 +220,4 @@ class TrackerOptionsPopup(wx.Menu):
         
 
     def OnModify(self, event):
-        TrackerModifyDialog(self.trackerDiag, self.trackerDiag.getTrackerInfo(), self.trackerDiag.setTrackerInfo)
+        TrackerModifyDialog(self.trackerDiag, self.trackerDiag.getTrackerInfo(), self.trackerDiag.setTrackerInfo, self.persister, self.version)

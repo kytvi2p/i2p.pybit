@@ -22,11 +22,11 @@ import wx
 
 from Bittorrent.HttpUtilities import joinUrl, splitUrl, i2pHttpUrlRegexObj
 from Utilities import showInfoMessage, showWarningMessage, showErrorMessage
-from VirtualListCtrl import VirtualListCtrl
+from VirtualListCtrl import PersistentVirtualListCtrl
 
 
 class TrackerModifyPanel(wx.Panel):
-    def __init__(self, parent, trackerInfo, **kwargs):
+    def __init__(self, parent, trackerInfo, persister, version, **kwargs):
         wx.Panel.__init__(self, parent, **kwargs)
         
         ##VARS
@@ -66,8 +66,9 @@ class TrackerModifyPanel(wx.Panel):
                 ('Group', 'groupName', 'native', 100, True)]
                 
         listboxId = wx.NewId()
-        self.trackerGroupList = VirtualListCtrl(cols, self._getTrackerGroupData, rowIdCol='Id', allowSort=False, defaultSortCol='Pos',
-                                                parent=groupPanel, id=listboxId, size=wx.Size(140, -1))
+        self.trackerGroupList = PersistentVirtualListCtrl(persister, 'TorrentModifyDialog-TrackerGroupList-', self._updateGroupPerstData, version,
+                                                          cols, self._getTrackerGroupData, rowIdCol='Id', allowSort=False, defaultSortCol='Pos',
+                                                          parent=groupPanel, id=listboxId, size=wx.Size(140, -1))
         self.trackerGroupList.SetToolTipString('')
         groupPanelSizer.Add(self.trackerGroupList, (0,1), (6,1), wx.EXPAND | wx.ALL, border = 0)
         
@@ -108,7 +109,7 @@ class TrackerModifyPanel(wx.Panel):
         #Syntax: NameOfColumn, NameOfStat, DataType, ColumnWidth
         cols = [('Id', 'trackerId', 'int', 75, False),\
                 ('Position', 'tierPos', 'int', 75, True),\
-                ('Url', 'trackerUrl', 'native', 400, True),\
+                ('Url', 'trackerUrl', 'native', 385, True),\
                 ('A', 'active', 'bool', 20, False),\
                 ('Seeds', 'seeds', 'int', 75, False),\
                 ('Leeches', 'leeches', 'int', 75, False),\
@@ -123,8 +124,9 @@ class TrackerModifyPanel(wx.Panel):
                 ('Scrape Successes', 'scrapeSuccessCount', 'int', 170, False)]
         
         listboxId = wx.NewId()
-        self.trackerUrlList = VirtualListCtrl(cols, self._getTrackerUrlData, rowIdCol='Id', allowSort=False, defaultSortCol='Position',
-                                              parent=urlPanel, id=listboxId)
+        self.trackerUrlList = PersistentVirtualListCtrl(persister, 'TorrentModifyDialog-TrackerUrlList-', self._updateTrackerPerstData, version,
+                                                        cols, self._getTrackerUrlData, rowIdCol='Id', allowSort=False, defaultSortCol='Position',
+                                                        parent=urlPanel, id=listboxId)
         self.trackerUrlList.SetToolTipString('')
         urlPanelSizer.Add(self.trackerUrlList, (0,0), (7,2), wx.EXPAND)
         wx.EVT_LIST_ITEM_RIGHT_CLICK(self.trackerUrlList, listboxId, self.OnTrackerListRightClick)
@@ -186,6 +188,16 @@ class TrackerModifyPanel(wx.Panel):
         
         ##EVENTS
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnSelect, self.trackerGroupList)
+        
+        
+    ##internal functions - list persisting
+    
+    def _updateGroupPerstData(self, persColData, currentVersion):
+        return persColData
+    
+    
+    def _updateTrackerPerstData(self, persColData, currentVersion):
+        return persColData
         
         
     ##internal functions - refresh
@@ -444,7 +456,7 @@ class TrackerListOptionsPopup(wx.Menu):
 
 
 class TrackerModifyDialog(wx.Frame):
-    def __init__(self, parent, trackerInfo, trackerSetFunc, **kwargs):
+    def __init__(self, parent, trackerInfo, trackerSetFunc, persister, version, **kwargs):
         wx.Frame.__init__(self, parent, -1, 'Modify Trackers', size=wx.Size(800, 400),\
                           style = wx.DEFAULT_FRAME_STYLE, **kwargs)
         
@@ -461,7 +473,7 @@ class TrackerModifyDialog(wx.Frame):
         mainPanelItems = wx.GridBagSizer(vgap = 0, hgap = 6)
         
         ##tracker panel
-        self.trackerPanel = TrackerModifyPanel(self, trackerInfo)
+        self.trackerPanel = TrackerModifyPanel(self, trackerInfo, persister, version)
         mainPanelItems.Add(self.trackerPanel, (0,0), (1,1), wx.EXPAND | wx.ALL, border = 2)
         
         
