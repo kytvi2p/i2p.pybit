@@ -35,47 +35,34 @@ class TrackerInfo:
         self.trackerSeedCounts = {}
         self.trackerLeechCounts = {}
         self.trackerDownloadCounts = {}
-        self.trackerInfos, self.trackerTiers, self.nextTrackerId = self._create()
+        
+        self.trackerInfos = {}
+        self.trackerTiers = []
+        self._initTrackerInfo()
+        
         self.activeTracker = None
         self.lock = threading.Lock()
         
     
     ##internal functions - init
     
-    def _create(self):
+    def _initTrackerInfo(self):
         tracker = self.torrent.getTrackerList()
-        trackerList = {}
-        prioList = []
+        self.trackerInfos = {}
+        self.trackerTiers = []
         
-        tierNum = 0
+        tierIdx = 0
         trackerId = 0
         
         for tier in tracker:
             #tier
-            prioList.append([])
+            self.trackerTiers.append([])
             for trackerUrl in tier:
                 #single tracker url
-                prioList[tierNum].append(trackerId)
+                self.trackerTiers[tierIdx].append(trackerId)
                 
                 #info
-                trackerInfo = {'url':splitUrl(trackerUrl),
-                               'logUrl':trackerUrl,
-                               'tier':tierNum,
-                               'id':trackerId,
-                               'announceTryCount':0,
-                               'announceTryTime':None,
-                               'announceSuccessCount':0,
-                               'announceSuccessTime':None,
-                               'scrapeTryCount':0,
-                               'scrapeTryTime':None,
-                               'scrapeSuccessCount':0,
-                               'scrapeSuccessTime':None}
-                trackerInfo['scrapeUrl'] = self._getScrapeUrl(trackerInfo['url'])
-                if trackerInfo['scrapeUrl'] is None:
-                    trackerInfo['scrapeLogUrl'] = ''
-                else:
-                    trackerInfo['scrapeLogUrl'] = joinUrl(trackerInfo['scrapeUrl'])
-                trackerList[trackerId] = trackerInfo
+                self.trackerInfos[trackerId] = self._genTrackerInfo(tierIdx, trackerId, trackerUrl)
                 
                 #counts
                 self.trackerSeedCounts[trackerId] = 0
@@ -83,9 +70,7 @@ class TrackerInfo:
                 self.trackerDownloadCounts[trackerId] = 0
                 
                 trackerId += 1
-            tierNum += 1
-            
-        return trackerList, prioList, trackerId
+            tierIdx += 1
     
     
     def _getScrapeUrl(self, trackerUrl):
@@ -99,6 +84,27 @@ class TrackerInfo:
             splitPath[-1] = 'scrape'+splitPath[-1][8:]
             scrapeUrl['path'] = '/'.join(splitPath)
         return scrapeUrl
+    
+    
+    def _genTrackerInfo(self, tierIdx, trackerId, trackerUrl):
+        trackerInfo = {'url':splitUrl(trackerUrl),
+                       'logUrl':trackerUrl,
+                       'tier':tierIdx,
+                       'id':trackerId,
+                       'announceTryCount':0,
+                       'announceTryTime':None,
+                       'announceSuccessCount':0,
+                       'announceSuccessTime':None,
+                       'scrapeTryCount':0,
+                       'scrapeTryTime':None,
+                       'scrapeSuccessCount':0,
+                       'scrapeSuccessTime':None}
+        trackerInfo['scrapeUrl'] = self._getScrapeUrl(trackerInfo['url'])
+        if trackerInfo['scrapeUrl'] is None:
+            trackerInfo['scrapeLogUrl'] = ''
+        else:
+            trackerInfo['scrapeLogUrl'] = joinUrl(trackerInfo['scrapeUrl'])
+        return trackerInfo
     
     
     ##internal functions - general
@@ -242,6 +248,43 @@ class TrackerInfo:
         return trackerInfo
     
     
+    def _setTrackerInfo(self, newTrackerInfos):
+        #create set of old trackers
+        oldTrackerIds = set(self.trackerInfos.iterkeys())
+        
+        #create new tier list, add/update/remove trackers while doing so
+        allTrackerIds = set()
+        self.trackerTiers = []
+        
+        for tierIdx, tier in enumerate(tier for tier in newTrackerInfos if len(tier['groupTracker']) > 0):
+            #process one tier
+            trackerIds = []
+            for tracker in tier['groupTracker']:
+                #process one tracker
+                trackerId = tracker['trackerId']
+                allTrackerIds.add(trackerId)
+                trackerIds.append(trackerId)
+                
+                if not trackerId in self.trackerInfos:
+                    #new tracker
+                    self.trackerInfos[trackerId] = self._genTrackerInfo(tierIdx, trackerId, tracker['trackerUrl'])
+                    self.trackerSeedCounts[trackerId] = 0
+                    self.trackerLeechCounts[trackerId] = 0
+                    self.trackerDownloadCounts[trackerId] = 0
+                else:
+                    #old tracker
+                    self.trackerInfos[trackerId]['tier'] = tierIdx
+                    
+            self.trackerTiers.append(trackerIds)
+        
+        #remove old trackers which are not in any tier
+        for trackerId in oldTrackerIds.difference(allTrackerIds):
+            del self.trackerInfos[trackerId]
+            del self.trackerSeedCounts[trackerId]
+            del self.trackerLeechCounts[trackerId]
+            del self.trackerDownloadCounts[trackerId]
+            
+    
     ##external functions - general
     
     def getAll(self):
@@ -318,6 +361,14 @@ class TrackerInfo:
     def getTrackerInfo(self):
         with self.lock:
             return self._getTrackerInfo()
+        
+    
+    def setTrackerInfo(self, newTrackerInfos):
+        with self.lock:
+            if newTrackerInfos is not None:
+                self._setTrackerInfo(newTrackerInfos)
+            else:
+                self._initTrackerInfo()
         
     
     ##external functions - other

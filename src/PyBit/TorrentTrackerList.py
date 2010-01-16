@@ -23,8 +23,9 @@ from TrackerModifyDialog import TrackerModifyDialog
 from VirtualListCtrl import PersistentVirtualListCtrl
 
 class TorrentTrackerList(PersistentVirtualListCtrl):
-    def __init__(self, persister, version, rawUpdateFunc, trackerGetFunc, parent, **kwargs):
+    def __init__(self, persister, version, rawUpdateFunc, trackerGetFunc, trackerSetFunc, parent, **kwargs):
         self.trackerGetFunc = trackerGetFunc
+        self.trackerSetFunc = trackerSetFunc
         self.torrentId = None
         
         #Syntax: NameOfColumn, NameOfStat, DataType, ColumnWidth
@@ -99,6 +100,12 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
         trackerInfo = self.trackerGetFunc(self.torrentId)
         self.lock.release()
         return trackerInfo
+    
+    
+    def setTrackerInfo(self, newTrackerInfo):
+        self.lock.acquire()
+        self.trackerSetFunc(self.torrentId, newTrackerInfo)
+        self.lock.release()
         
     
     ##events
@@ -123,4 +130,4 @@ class TrackerOptionsPopup(wx.Menu):
         
 
     def OnModify(self, event):
-        TrackerModifyDialog(self.trackerDiag, self.trackerDiag.getTrackerInfo())
+        TrackerModifyDialog(self.trackerDiag, self.trackerDiag.getTrackerInfo(), self.trackerDiag.setTrackerInfo)

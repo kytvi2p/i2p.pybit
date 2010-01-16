@@ -94,7 +94,7 @@ class Gui(wx.Frame):
         self.torrentConnectionList = TorrentConnectionList(self.persister, self.version, self.torrentHandler.getStats, self.childWindows)
         self.torrentFileList = TorrentFileList(self.persister, self.version, self.torrentHandler.getStats, self.torrentHandler.setFilePriority, self.torrentHandler.setFileWantedFlag, self.childWindows)
         self.torrentRequestList = TorrentRequestList(self.persister, self.version, self.torrentHandler.getStats, self.childWindows)
-        self.torrentTrackerList = TorrentTrackerList(self.persister, self.version, self.torrentHandler.getStats, self.torrentHandler.getTrackerInfo, self.childWindows)
+        self.torrentTrackerList = TorrentTrackerList(self.persister, self.version, self.torrentHandler.getStats, self.torrentHandler.getTrackerInfo, self.torrentHandler.setTrackerInfo, self.childWindows)
         self.childWindows.addChild(self.torrentStats, 'General')
         self.childWindows.addChild(self.torrentConnectionList, 'Connections')
         self.childWindows.addChild(self.torrentFileList, 'Files')

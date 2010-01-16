@@ -386,6 +386,14 @@ class BtQueueManager:
                 if isinstance(obj, Bt):
                     trackerInfo = obj.getTrackerInfo()
             return trackerInfo
+        
+        
+    def setTrackerInfo(self, torrentId, newTrackerInfo):
+        with self.lock:
+            if torrentId in self.queueJobs:
+                obj = self.queueJobs[torrentId]
+                if isinstance(obj, Bt):
+                    obj.setTrackerInfo(newTrackerInfo)
     
     
     ##external functions - stats

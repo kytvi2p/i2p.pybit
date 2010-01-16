@@ -205,6 +205,12 @@ class TrackerModifyPanel(wx.Panel):
         return data
     
     
+    ##external functions - tracker info
+    
+    def getTrackerInfo(self):
+        return self.trackerInfo
+    
+    
     ##external functions - events
     
     def OnSelect(self, event):
@@ -355,9 +361,13 @@ class TrackerModifyPanel(wx.Panel):
 
 
 class TrackerModifyDialog(wx.Frame):
-    def __init__(self, parent, trackerInfo, **kwargs):
+    def __init__(self, parent, trackerInfo, trackerSetFunc, **kwargs):
         wx.Frame.__init__(self, parent, -1, 'Modify Trackers', size=wx.Size(800, 400),\
                           style = wx.DEFAULT_FRAME_STYLE, **kwargs)
+        
+        ##vars
+        self.trackerSetFunc = trackerSetFunc
+        
         
         ##basics
         self.CentreOnScreen()
@@ -368,8 +378,8 @@ class TrackerModifyDialog(wx.Frame):
         mainPanelItems = wx.GridBagSizer(vgap = 0, hgap = 6)
         
         ##tracker panel
-        trackerPanel = TrackerModifyPanel(self, trackerInfo)
-        mainPanelItems.Add(trackerPanel, (0,0), (1,1), wx.EXPAND | wx.ALL, border = 2)
+        self.trackerPanel = TrackerModifyPanel(self, trackerInfo)
+        mainPanelItems.Add(self.trackerPanel, (0,0), (1,1), wx.EXPAND | wx.ALL, border = 2)
         
         
         ##buttons
@@ -406,7 +416,7 @@ class TrackerModifyDialog(wx.Frame):
         
         
     def OnOkButton(self, event):
-        pass
+        self.trackerSetFunc(self.trackerPanel.getTrackerInfo())
     
     
     def OnCancelButton(self, event):

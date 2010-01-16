@@ -552,6 +552,10 @@ class TrackerRequester:
     
     def getTrackerInfo(self):
         return self.trackerInfo.getTrackerInfo()
+    
+    
+    def setTrackerInfo(self, newTrackerInfo):
+        self.trackerInfo.setTrackerInfo(newTrackerInfo)
         
     
     ##external functions - other

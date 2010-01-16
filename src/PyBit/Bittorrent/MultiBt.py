@@ -216,6 +216,11 @@ class MultiBt:
         with self.lock:
             return self.queue.getTrackerInfo(torrentId)
         
+        
+    def setTrackerInfo(self, torrentId, newTrackerInfo):
+        with self.lock:
+            self.queue.setTrackerInfo(torrentId, newTrackerInfo)
+        
     
     ##external functions - stats
     

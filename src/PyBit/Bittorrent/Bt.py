@@ -332,6 +332,12 @@ class Bt:
         self.lock.release()
         return trackerInfo
     
+    
+    def setTrackerInfo(self, newTrackerInfo):
+        self.lock.acquire()
+        self.trackerRequester.setTrackerInfo(newTrackerInfo)
+        self.lock.release()
+    
         
     ##external funcs - other
     
