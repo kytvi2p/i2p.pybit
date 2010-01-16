@@ -49,7 +49,7 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
        
         self.rawUpdateFunc = rawUpdateFunc
         PersistentVirtualListCtrl.__init__(self, persister, 'TorrentTrackerList-', self._updatePerstData, version,
-                                           cols, self._getRowData, parent, rowIdCol='Id', defaultSortCol='Url', defaultSortDirection='DESC', **kwargs)
+                                           cols, self._getRowData, parent, rowIdCol='Id', defaultSortCol='Priority', defaultSortDirection='DESC', **kwargs)
                                         
         self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.OnRightClick, self)
        
@@ -127,8 +127,17 @@ class TrackerOptionsPopup(wx.Menu):
         
         #menu
         id = wx.NewId()
-        self.AppendCheckItem(id, 'Modify Tracker', 'Modify Tracker List')
+        self.AppendCheckItem(id, 'Reset to defaults ', 'Restore the default tracker list as stored in the torrent')
+        self.Bind(wx.EVT_MENU, self.OnResetToDefaults, id=id)
+        self.AppendSeparator()
+        
+        id = wx.NewId()
+        self.AppendCheckItem(id, 'Modify tracker list', 'Modify Tracker List')
         self.Bind(wx.EVT_MENU, self.OnModify, id=id)
+        
+        
+    def OnResetToDefaults(self, event):
+        self.trackerDiag.setTrackerInfo(None)
         
 
     def OnModify(self, event):
