@@ -233,7 +233,7 @@ class Gui(wx.Frame):
         downloadDefaultDir = self.config.get('paths','downloadFolder')
         
         #let user enter a url
-        diag = wx.TextEntryDialog(self, message='Enter http url of the torrent file:', caption='Enter url', defaultValue='http://')
+        diag = wx.TextEntryDialog(self, message='Please enter the http url of the torrent file:', caption='Enter url', defaultValue='http://')
         
         if diag.ShowModal() == wx.ID_OK:
             #user did select something
