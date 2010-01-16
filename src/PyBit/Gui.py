@@ -53,6 +53,9 @@ class Gui(wx.Frame):
         self.log = logging.getLogger("Gui")
         self.stopFlag = False
         
+        ##locale
+        self.locale = wx.Locale(wx.LANGUAGE_ENGLISH)
+        
         
         ##Gui Stuff
         wx.Frame.__init__(self, None, -1, 'PyBit', size = wx.Size(800, 600), style = wx.DEFAULT_FRAME_STYLE | wx.CLIP_CHILDREN)
