@@ -71,8 +71,8 @@ class Bt:
         self.requester = Requester(self.config, self.torrentIdent, self.pieceStatus, self.storage, self.torrent)
         
         self.log.debug("Creating tracker requester class")
-        self.trackerRequester = TrackerRequester(self.config, eventSched, peerId, self.peerPool, ownAddrFunc, httpRequester,
-                                                 self.inRate, self.outRate, self.storage, self.torrent, self.torrentIdent)
+        self.trackerRequester = TrackerRequester(self.config, self.btPersister, eventSched, peerId, self.peerPool, ownAddrFunc, httpRequester,
+                                                 self.inRate, self.outRate, self.storage, self.torrent, self.torrentIdent, self.version)
         
         self.log.debug("Creating superseeding handler class")
         self.superSeedingHandler = SuperSeedingHandler(self.torrentIdent, self.btPersister, self.storage.getStatus(), self.pieceStatus)

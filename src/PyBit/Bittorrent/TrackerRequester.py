@@ -25,13 +25,13 @@ import threading
 from Bencoding import bdecode
 from HttpUtilities import joinUrl, splitUrl
 from Logger import Logger
-from TrackerInfo import TrackerInfo
+from TrackerInfo import PersistentTrackerInfo
 from Utilities import logTraceback
 
 
 class TrackerRequester:
-    def __init__(self, config, eventScheduler,  peerId, peerPool, ownAddrFunc, httpRequester,
-                 inMeasure, outMeasure, storage, torrent, torrentIdent):
+    def __init__(self, config, btPersister, eventScheduler,  peerId, peerPool, ownAddrFunc, httpRequester,
+                 inMeasure, outMeasure, storage, torrent, torrentIdent, version):
         #global stuff
         self.config = config
         self.sched = eventScheduler
@@ -60,7 +60,7 @@ class TrackerRequester:
         self.i2pHostChecker = re.compile('^([A-Za-z0-9\-~]{512,512}AAAA)(.i2p){0,1}$')
         
         #tracker - info
-        self.trackerInfo = TrackerInfo(self.torrent)
+        self.trackerInfo = PersistentTrackerInfo(self.torrent, btPersister, version)
         
         #other
         self.paused = True

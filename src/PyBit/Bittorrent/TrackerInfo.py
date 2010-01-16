@@ -32,6 +32,7 @@ from HttpUtilities import joinUrl, splitUrl
 class TrackerInfo:
     def __init__(self, torrent):
         self.torrent = torrent
+        
         self.trackerSeedCounts = {}
         self.trackerLeechCounts = {}
         self.trackerDownloadCounts = {}
@@ -43,10 +44,14 @@ class TrackerInfo:
         self.activeTracker = None
         self.lock = threading.Lock()
         
-    
-    ##internal functions - init
+        
+    ##internal functions - tracker - init
     
     def _initTrackerInfo(self):
+        self._createTrackerInfo()
+        
+    
+    def _createTrackerInfo(self):
         tracker = self.torrent.getTrackerList()
         self.trackerInfos = {}
         self.trackerTiers = []
@@ -72,6 +77,8 @@ class TrackerInfo:
                 trackerId += 1
             tierIdx += 1
     
+    
+    ##internal functions - tracker - general
     
     def _getScrapeUrl(self, trackerUrl):
         splitPath = trackerUrl['path'].split('/')
@@ -105,7 +112,7 @@ class TrackerInfo:
         return trackerInfo
     
     
-    ##internal functions - general
+    ##internal functions - tracker - info
     
     def _getAllTracker(self):
         return [deepcopy(info) for info in self.trackerInfos.itervalues()]
@@ -147,7 +154,7 @@ class TrackerInfo:
         return nextTracker
     
     
-    ##internal functions - announce
+    ##internal functions - tracker - announce
     
     def _setAnnounceTry(self, trackerId):
         trackerSet = self.trackerInfos[trackerId]
@@ -175,7 +182,7 @@ class TrackerInfo:
             tier.insert(0, trackerId)
             
     
-    ##internal functions - scrape
+    ##internal functions - scrape - announce
     
     def _setScrapeTry(self, trackerId):
         trackerSet = self.trackerInfos[trackerId]
@@ -208,7 +215,7 @@ class TrackerInfo:
             self.trackerDownloadCounts[trackerId] = 0
             
             
-    ##internal functions - stats
+    ##internal functions - tracker - stats
     
     def _getStats(self):
         stats = {}
@@ -237,7 +244,7 @@ class TrackerInfo:
         return stats
     
     
-    ##internal functions - modifying
+    ##internal functions - tracker - modifying
     
     def _getTrackerInfo(self):
         stats = self._getStats()
@@ -277,7 +284,7 @@ class TrackerInfo:
                     oldTracker['tier'] = tierIdx
                     oldTracker['url'] = splitUrl(tracker['trackerUrl'])
                     oldTracker['logUrl'] = tracker['trackerUrl']
-                    oldTracker['scrapeUrl'], oldTracker['scrapeLogUrl'] = self._getScrapeUrl(trackerInfo['url'])
+                    oldTracker['scrapeUrl'], oldTracker['scrapeLogUrl'] = self._getScrapeUrl(oldTracker['url'])
                     
             self.trackerTiers.append(trackerIds)
         
@@ -289,7 +296,7 @@ class TrackerInfo:
             del self.trackerDownloadCounts[trackerId]
             
     
-    ##external functions - general
+    ##external functions - tracker - general
     
     def getAll(self):
         with self.lock:
@@ -310,7 +317,7 @@ class TrackerInfo:
             return trackerSet
     
     
-    ##external functions - announce
+    ##external functions - tracker - announce
     
     def setAnnounceTry(self, trackerId):
         with self.lock:
@@ -330,7 +337,7 @@ class TrackerInfo:
                 self._setAnnounceSuccess(trackerId)
         
     
-    ##external functions - scrape
+    ##external functions - tracker - scrape
     
     def setScrapeTry(self, trackerId):
         with self.lock:
@@ -360,7 +367,7 @@ class TrackerInfo:
         with self.lock:
             self._clearAllTrackerScrapeStats()
             
-    ##external functions - modifying
+    ##external functions - tracker - modifying
     
     def getTrackerInfo(self):
         with self.lock:
@@ -375,9 +382,81 @@ class TrackerInfo:
                 self._initTrackerInfo()
         
     
-    ##external functions - other
+    ##external functions - tracker - stats
     
     def getStats(self):
         with self.lock:
             stats = self._getStats().values()
             return stats
+
+
+
+
+class PersistentTrackerInfo(TrackerInfo):
+    def __init__(self, torrent, btPersister, version):
+        self.btPersister = btPersister
+        self.version = version
+        TrackerInfo.__init__(self, torrent)
+    
+    
+    ##internal functions - persisting
+    
+    def _updatePersistedData(self, perstData, currentVersion):
+        return perstData[:-1]
+                
+                
+    def _loadPersistedData(self):
+        perstData = self.btPersister.get('TrackerInfo-trackerInfo', None)
+        if perstData is not None:
+            perstData = self._updatePersistedData(perstData, self.version)
+        return perstData
+                    
+                    
+    def _persist(self):
+        self.btPersister.store('TrackerInfo-trackerInfo', (self.trackerInfos, self.trackerTiers, self.version))
+        
+        
+    ##internal functions - init
+    
+    def _initTrackerInfo(self):
+        perstData = self._loadPersistedData()
+        if perstData is None:
+            self._createTrackerInfo()
+        else:
+            self.trackerInfos = perstData[0]
+            self.trackerTiers = perstData[1]
+            for trackerId in self.trackerInfos:
+                self.trackerSeedCounts[trackerId] = 0
+                self.trackerLeechCounts[trackerId] = 0
+                self.trackerDownloadCounts[trackerId] = 0
+    
+    
+    ##internal functions - tracker - announce
+    
+    def _setAnnounceTry(self, trackerId):
+        TrackerInfo._setAnnounceTry(self, trackerId)
+        self._persist()
+        
+    
+    def _setAnnounceSuccess(self, trackerId):
+        TrackerInfo._setAnnounceSuccess(self, trackerId)
+        self._persist()
+            
+    
+    ##internal functions - tracker - scrape
+    
+    def _setScrapeTry(self, trackerId):
+        TrackerInfo._setScrapeTry(self, trackerId)
+        self._persist()
+        
+        
+    def _setScrapeSuccess(self, trackerId):
+        TrackerInfo._setScrapeSuccess(self, trackerId)
+        self._persist()
+            
+            
+    ##internal functions - tracker - modifying
+    
+    def _setTrackerInfo(self, newTrackerInfos):
+        TrackerInfo._setTrackerInfo(self, newTrackerInfos)
+        self._persist()
