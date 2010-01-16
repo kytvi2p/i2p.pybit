@@ -212,7 +212,7 @@ class TrackerModifyPanel(wx.Panel):
         return [tier['groupTracker'] for tier in self.trackerInfo]
     
     
-    ##external functions - events
+    ##external functions - events - other
     
     def OnSelect(self, event):
         newGroup = self.trackerGroupList.getRawData('Pos',self.trackerGroupList.GetFirstSelected()) - 1
@@ -235,6 +235,8 @@ class TrackerModifyPanel(wx.Panel):
                     self.trackerAnnounceUrl.SetValue('http://')
                     self.trackerAnnounceUrl.Enable()
             
+    
+    ## external functions - events - groups
     
     def OnGroupAdd(self, event):
         #determine position for insert
@@ -288,6 +290,8 @@ class TrackerModifyPanel(wx.Panel):
                 self.trackerInfo.insert(groupIdx+1, self.trackerInfo.pop(groupIdx))
         self.trackerGroupList.dataUpdate()
     
+    
+    ##external funcs - events - tracker
     
     def OnTrackerAdd(self, event):
         if self.selectedGroup is None:
@@ -358,7 +362,52 @@ class TrackerModifyPanel(wx.Panel):
                 if trackerIdx < len(tier) - 1:
                     tier.insert(trackerIdx+1, tier.pop(trackerIdx))
             self.trackerUrlList.dataUpdate()
-
+            
+            
+    def OnTrackerChangeUrl(self):
+        trackerIdx = self.trackerUrlList.GetFirstSelected()
+        if trackerIdx == -1:
+            #no tracker selected
+            showErrorMessage(self, 'You need to select a tracker, before you can change its url!')
+        else:
+            #a tracker was selected
+            tracker = self.trackerInfo[self.selectedGroup]['groupTracker'][trackerIdx]
+            diag = wx.TextEntryDialog(self, message='Please enter the new url for this tracker:', caption='Enter url', defaultValue=tracker['trackerUrl'])
+        
+            if diag.ShowModal() == wx.ID_OK:
+                #user did hit ok
+                trackerUrl = diag.GetValue()
+                if i2pHttpUrlRegexObj.match(trackerUrl) is None:
+                    #invalid url
+                    showErrorMessage(self, 'The url "%s" is not a valid i2p http url!', trackerUrl)
+                else:
+                    #valid
+                    tracker['trackerUrl'] = trackerUrl
+                    self.trackerUrlList.dataUpdate()
+                    
+                    
+    def OnTrackerMoveToGroup(self):
+        trackerIdx = self.trackerUrlList.GetFirstSelected()
+        if trackerIdx == -1:
+            #no tracker selected
+            showErrorMessage(self, 'You need to select a tracker, before you can move it to a different group!')
+        else:
+            #a tracker was selected
+            diag = wx.SingleChoiceDialog(self, message='Please select the new group for this tracker:', caption='Select group', choices=[tier['groupName'] for tier in self.trackerInfo]) 
+            if diag.ShowModal() == wx.ID_OK:
+                #user did hit ok
+                newGroupIdx = diag.GetSelection()
+                if not newGroupIdx == self.selectedGroup:
+                    #not the current one
+                    tracker = self.trackerInfo[self.selectedGroup]['groupTracker'][trackerIdx]
+                    del self.trackerInfo[self.selectedGroup]['groupTracker'][trackerIdx]
+                    self.trackerInfo[newGroupIdx]['groupTracker'].append(tracker)
+                    
+                    #move selection
+                    self.trackerGroupList.Select(self.selectedGroup, on=0)
+                    self.trackerGroupList.Select(newGroupIdx, on=1)
+                    
+                
     
     def OnTrackerListRightClick(self, event):
         diag = TrackerListOptionsPopup(self)
@@ -375,40 +424,20 @@ class TrackerListOptionsPopup(wx.Menu):
         
         #menu
         id = wx.NewId()
-        self.AppendCheckItem(id, 'Reset to defaults ', 'Restore the default tracker list as stored in the torrent')
-        self.Bind(wx.EVT_MENU, self.OnResetToDefaults, id=id)
-        
-        self.AppendSeparator()
+        self.AppendCheckItem(id, 'Change url', 'Change the url of the selected tracker')
+        self.Bind(wx.EVT_MENU, self.OnChangeUrl, id=id)
         
         id = wx.NewId()
-        self.AppendCheckItem(id, 'Make preffered', 'Make this tracker the preffered one')
-        self.Bind(wx.EVT_MENU, self.OnMakePreffered, id=id)
-        
-        id = wx.NewId()
-        self.AppendCheckItem(id, 'Make backup', 'Make this tracker the least preffered one')
-        self.Bind(wx.EVT_MENU, self.OnMakeBackup, id=id)
-        
-        self.AppendSeparator()
-        
-        id = wx.NewId()
-        self.AppendCheckItem(id, 'Modify tracker list', 'Modify tracker list')
-        self.Bind(wx.EVT_MENU, self.OnModify, id=id)
+        self.AppendCheckItem(id, 'Move to other group', 'Move the selected tracker to another group')
+        self.Bind(wx.EVT_MENU, self.OnMoveToGroup, id=id)
     
         
-    def OnResetToDefaults(self, event):
-        self.trackerDiag.setTrackerInfo(None)
+    def OnChangeUrl(self, event):
+        self.trackerModifyPanel.OnTrackerChangeUrl()
         
         
-    def OnMakePreffered(self, event):
-        self.trackerDiag.makeTrackerPreffered()
-        
-        
-    def OnMakeBackup(self, event):
-        self.trackerDiag.makeTrackerBackup()
-        
-
-    def OnModify(self, event):
-        TrackerModifyDialog(self.trackerDiag, self.trackerDiag.getTrackerInfo(), self.trackerDiag.setTrackerInfo)
+    def OnMoveToGroup(self, event):
+        self.trackerModifyPanel.OnTrackerMoveToGroup()
 
 
 
