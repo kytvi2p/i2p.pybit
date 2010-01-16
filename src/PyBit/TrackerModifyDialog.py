@@ -51,7 +51,7 @@ class TrackerModifyPanel(wx.Panel):
         
         #splitter
         self.splitter = wx.SplitterWindow(self, style=wx.CLIP_CHILDREN)
-        self.splitter.SetMinimumPaneSize(50)
+        self.splitter.SetMinimumPaneSize(200)
         
         
         ##tracker groups
@@ -73,25 +73,23 @@ class TrackerModifyPanel(wx.Panel):
         
         
         #buttons
-        buttonId = wx.NewId()
-        buttonAdd = wx.Button(groupPanel, buttonId, "Add", style=wx.BU_EXACTFIT)
+        buttonAdd = wx.Button(groupPanel, wx.ID_ADD, "")
         groupPanelSizer.Add(buttonAdd, (1,0), (1,1), wx.EXPAND | wx.TOP | wx.BOTTOM, border=7)
-        wx.EVT_BUTTON(self, buttonId, self.OnGroupAdd)
+        wx.EVT_BUTTON(buttonAdd, wx.ID_ADD, self.OnGroupAdd)
         
-        buttonId = wx.NewId()
-        buttonMoveUp = wx.Button(groupPanel, buttonId, "Move Up", style=wx.BU_EXACTFIT)
+        buttonMoveUp = wx.Button(groupPanel, wx.ID_UP, "")
         groupPanelSizer.Add(buttonMoveUp, (2,0), (1,1), wx.EXPAND | wx.TOP | wx.BOTTOM, border=7)
-        wx.EVT_BUTTON(self, buttonId, self.OnGroupMoveUp)
+        wx.EVT_BUTTON(buttonMoveUp, wx.ID_UP, self.OnGroupMoveUp)
         
         buttonId = wx.NewId()
-        buttonMoveDown = wx.Button(groupPanel, buttonId, "Move Down", style=wx.BU_EXACTFIT)
+        buttonMoveDown = wx.Button(groupPanel, wx.ID_DOWN, "")
         groupPanelSizer.Add(buttonMoveDown, (3,0), (1,1), wx.EXPAND | wx.TOP | wx.BOTTOM, border=7)
-        wx.EVT_BUTTON(self, buttonId, self.OnGroupMoveDown)
+        wx.EVT_BUTTON(buttonMoveDown, wx.ID_DOWN, self.OnGroupMoveDown)
         
         buttonId = wx.NewId()
-        buttonRemove = wx.Button(groupPanel, buttonId, "Remove", style=wx.BU_EXACTFIT)
+        buttonRemove = wx.Button(groupPanel, wx.ID_DELETE, "")
         groupPanelSizer.Add(buttonRemove, (4,0), (1,1), wx.EXPAND | wx.TOP | wx.BOTTOM, border=7)
-        wx.EVT_BUTTON(self, buttonId, self.OnGroupRemove)
+        wx.EVT_BUTTON(buttonRemove, wx.ID_DELETE, self.OnGroupRemove)
 
         
         #sizer
@@ -145,25 +143,22 @@ class TrackerModifyPanel(wx.Panel):
         
         
         #buttons
-        buttonId = wx.NewId()
-        buttonAdd = wx.Button(urlPanel, buttonId, "Add", style=wx.BU_EXACTFIT)
+        buttonAdd = wx.Button(urlPanel, wx.ID_ADD, "")
         urlPanelSizer.Add(buttonAdd, (2,2), (1,1), wx.EXPAND | wx.TOP | wx.BOTTOM, border=7)
-        wx.EVT_BUTTON(self, buttonId, self.OnTrackerAdd)
+        wx.EVT_BUTTON(buttonAdd, wx.ID_ADD, self.OnTrackerAdd)
         
-        buttonId = wx.NewId()
-        buttonMoveUp = wx.Button(urlPanel, buttonId, "Move Up", style=wx.BU_EXACTFIT)
+        buttonMoveUp = wx.Button(urlPanel, wx.ID_UP, "")
         urlPanelSizer.Add(buttonMoveUp, (3,2), (1,1), wx.EXPAND | wx.TOP | wx.BOTTOM, border=7)
-        wx.EVT_BUTTON(self, buttonId, self.OnTrackerMoveUp)
+        wx.EVT_BUTTON(buttonMoveUp, wx.ID_UP, self.OnTrackerMoveUp)
         
-        buttonId = wx.NewId()
-        buttonMoveDown = wx.Button(urlPanel, buttonId, "Move Down", style=wx.BU_EXACTFIT)
+        buttonMoveDown = wx.Button(urlPanel, wx.ID_DOWN, "")
         urlPanelSizer.Add(buttonMoveDown, (4,2), (1,1), wx.EXPAND | wx.TOP | wx.BOTTOM, border=7)
-        wx.EVT_BUTTON(self, buttonId, self.OnTrackerMoveDown)
+        wx.EVT_BUTTON(buttonMoveDown, wx.ID_DOWN, self.OnTrackerMoveDown)
         
         buttonId = wx.NewId()
-        buttonRemove = wx.Button(urlPanel, buttonId, "Remove", style=wx.BU_EXACTFIT)
+        buttonRemove = wx.Button(urlPanel, wx.ID_DELETE, "")
         urlPanelSizer.Add(buttonRemove, (5,2), (1,1), wx.EXPAND | wx.TOP | wx.BOTTOM, border=7)
-        wx.EVT_BUTTON(self, buttonId, self.OnTrackerRemove)
+        wx.EVT_BUTTON(buttonRemove, wx.ID_DELETE, self.OnTrackerRemove)
         
         
         #sizer
@@ -262,7 +257,10 @@ class TrackerModifyPanel(wx.Panel):
         selectedGroups.reverse()
         for groupIdx in selectedGroups:
             del self.trackerInfo[groupIdx]
+            if groupIdx == self.selectedGroup:
+                self.selectedGroup = None
         self.trackerGroupList.dataUpdate()
+        self.trackerUrlList.dataUpdate()
     
     
     def OnGroupMoveUp(self, event):
@@ -300,6 +298,8 @@ class TrackerModifyPanel(wx.Panel):
                 trackerPos = self.trackerUrlList.GetFirstSelected()
                 if trackerPos == -1:
                     trackerPos = 0
+                else:
+                    trackerPos += 1
                     
                 tier.insert(trackerPos, {'tier':self.selectedGroup + 1,
                                          'tierPos':trackerPos + 1,
@@ -377,16 +377,14 @@ class TrackerModifyDialog(wx.Frame):
         mainPanelButtonItems = wx.GridBagSizer(vgap = 3, hgap = 5)
         
         #create button
-        buttonId = wx.NewId()
-        button = wx.Button(mainPanel, buttonId, "Ok", style=wx.BU_EXACTFIT)
+        button = wx.Button(mainPanel, wx.ID_OK, "")
         mainPanelButtonItems.Add(button, (0,0), (1,1), wx.ALIGN_CENTER_HORIZONTAL)
-        wx.EVT_BUTTON(self, buttonId, self.OnOkButton)
+        wx.EVT_BUTTON(button, wx.ID_OK, self.OnOkButton)
         
         #cancel button
-        buttonId = wx.NewId()
-        button = wx.Button(mainPanel, buttonId, "Cancel", style=wx.BU_EXACTFIT)
+        button = wx.Button(mainPanel, wx.ID_CANCEL, "", style=wx.BU_EXACTFIT)
         mainPanelButtonItems.Add(button, (0,1), (1,1), wx.ALIGN_CENTER_HORIZONTAL)
-        wx.EVT_BUTTON(self, buttonId, self.OnCancelButton)
+        wx.EVT_BUTTON(button, wx.ID_CANCEL, self.OnCancelButton)
         self.Bind(wx.EVT_CLOSE, self.OnCancelButton)
         
         #sizer
