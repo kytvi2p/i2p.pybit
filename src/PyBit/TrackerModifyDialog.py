@@ -34,9 +34,11 @@ class TrackerModifyPanel(wx.Panel):
         if len(self.trackerInfo) == 0:
             self.selectedGroup = None
             self.nextGroupId = 0
+            self.nextTrackerId = 0
         else:
             self.selectedGroup = 0
             self.nextGroupId = max(tier['groupId'] for tier in self.trackerInfo) + 1
+            self.nextTrackerId = max(max(tracker['trackerId'] for tracker in tier['groupTracker']) for tier in self.trackerInfo) + 1
             
         
         self.knownTrackerMapper = {u'crstrack.i2p':u'http://mm3zx3besctrx6peq5wzzueil237jdgscuvn5ugwilxrwzyuajja.b32.i2p/tracker/announce.php',
@@ -302,7 +304,7 @@ class TrackerModifyPanel(wx.Panel):
                 tier.insert(trackerPos, {'tier':self.selectedGroup + 1,
                                          'tierPos':trackerPos + 1,
                                          'trackerUrl':trackerUrl,
-                                         'trackerId':None,
+                                         'trackerId':self.nextTrackerId,
                                          'active':False,
                                          'announceTryCount':None,
                                          'announceTryTime':None,
@@ -315,6 +317,7 @@ class TrackerModifyPanel(wx.Panel):
                                          'seeds':None,
                                          'leeches':None,
                                          'downloads':None})
+                self.nextTrackerId += 1
                 
                 self.trackerUrlList.dataUpdate()
     

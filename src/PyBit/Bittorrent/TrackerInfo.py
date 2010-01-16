@@ -71,7 +71,10 @@ class TrackerInfo:
                                'scrapeSuccessCount':0,
                                'scrapeSuccessTime':None}
                 trackerInfo['scrapeUrl'] = self._getScrapeUrl(trackerInfo['url'])
-                trackerInfo['scrapeLogUrl'] = joinUrl(trackerInfo['scrapeUrl'])
+                if trackerInfo['scrapeUrl'] is None:
+                    trackerInfo['scrapeLogUrl'] = ''
+                else:
+                    trackerInfo['scrapeLogUrl'] = joinUrl(trackerInfo['scrapeUrl'])
                 trackerList[trackerId] = trackerInfo
                 
                 #counts
@@ -235,7 +238,7 @@ class TrackerInfo:
         for tierIdx in xrange(0, len(self.trackerTiers)):
             tier = self.trackerTiers[tierIdx]
             trackerInfo.append({'groupId':tierIdx, 'groupPos':tierIdx+1, 'groupName':'Group '+str(tierIdx),
-                                 'groupTracker':[stats[trackerId] for trackerId in tier]})
+                                'groupTracker':[stats[trackerId] for trackerId in tier]})
         return trackerInfo
     
     
