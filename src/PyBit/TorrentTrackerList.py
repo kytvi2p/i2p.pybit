@@ -30,8 +30,9 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
         
         #Syntax: NameOfColumn, NameOfStat, DataType, ColumnWidth
         cols = [('Id', 'trackerId', 'int', 75, False),\
-                ('Tier', 'tier', 'int', 75, True),\
-                ('Pos In Tier', 'tierPos', 'int', 75, True),\
+                ('Tier', 'tier', 'int', 75, False),\
+                ('Pos In Tier', 'tierPos', 'int', 75, False),\
+                ('Priority', 'trackerPrio', 'int', 75, True),\
                 ('Url', 'trackerUrl', 'native', 400, True),\
                 ('A', 'active', 'bool', 20, True),\
                 ('Seeds', 'seeds', 'int', 75, True),\
@@ -48,7 +49,7 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
        
         self.rawUpdateFunc = rawUpdateFunc
         PersistentVirtualListCtrl.__init__(self, persister, 'TorrentTrackerList-', self._updatePerstData, version,
-                                           cols, self._getRowData, parent, rowIdCol='Id', **kwargs)
+                                           cols, self._getRowData, parent, rowIdCol='Id', defaultSortCol='Url', defaultSortDirection='DESC', **kwargs)
                                         
         self.Bind(wx.EVT_LIST_ITEM_RIGHT_CLICK, self.OnRightClick, self)
        
@@ -105,6 +106,7 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
     def setTrackerInfo(self, newTrackerInfo):
         self.lock.acquire()
         self.trackerSetFunc(self.torrentId, newTrackerInfo)
+        self.dataUpdate()
         self.lock.release()
         
     

@@ -214,6 +214,7 @@ class TrackerInfo:
     
     def _getStats(self):
         stats = {}
+        trackerPrio = len(self.trackerInfos)
         for tierNum, tier in enumerate(self.trackerTiers):
             for trackerNum, trackerId in enumerate(tier):
                 trackerSet = self.trackerInfos[trackerId]
@@ -221,6 +222,7 @@ class TrackerInfo:
                                     'tierPos':trackerNum + 1,
                                     'trackerUrl':trackerSet['logUrl'],
                                     'trackerId':trackerId,
+                                    'trackerPrio':trackerPrio,
                                     'active':(trackerId == self.activeTracker),
                                     'announceTryCount':trackerSet['announceTryCount'],
                                     'announceTryTime':trackerSet['announceTryTime'],
@@ -233,6 +235,7 @@ class TrackerInfo:
                                     'seeds':self.trackerSeedCounts[trackerId],
                                     'leeches':self.trackerLeechCounts[trackerId],
                                     'downloads':self.trackerDownloadCounts[trackerId]}
+                trackerPrio -= 1
         return stats
     
     
@@ -273,7 +276,10 @@ class TrackerInfo:
                     self.trackerDownloadCounts[trackerId] = 0
                 else:
                     #old tracker
-                    self.trackerInfos[trackerId]['tier'] = tierIdx
+                    oldTracker = self.trackerInfos[trackerId]
+                    oldTracker['tier'] = tierIdx
+                    oldTracker['url'] = splitUrl(tracker['trackerUrl'])
+                    oldTracker['logUrl'] = tracker['trackerUrl']
                     
             self.trackerTiers.append(trackerIds)
         

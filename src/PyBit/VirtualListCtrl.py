@@ -27,7 +27,7 @@ import Conversion
 
 
 class VirtualListCtrl(wx.ListCtrl):
-    def __init__(self, cols, dataFunc, parent, customDataToStringFuncs=[], rowIdCol=None, allowSort=True, defaultSortCol='', id=-1,
+    def __init__(self, cols, dataFunc, parent, customDataToStringFuncs=[], rowIdCol=None, allowSort=True, defaultSortCol='', defaultSortDirection='ASC', id=-1,
                  pos=wx.DefaultPosition, size=wx.DefaultSize, style=wx.LC_REPORT | wx.LC_VIRTUAL | wx.LC_VRULES | wx.CLIP_CHILDREN, **kwargs):
         wx.ListCtrl.__init__(self, parent, id, pos, size, style, **kwargs)
         """
@@ -47,6 +47,7 @@ class VirtualListCtrl(wx.ListCtrl):
         #columns
         self.rowIdCol = rowIdCol
         self.defaultSortCol = defaultSortCol
+        self.defaultSortDirection = defaultSortDirection
         self.colDefaults = cols #default column data (size and so on)
         self._initColumns(cols) #sets class vars!
         
@@ -115,7 +116,7 @@ class VirtualListCtrl(wx.ListCtrl):
             self.sortColumn = colMapper.index(self.defaultSortCol)        
         else:
             self.sortColumn = 0
-        self.sortDirection = 'ASC' #sort direction, either ASC or DESC
+        self.sortDirection = self.defaultSortDirection #sort direction, either ASC or DESC
         
         
     def _resetColumns(self):
@@ -129,7 +130,7 @@ class VirtualListCtrl(wx.ListCtrl):
             self.sortColumn = colMapper.index(self.defaultSortCol)        
         else:
             self.sortColumn = 0
-        self.sortDirection = 'ASC' #sort direction, either ASC or DESC
+        self.sortDirection = self.defaultSortDirection #sort direction, either ASC or DESC
         
         self.dataUpdate() #refill the columns
         
@@ -498,14 +499,14 @@ class ColumnSelectionPopup(wx.Menu):
         
 
 class PersistentVirtualListCtrl(VirtualListCtrl):
-    def __init__(self, persister, persistPrefix, updateFunc, currentVersion, cols, dataFunc, parent, customDataToStringFuncs=[], rowIdCol=None, allowSort=True, defaultSortCol='',
+    def __init__(self, persister, persistPrefix, updateFunc, currentVersion, cols, dataFunc, parent, customDataToStringFuncs=[], rowIdCol=None, allowSort=True, defaultSortCol='', defaultSortDirection='ASC',
                  id=-1, pos=wx.DefaultPosition, size=wx.DefaultSize, style=wx.LC_REPORT | wx.LC_VIRTUAL | wx.LC_VRULES, **kwargs):
         self.persister = persister
         self.persistKey = persistPrefix + 'columnInfo'
         self.updateFunc = updateFunc
         self.currentVersion = currentVersion
         
-        VirtualListCtrl.__init__(self, cols, dataFunc, parent, customDataToStringFuncs, rowIdCol, allowSort=allowSort, defaultSortCol=defaultSortCol, id=id, pos=pos, size=size, style=style, **kwargs)
+        VirtualListCtrl.__init__(self, cols, dataFunc, parent, customDataToStringFuncs, rowIdCol, allowSort=allowSort, defaultSortCol=defaultSortCol, defaultSortDirection=defaultSortDirection, id=id, pos=pos, size=size, style=style, **kwargs)
         
         
     ##internal funcs - persisting
@@ -516,7 +517,7 @@ class PersistentVirtualListCtrl(VirtualListCtrl):
         if persColData is None:
             #nothing persisted exists
             colInfo, colMapper = self._createColumnInfo(cols)
-            self.sortDirection = 'ASC'
+            self.sortDirection = self.defaultSortDirection
             if self.defaultSortCol in colMapper:
                 self.sortColumn = colMapper.index(self.defaultSortCol)        
             else:
