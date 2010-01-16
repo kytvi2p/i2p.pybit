@@ -960,6 +960,7 @@ class Tracker_ConfigPanel(wx.Panel):
         self.combo1.SetValue(self.config.get('tracker','scrapeTrackers').capitalize())
         self.combo1.SetToolTipString('Determines which trackers should be scraped: None, Active (=the tracker used for announcing) or All.')
         scrapeOptionsBoxItems.Add(self.combo1, 1)
+        wx.EVT_COMBOBOX(self, self.combo1.GetId(), self.OnComboSelect)
         
         #scrape when stopped
         label = wx.StaticText(self, -1, "Scrape when stopped:")
@@ -970,6 +971,8 @@ class Tracker_ConfigPanel(wx.Panel):
         self.check1.SetToolTipString('Should the trackers of a torrent even get scraped when the torrent is stopped? Only possible if "Scrape trackers" is set to "All".')
         self.check1.SetValue(self.config.get('tracker','scrapeWhileStopped'))
         scrapeOptionsBoxItems.Add(self.check1, 1)
+        if not self.combo1.GetValue() == u'All':
+            self.check1.Disable()
         
         #clear old scrape stats
         label = wx.StaticText(self, -1, "Clear old scrape stats:")
@@ -1012,6 +1015,13 @@ class Tracker_ConfigPanel(wx.Panel):
         vBox.Add(trackerBoxSizer, 1, wx.EXPAND | wx.ALL, border = 2)
         self.SetSizer(vBox)
         self.Layout()
+        
+        
+    def OnComboSelect(self, event):
+        if self.combo1.GetValue() == u'All':
+            self.check1.Enable()
+        else:
+            self.check1.Disable()
         
 
     def saveConfig(self, optionDict):
