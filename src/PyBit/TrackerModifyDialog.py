@@ -127,6 +127,7 @@ class TrackerModifyPanel(wx.Panel):
                                               parent=urlPanel, id=listboxId)
         self.trackerUrlList.SetToolTipString('')
         urlPanelSizer.Add(self.trackerUrlList, (0,0), (7,2), wx.EXPAND)
+        wx.EVT_LIST_ITEM_RIGHT_CLICK(self.trackerUrlList, listboxId, self.OnTrackerListRightClick)
         
         #combo + url box
         boxId = wx.NewId()
@@ -357,6 +358,59 @@ class TrackerModifyPanel(wx.Panel):
                 if trackerIdx < len(tier) - 1:
                     tier.insert(trackerIdx+1, tier.pop(trackerIdx))
             self.trackerUrlList.dataUpdate()
+
+    
+    def OnTrackerListRightClick(self, event):
+        diag = TrackerListOptionsPopup(self)
+        self.PopupMenu(diag)
+        
+        
+
+
+class TrackerListOptionsPopup(wx.Menu):
+    def __init__(self, trackerModifyPanel, *args, **kwargs):
+        wx.Menu.__init__(self, *args, **kwargs)
+        #static
+        self.trackerModifyPanel = trackerModifyPanel
+        
+        #menu
+        id = wx.NewId()
+        self.AppendCheckItem(id, 'Reset to defaults ', 'Restore the default tracker list as stored in the torrent')
+        self.Bind(wx.EVT_MENU, self.OnResetToDefaults, id=id)
+        
+        self.AppendSeparator()
+        
+        id = wx.NewId()
+        self.AppendCheckItem(id, 'Make preffered', 'Make this tracker the preffered one')
+        self.Bind(wx.EVT_MENU, self.OnMakePreffered, id=id)
+        
+        id = wx.NewId()
+        self.AppendCheckItem(id, 'Make backup', 'Make this tracker the least preffered one')
+        self.Bind(wx.EVT_MENU, self.OnMakeBackup, id=id)
+        
+        self.AppendSeparator()
+        
+        id = wx.NewId()
+        self.AppendCheckItem(id, 'Modify tracker list', 'Modify tracker list')
+        self.Bind(wx.EVT_MENU, self.OnModify, id=id)
+    
+        
+    def OnResetToDefaults(self, event):
+        self.trackerDiag.setTrackerInfo(None)
+        
+        
+    def OnMakePreffered(self, event):
+        self.trackerDiag.makeTrackerPreffered()
+        
+        
+    def OnMakeBackup(self, event):
+        self.trackerDiag.makeTrackerBackup()
+        
+
+    def OnModify(self, event):
+        TrackerModifyDialog(self.trackerDiag, self.trackerDiag.getTrackerInfo(), self.trackerDiag.setTrackerInfo)
+
+
 
 
 

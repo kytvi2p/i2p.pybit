@@ -256,45 +256,49 @@ class TrackerInfo:
     
     
     def _setTrackerInfo(self, newTrackerInfos):
-        #create set of old trackers
-        oldTrackerIds = set(self.trackerInfos.iterkeys())
-        
-        #create new tier list, add/update/remove trackers while doing so
-        allTrackerIds = set()
-        self.trackerTiers = []
-        
-        for tierIdx, tier in enumerate(tier for tier in newTrackerInfos if len(tier) > 0):
-            #process one tier
-            trackerIds = []
-            for tracker in tier:
-                #process one tracker
-                trackerId = tracker['trackerId']
-                allTrackerIds.add(trackerId)
-                trackerIds.append(trackerId)
-                
-                if not trackerId in self.trackerInfos:
-                    #new tracker
-                    self.trackerInfos[trackerId] = self._genTrackerInfo(tierIdx, trackerId, tracker['trackerUrl'])
-                    self.trackerSeedCounts[trackerId] = 0
-                    self.trackerLeechCounts[trackerId] = 0
-                    self.trackerDownloadCounts[trackerId] = 0
-                else:
-                    #old tracker
-                    oldTracker = self.trackerInfos[trackerId]
-                    oldTracker['tier'] = tierIdx
-                    oldTracker['url'] = splitUrl(tracker['trackerUrl'])
-                    oldTracker['logUrl'] = tracker['trackerUrl']
-                    oldTracker['scrapeUrl'], oldTracker['scrapeLogUrl'] = self._getScrapeUrl(oldTracker['url'])
-                    
-            self.trackerTiers.append(trackerIds)
-        
-        #remove old trackers which are not in any tier
-        for trackerId in oldTrackerIds.difference(allTrackerIds):
-            del self.trackerInfos[trackerId]
-            del self.trackerSeedCounts[trackerId]
-            del self.trackerLeechCounts[trackerId]
-            del self.trackerDownloadCounts[trackerId]
+        if newTrackerInfos is None:
+            #restore defaults
+            self._createTrackerInfo()
+        else:
+            #create set of old trackers
+            oldTrackerIds = set(self.trackerInfos.iterkeys())
             
+            #create new tier list, add/update/remove trackers while doing so
+            allTrackerIds = set()
+            self.trackerTiers = []
+            
+            for tierIdx, tier in enumerate(tier for tier in newTrackerInfos if len(tier) > 0):
+                #process one tier
+                trackerIds = []
+                for tracker in tier:
+                    #process one tracker
+                    trackerId = tracker['trackerId']
+                    allTrackerIds.add(trackerId)
+                    trackerIds.append(trackerId)
+                    
+                    if not trackerId in self.trackerInfos:
+                        #new tracker
+                        self.trackerInfos[trackerId] = self._genTrackerInfo(tierIdx, trackerId, tracker['trackerUrl'])
+                        self.trackerSeedCounts[trackerId] = 0
+                        self.trackerLeechCounts[trackerId] = 0
+                        self.trackerDownloadCounts[trackerId] = 0
+                    else:
+                        #old tracker
+                        oldTracker = self.trackerInfos[trackerId]
+                        oldTracker['tier'] = tierIdx
+                        oldTracker['url'] = splitUrl(tracker['trackerUrl'])
+                        oldTracker['logUrl'] = tracker['trackerUrl']
+                        oldTracker['scrapeUrl'], oldTracker['scrapeLogUrl'] = self._getScrapeUrl(oldTracker['url'])
+                        
+                self.trackerTiers.append(trackerIds)
+            
+            #remove old trackers which are not in any tier
+            for trackerId in oldTrackerIds.difference(allTrackerIds):
+                del self.trackerInfos[trackerId]
+                del self.trackerSeedCounts[trackerId]
+                del self.trackerLeechCounts[trackerId]
+                del self.trackerDownloadCounts[trackerId]
+                
     
     ##external functions - tracker - general
     
@@ -376,10 +380,7 @@ class TrackerInfo:
     
     def setTrackerInfo(self, newTrackerInfos):
         with self.lock:
-            if newTrackerInfos is not None:
-                self._setTrackerInfo(newTrackerInfos)
-            else:
-                self._initTrackerInfo()
+            self._setTrackerInfo(newTrackerInfos)
         
     
     ##external functions - tracker - stats
