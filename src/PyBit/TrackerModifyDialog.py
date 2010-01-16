@@ -30,7 +30,7 @@ class TrackerModifyPanel(wx.Panel):
         wx.Panel.__init__(self, parent, **kwargs)
         
         ##VARS
-        self.trackerInfo = trackerInfo
+        self.trackerInfo = [{'groupId':tierIdx, 'groupPos':tierIdx+1, 'groupName':'Group '+str(tierIdx), 'groupTracker':tier} for tierIdx, tier in enumerate(trackerInfo)]
         if len(self.trackerInfo) == 0:
             self.selectedGroup = None
             self.nextGroupId = 0
@@ -208,7 +208,7 @@ class TrackerModifyPanel(wx.Panel):
     ##external functions - tracker info
     
     def getTrackerInfo(self):
-        return self.trackerInfo
+        return [tier['groupTracker'] for tier in self.trackerInfo]
     
     
     ##external functions - events

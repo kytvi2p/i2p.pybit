@@ -66,6 +66,34 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
                       'wantedTorrentStats':{'tracker':True}}
             data = self.rawUpdateFunc(**statKw)['bt']['tracker']
         return data
+    
+        
+    def _popTrackerSet(self, trackerId, trackerInfos):
+        tracker = None
+        tierIdx = 0
+        while tierIdx < len(trackerInfos):
+            #check tier
+            tier = trackerInfos[tierIdx]
+            trackerIdx = 0
+            while trackerIdx < len(tier):
+                #check each tracker
+                if not tier[trackerIdx]['trackerId'] == trackerId:
+                    #wrong one
+                    trackerIdx += 1
+                else:
+                    #found the right one
+                    tracker = tier[trackerIdx]
+                    del tier[trackerIdx]
+                    if len(tier) == 0:
+                        del trackerInfos[tierIdx]
+                    
+                    #terminate
+                    trackerIdx = len(tier)
+                    tierIdx = len(trackerInfos)
+            
+            tierIdx += 1
+                
+        return tracker
         
 
     def changeTorrentId(self, torrentId):
@@ -109,6 +137,34 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
         self.dataUpdate()
         self.lock.release()
         
+        
+    def makeTrackerPreffered(self):
+        self.lock.acquire()
+        selectedRows = self._getSelectedRows()
+        trackerIds = [self._getRawData('Id', row) for row in selectedRows]
+        if len(trackerIds) > 0:
+            trackerInfos = self.trackerGetFunc(self.torrentId)
+            tracker = [self._popTrackerSet(trackerId, trackerInfos) for trackerId in trackerIds]
+            if len(tracker) > 0:
+                trackerInfos.insert(0, tracker)
+                self.trackerSetFunc(self.torrentId, trackerInfos)
+                self.dataUpdate()
+        self.lock.release()
+        
+    
+    def makeTrackerBackup(self):
+        self.lock.acquire()
+        selectedRows = self._getSelectedRows()
+        trackerIds = [self._getRawData('Id', row) for row in selectedRows]
+        if len(trackerIds) > 0:
+            trackerInfos = self.trackerGetFunc(self.torrentId)
+            tracker = [self._popTrackerSet(trackerId, trackerInfos) for trackerId in trackerIds]
+            if len(tracker) > 0:
+                trackerInfos.append(tracker)
+                self.trackerSetFunc(self.torrentId, trackerInfos)
+                self.dataUpdate()
+        self.lock.release()
+        
     
     ##events
         
@@ -129,15 +185,34 @@ class TrackerOptionsPopup(wx.Menu):
         id = wx.NewId()
         self.AppendCheckItem(id, 'Reset to defaults ', 'Restore the default tracker list as stored in the torrent')
         self.Bind(wx.EVT_MENU, self.OnResetToDefaults, id=id)
+        
         self.AppendSeparator()
         
         id = wx.NewId()
-        self.AppendCheckItem(id, 'Modify tracker list', 'Modify Tracker List')
-        self.Bind(wx.EVT_MENU, self.OnModify, id=id)
+        self.AppendCheckItem(id, 'Make preffered', 'Make this tracker the preffered one')
+        self.Bind(wx.EVT_MENU, self.OnMakePreffered, id=id)
         
+        id = wx.NewId()
+        self.AppendCheckItem(id, 'Make backup', 'Make this tracker the least preffered one')
+        self.Bind(wx.EVT_MENU, self.OnMakeBackup, id=id)
+        
+        self.AppendSeparator()
+        
+        id = wx.NewId()
+        self.AppendCheckItem(id, 'Modify tracker list', 'Modify tracker list')
+        self.Bind(wx.EVT_MENU, self.OnModify, id=id)
+    
         
     def OnResetToDefaults(self, event):
         self.trackerDiag.setTrackerInfo(None)
+        
+        
+    def OnMakePreffered(self, event):
+        self.trackerDiag.makeTrackerPreffered()
+        
+        
+    def OnMakeBackup(self, event):
+        self.trackerDiag.makeTrackerBackup()
         
 
     def OnModify(self, event):

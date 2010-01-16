@@ -246,8 +246,7 @@ class TrackerInfo:
         trackerInfo = []
         for tierIdx in xrange(0, len(self.trackerTiers)):
             tier = self.trackerTiers[tierIdx]
-            trackerInfo.append({'groupId':tierIdx, 'groupPos':tierIdx+1, 'groupName':'Group '+str(tierIdx),
-                                'groupTracker':[stats[trackerId] for trackerId in tier]})
+            trackerInfo.append([stats[trackerId] for trackerId in tier])
         return trackerInfo
     
     
@@ -259,10 +258,10 @@ class TrackerInfo:
         allTrackerIds = set()
         self.trackerTiers = []
         
-        for tierIdx, tier in enumerate(tier for tier in newTrackerInfos if len(tier['groupTracker']) > 0):
+        for tierIdx, tier in enumerate(tier for tier in newTrackerInfos if len(tier) > 0):
             #process one tier
             trackerIds = []
-            for tracker in tier['groupTracker']:
+            for tracker in tier:
                 #process one tracker
                 trackerId = tracker['trackerId']
                 allTrackerIds.add(trackerId)
