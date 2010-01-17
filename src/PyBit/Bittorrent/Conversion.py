@@ -204,11 +204,11 @@ def peerIdToClient(peerId):
         
     elif peerId[2:4] == 'FU':
         client = 'Robert ' + '.'.join([str(digit) for digit in (ord(peerId[0]), ord(peerId[1])/10, ord(peerId[1])%10)])
+    
+    elif peerId[:12] == chr(0)*12:
+        client = 'I2P-Bt'
         
     elif peerId[:9] == chr(0)*9:
         client = 'I2PSnark'
-        
-    elif peerId[:12] == chr(0)*12:
-        client = 'I2P-Bt'
         
     return client        
