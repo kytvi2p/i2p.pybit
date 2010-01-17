@@ -33,13 +33,6 @@ from Bittorrent.Bencoding import bencode, bdecode
 
 
 
-##db extensions
-def regexCheck(expression, string):
-    return (re.search(expression, string) is not None)
-
-
-
-
 ##db context manager
 @contextmanager
 def dbConnection(dbPath):
