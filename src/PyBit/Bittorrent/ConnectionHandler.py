@@ -632,7 +632,8 @@ class ConnectionHandler:
                     connStats = conn.getStats()
                     connStats['offeredPieces'] = ', '.join('%i (%i, %i)' % (pieceIndex, pieceStatus.getAvailability(pieceIndex), pieceStatus.getAssignedUploads(pieceIndex)) for pieceIndex in superSeedingHandler.getOfferedPieces(connStats['id']))
                     connStatList.append(connStats)
-                stats['connections'] = connStatList
+                    
+            stats['connections'] = connStatList
                 
         self.lock.release()
         return stats

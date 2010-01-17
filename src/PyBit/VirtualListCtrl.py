@@ -52,6 +52,8 @@ class VirtualListCtrl(wx.ListCtrl):
         self.rowIdCol = rowIdCol
         self.defaultSortCol = defaultSortCol
         self.defaultSortDirection = defaultSortDirection
+        self.allowSort = allowSort
+        
         self.colDefaults = cols #default column data (size and so on)
         self._initColumns(cols) #sets class vars!
         
@@ -59,7 +61,7 @@ class VirtualListCtrl(wx.ListCtrl):
         self.lock = threading.RLock() #guess...
         
         #events
-        if allowSort:
+        if self.allowSort:
             self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick, self) #sort on col click
         self.Bind(wx.EVT_LIST_COL_RIGHT_CLICK, self.OnColRightClick, self) #display options on right click on col
         self.Bind(wx.EVT_LIST_COL_END_DRAG, self.OnColResize, self) #update the size info for the resized column
@@ -285,7 +287,7 @@ class VirtualListCtrl(wx.ListCtrl):
     ##internal functions - columns
 
     def _disableCol(self, colName):
-        if self.colNum > 1:
+        if self.colNum > 1 and not (self.allowSort == False and self.defaultSortCol == colName):
             #ok to disable column, its not the last one
             colPos = self.colMapper.index(colName)
             del self.colMapper[colPos]
@@ -342,6 +344,8 @@ class VirtualListCtrl(wx.ListCtrl):
                 
             elif self.sortColumn == colPos:
                 self.sortColumn += direction
+                
+            self._applyColSortImages(self.sortColumn, self.sortDirection)
                 
         self.dataUpdate()
         
