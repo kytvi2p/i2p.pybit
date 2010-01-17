@@ -76,11 +76,11 @@ class VirtualListCtrl(wx.ListCtrl):
         for imageName, imageIdent in (('arrowUp', wx.ART_GO_UP), ('arrowDown', wx.ART_GO_DOWN)):
             #add one image to the list
             orgImg = wx.ArtProvider_GetBitmap(imageIdent, wx.ART_OTHER, (14,14)).ConvertToImage()
-            if not (orgImg is wx.NullBitmap or sys.platform[:3] == 'win'):
+            if (not isinstance(orgImg, type(wx.NullBitmap))) and sys.platform[:5] == 'linux' and orgImg.HasAlpha():
                 #looks ok, init empty new image
-                newImg = wx.EmptyImage(18, 18, clear=True)
+                newImg = wx.EmptyImage(14, 18, clear=True)
                 newImg.InitAlpha()
-                for x in xrange(0, 18):
+                for x in xrange(0, 14):
                     for y in xrange(0, 18):
                         newImg.SetAlpha(x, y, 0)
                         
@@ -93,30 +93,30 @@ class VirtualListCtrl(wx.ListCtrl):
                 
             else:
                 #this looks borked (Windows?), draw bitmap from scratch
-                orgImg = wx.EmptyBitmap(18, 18)
+                orgImg = wx.EmptyBitmap(9, 9)
                 memDc = wx.MemoryDC()
                 memDc.SelectObject(orgImg)
                 
                 #draw background
                 memDc.SetPen(wx.Pen('WHITE', 1))
                 memDc.SetBrush(wx.Brush('WHITE', wx.SOLID))
-                memDc.DrawRectangle(0, 0, 18, 18)
+                memDc.DrawRectangle(0, 0, 9, 9)
                 
                 #draw triangle
                 memDc.SetPen(wx.Pen('BLACK', 1))
                 memDc.SetBrush(wx.Brush('BLACK', wx.SOLID))
                 if imageIdent is wx.ART_GO_UP:
-                    memDc.DrawPolygon(((5,13), (13,13), (9,5)))
+                    memDc.DrawPolygon(((0,8), (8,8), (4,0)))
                 elif imageIdent is wx.ART_GO_DOWN:
-                    memDc.DrawPolygon(((5,5), (13,5), (9,13)))
+                    memDc.DrawPolygon(((0,0), (8,0), (4,8)))
                     
                 memDc.SelectObject(wx.NullBitmap)
                 
                 #convert to image, apply alpha
                 newImg = orgImg.ConvertToImage()
                 newImg.InitAlpha()
-                for x in xrange(0, 18):
-                    for y in xrange(0, 18):
+                for x in xrange(0, 9):
+                    for y in xrange(0, 9):
                         if newImg.GetGreen(x, y) == 0:
                             #black
                             newImg.SetAlpha(x, y, 95)
