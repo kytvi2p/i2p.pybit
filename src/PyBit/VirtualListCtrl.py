@@ -43,6 +43,10 @@ class VirtualListCtrl(wx.ListCtrl):
         for funcTup in customDataToStringFuncs:
             if not funcTup[0] in self.dataToStringFuncs:
                 self.dataToStringFuncs[funcTup[0]]=funcTup[1]
+        
+        #image stuff
+        self.imageList, self.images = self._createColSortImages()
+        self.SetImageList(self.imageList, wx.IMAGE_LIST_SMALL)
                 
         #columns
         self.rowIdCol = rowIdCol
@@ -63,7 +67,78 @@ class VirtualListCtrl(wx.ListCtrl):
         #tell ListCtrl how many items we currently have
         self.SetItemCount(0)
         
-        
+    
+    ##internal functions - images
+    
+    def _createColSortImages(self):
+        imageList = wx.ImageList(18, 18, mask=True)
+        images = {}
+        for imageName, imageIdent in (('arrowUp', wx.ART_GO_UP), ('arrowDown', wx.ART_GO_DOWN)):
+            #add one image to the list
+            orgImg = wx.ArtProvider_GetBitmap(imageIdent, wx.ART_OTHER, (14,14)).ConvertToImage()
+            if not (orgImg is wx.NullBitmap or sys.platform[:3] == 'win'):
+                #looks ok, init empty new image
+                newImg = wx.EmptyImage(18, 18, clear=True)
+                newImg.InitAlpha()
+                for x in xrange(0, 18):
+                    for y in xrange(0, 18):
+                        newImg.SetAlpha(x, y, 0)
+                        
+                #copy original image into new one
+                newImg.Paste(orgImg, 0, 3)
+                if orgImg.HasAlpha():
+                    for x in xrange(0, 14):
+                        for y in xrange(0, 14):
+                            newImg.SetAlpha(x, y+3, orgImg.GetAlpha(x, y))
+                
+            else:
+                #this looks borked (Windows?), draw bitmap from scratch
+                orgImg = wx.EmptyBitmap(18, 18)
+                memDc = wx.MemoryDC()
+                memDc.SelectObject(orgImg)
+                
+                #draw background
+                memDc.SetPen(wx.Pen('WHITE', 1))
+                memDc.SetBrush(wx.Brush('WHITE', wx.SOLID))
+                memDc.DrawRectangle(0, 0, 18, 18)
+                
+                #draw triangle
+                memDc.SetPen(wx.Pen('BLACK', 1))
+                memDc.SetBrush(wx.Brush('BLACK', wx.SOLID))
+                if imageIdent is wx.ART_GO_UP:
+                    memDc.DrawPolygon(((5,13), (13,13), (9,5)))
+                elif imageIdent is wx.ART_GO_DOWN:
+                    memDc.DrawPolygon(((5,5), (13,5), (9,13)))
+                    
+                memDc.SelectObject(wx.NullBitmap)
+                
+                #convert to image, apply alpha
+                newImg = orgImg.ConvertToImage()
+                newImg.InitAlpha()
+                for x in xrange(0, 18):
+                    for y in xrange(0, 18):
+                        if newImg.GetGreen(x, y) == 0:
+                            #black
+                            newImg.SetAlpha(x, y, 95)
+                        else:
+                            #white
+                            newImg.SetAlpha(x, y, 0)
+                
+            
+            #finally convert back to bitmap and store in dict
+            images[imageName] = imageList.Add(newImg.ConvertToBitmap())
+            
+        return imageList, images
+    
+    
+    def _applyColSortImages(self, sortColumn, sortDirection):
+        self.ClearColumnImage(self.sortColumn)
+        if sortDirection == 'ASC':
+            self.SetColumnImage(sortColumn, self.images['arrowDown'])
+        else:
+            self.SetColumnImage(sortColumn, self.images['arrowUp'])
+            
+    
     ##internal functions - columns
     
     def _createColumnInfo(self, cols):
@@ -113,10 +188,11 @@ class VirtualListCtrl(wx.ListCtrl):
         
         #index of the column, which is used for sorting
         if self.defaultSortCol in colMapper:
-            self.sortColumn = colMapper.index(self.defaultSortCol)        
+            self.sortColumn = colMapper.index(self.defaultSortCol)
         else:
             self.sortColumn = 0
         self.sortDirection = self.defaultSortDirection #sort direction, either ASC or DESC
+        self._applyColSortImages(self.sortColumn, self.sortDirection)
         
         
     def _resetColumns(self):
@@ -131,7 +207,7 @@ class VirtualListCtrl(wx.ListCtrl):
         else:
             self.sortColumn = 0
         self.sortDirection = self.defaultSortDirection #sort direction, either ASC or DESC
-        
+        self._applyColSortImages(self.sortColumn, self.sortDirection)
         self.dataUpdate() #refill the columns
         
         
@@ -221,8 +297,9 @@ class VirtualListCtrl(wx.ListCtrl):
                 #we deleted the row which is used for sorting, default back to the first col
                 self.sortColumn = 0
                 self.sortDirection = 'ASC'
+                self._applyColSortImages(self.sortColumn, self.sortDirection)
                 
-            elif self.sortColumn>colPos:
+            elif self.sortColumn > colPos:
                 #we sort depending on a column which is after the deleted column
                 self.sortColumn -= 1
         
@@ -275,13 +352,16 @@ class VirtualListCtrl(wx.ListCtrl):
         clickedCol = event.GetColumn()
         if not clickedCol == self.sortColumn:
             #use another column for sorting stuff
+            self._applyColSortImages(clickedCol, 'ASC')
             self.sortColumn = clickedCol
             self.sortDirection = 'ASC'
         else:
             #just reverse sorting order
             if self.sortDirection == 'ASC':
+                self._applyColSortImages(self.sortColumn, 'DESC')
                 self.sortDirection = 'DESC'
             else:
+                self._applyColSortImages(self.sortColumn, 'ASC')
                 self.sortDirection = 'ASC'
         
         self.dataUpdate()
@@ -541,6 +621,7 @@ class PersistentVirtualListCtrl(VirtualListCtrl):
             
             
         self._createColumns(colInfo, colMapper)
+        self._applyColSortImages(self.sortColumn, self.sortDirection)
         
         
     def _persist(self):

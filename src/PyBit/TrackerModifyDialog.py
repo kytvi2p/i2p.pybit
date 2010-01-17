@@ -473,7 +473,7 @@ class TrackerModifyDialog(wx.Frame):
         mainPanelItems = wx.GridBagSizer(vgap = 0, hgap = 6)
         
         ##tracker panel
-        self.trackerPanel = TrackerModifyPanel(self, trackerInfo, persister, version)
+        self.trackerPanel = TrackerModifyPanel(mainPanel, trackerInfo, persister, version)
         mainPanelItems.Add(self.trackerPanel, (0,0), (1,1), wx.EXPAND | wx.ALL, border = 2)
         
         
