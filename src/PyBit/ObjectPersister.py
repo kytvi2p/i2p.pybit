@@ -20,6 +20,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 from __future__ import with_statement
 from base64 import b64encode, b64decode
 from collections import deque
+from contextlib import contextmanager
 from sqlite3 import OperationalError, dbapi2 as sqlite
 import logging
 import os
@@ -32,12 +33,44 @@ from Bittorrent.Bencoding import bencode, bdecode
 
 
 
+##db extensions
 def regexCheck(expression, string):
     return (re.search(expression, string) is not None)
 
 
 
 
+##db context manager
+@contextmanager
+def dbConnection(dbPath):
+    #first open db
+    db = sqlite.connect(dbPath.encode(sys.getfilesystemencoding(), 'ignore'))
+    
+    #set a few options
+    db.row_factory = sqlite.Row
+    db.text_factory = str
+    db.create_function(u"regexp", 2, lambda expression, string: (re.search(expression, string) is not None))
+    db.execute(u'PRAGMA foreign_keys = OFF')
+    db.execute(u'PRAGMA journal_mode = TRUNCATE')
+    
+    try:
+        #then yield it and commit afterwards
+        yield db
+        db.commit()
+    
+    except Exception, e:
+        #something failed, rollback any uncommited changes and then raise the error again
+        db.rollback()
+        raise e
+    
+    finally:
+        #finally close it
+        db.close()
+        
+        
+        
+
+##exceptions
 class ObjectPersisterException(Exception):
     def __init__(self, reason, *args):
         self.reason = reason % args
@@ -46,6 +79,7 @@ class ObjectPersisterException(Exception):
 
 
 
+##class
 class SimpleObjectPersister:
     def __init__(self, dbPath, log=None):
         self.dbPath = dbPath
@@ -69,106 +103,84 @@ class SimpleObjectPersister:
     
     ##internal functions - db - basic
         
-    def _preDbQueryJobs(self):
-        db = sqlite.connect(self.dbPath.encode(sys.getfilesystemencoding(), 'ignore'))
-        db.row_factory = sqlite.Row
-        db.text_factory = str
-        db.create_function("regexp", 2, regexCheck)
-        return db
-    
-    
-    def _postDbQueryJobs(self, db):
-        db.close()
-        
-        
     def _initDatabase(self):
-        db = self._preDbQueryJobs()
-        db.execute('CREATE TABLE dict ('\
-                   'key TEXT PRIMARY KEY,'\
-                   'value TEXT,'\
-                   'encoding TEXT'\
-                   ');')
-        db.commit()
-        self._postDbQueryJobs(db)
+        with dbConnection(self.dbPath) as db:
+            db.execute('CREATE TABLE dict ('\
+                       'key TEXT PRIMARY KEY,'\
+                       'value TEXT,'\
+                       'encoding TEXT'\
+                       ');')
         
         
     def _checkDatabase(self):
-        db = self._preDbQueryJobs()
-        try:
-            cursor = db.execute('SELECT encoding FROM dict LIMIT 1')
-        except OperationalError, oe:
-            #missing column
-            self.log.info('Table check returned "%s", updating table structure by adding column "encoding"', str(oe))
-            db.execute('ALTER TABLE dict ADD COLUMN encoding TEXT')
-            db.commit()
-            db.execute('UPDATE dict SET encoding=?', ('bencode',))
-            db.commit()
-        self._postDbQueryJobs(db)
+        with dbConnection(self.dbPath) as db:
+            try:
+                cursor = db.execute('SELECT encoding FROM dict LIMIT 1')
+            except OperationalError, oe:
+                #missing column
+                self.log.info('Table check returned "%s", updating table structure by adding column "encoding"', oe)
+                db.execute('ALTER TABLE dict ADD COLUMN encoding TEXT')
+                db.commit()
+                db.execute('UPDATE dict SET encoding=?', ('bencode',))
         
         
     ##internal functions - db - actions
     
     def _dbKeys(self, regex):
         with self.dbLock:
-            db = self._preDbQueryJobs()
-            if regex is None:
-                #get all keys
-                self.log.debug('Getting all keys')
-                cursor = db.execute('SELECT key FROM dict')
-                results = cursor.fetchall()
-            else:
-                #only get the keys matching the given regex
-                self.log.debug('Getting keys which match regex "%s"', regex)
-                cursor = db.execute('SELECT key FROM dict WHERE key REGEXP ?', (regex,))
-                results = cursor.fetchall()
-            results = [result[0] for result in results]
-            self._postDbQueryJobs(db)
+            with dbConnection(self.dbPath) as db:
+                if regex is None:
+                    #get all keys
+                    self.log.debug('Getting all keys')
+                    cursor = db.execute('SELECT key FROM dict')
+                    results = cursor.fetchall()
+                else:
+                    #only get the keys matching the given regex
+                    self.log.debug('Getting keys which match regex "%s"', regex)
+                    cursor = db.execute('SELECT key FROM dict WHERE key REGEXP ?', (regex,))
+                    results = cursor.fetchall()
+                results = [result[0] for result in results]
         return results
         
         
     def _dbLoad(self, key):
         with self.dbLock:
-            db = self._preDbQueryJobs()
-            self.log.debug('Getting value for key "%s"', str(key))
-            cursor = db.execute('SELECT value, encoding FROM dict WHERE key=?', (key,))
-            result = cursor.fetchone()
-            if result is not None:
-                result = (result['value'], result['encoding'])
-                self.log.debug('Got value "%s" with encoding "%s"', str(result[0]), str(result[1]))
-            else:
-                self.log.debug('Key doesn\'t exist')
-            self._postDbQueryJobs(db)
+            with dbConnection(self.dbPath) as db:
+                self.log.debug('Getting value for key "%s"', str(key))
+                cursor = db.execute('SELECT value, encoding FROM dict WHERE key=?', (key,))
+                result = cursor.fetchone()
+                if result is not None:
+                    result = (result['value'], result['encoding'])
+                    self.log.debug('Got value "%s" with encoding "%s"', str(result[0]), str(result[1]))
+                else:
+                    self.log.debug('Key doesn\'t exist')
         return result
         
         
     def _dbStore(self, key, value, encoding):
         with self.dbLock:
-            db = self._preDbQueryJobs()
-            self.log.debug('Storing key "%s" with value "%s" and encoding "%s"', str(key), str(value), encoding)
-            cursor = db.execute('SELECT key FROM dict WHERE key=?', (key,))
-            if cursor.fetchone() is None:
-                #doesn't exist yet, insert
-                db.execute('INSERT INTO dict VALUES (?, ?, ?)', (key, value, encoding))
-            else:
-                #already exists, update
-                db.execute('UPDATE dict SET value=?, encoding=? WHERE key=?', (value, encoding, key))
-            db.commit()
-            self._postDbQueryJobs(db)
+            with dbConnection(self.dbPath) as db:
+                self.log.debug('Storing key "%s" with value "%s" and encoding "%s"', str(key), str(value), encoding)
+                cursor = db.execute('SELECT key FROM dict WHERE key=?', (key,))
+                if cursor.fetchone() is None:
+                    #doesn't exist yet, insert
+                    db.execute('INSERT INTO dict VALUES (?, ?, ?)', (key, value, encoding))
+                else:
+                    #already exists, update
+                    db.execute('UPDATE dict SET value=?, encoding=? WHERE key=?', (value, encoding, key))
             
             
     def _dbRemove(self, key):
         removed = False
         with self.dbLock:
-            db = self._preDbQueryJobs()
-            cursor = db.execute('SELECT key FROM dict WHERE key=?', (key,))
-            if cursor.fetchone() is None:
-                self.log.debug('Should remove key "%s" but key doesn\'t exist!', str(key))
-            else:
-                self.log.debug('Removing key "%s"', str(key))
-                db.execute('DELETE FROM dict WHERE key=?', (key,))
-                db.commit()
-                removed = True
-            self._postDbQueryJobs(db)
+            with dbConnection(self.dbPath) as db:
+                cursor = db.execute('SELECT 1 FROM dict WHERE key=?', (key,))
+                if cursor.fetchone() is None:
+                    self.log.debug('Should remove key "%s" but key doesn\'t exist!', str(key))
+                else:
+                    self.log.debug('Removing key "%s"', str(key))
+                    db.execute('DELETE FROM dict WHERE key=?', (key,))
+                    removed = True
         return removed
     
     
