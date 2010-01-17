@@ -612,12 +612,19 @@ class PersistentVirtualListCtrl(VirtualListCtrl):
             self.sortColumn = persColData['sortColumn']
             self.sortDirection = persColData['sortDirection']
             
-            #check for new cols
+            #check for new and changed cols
             for colSet in cols:
                 if colSet[0] not in colInfo:
+                    #new, add it
                     colInfo[colSet[0]] = {'dataKeyword':colSet[1],
                                           'dataType':colSet[2],
                                           'columnWidth':colSet[3]}
+                
+                else:
+                    #old, update dataKeyword and dataType in case anything changed
+                    colInfo[colSet[0]]['dataKeyword'] = colSet[1]
+                    colInfo[colSet[0]]['dataType'] = colSet[2]
+                    
             
             
         self._createColumns(colInfo, colMapper)

@@ -49,7 +49,7 @@ class TorrentList(PersistentVirtualListCtrl):
                 ('Uploaded (R)', 'outRawBytes', 'dataAmount', 100, False),\
                 ('Uploaded (P)', 'outPayloadBytes', 'dataAmount', 100, True),\
                 ('Upspeed (R)', 'outRawSpeed', 'transferSpeed', 100, True),\
-                ('Peers', ('connectedPeers', 'knownPeers') , 'peerStats', 125, True),\
+                ('Peers', ('connectedSeeds', 'knownSeeds', 'connectedLeeches', 'knownLeeches') , 'peerStats', 125, True),\
                 ('Avg. Downspeed (R)', 'avgInRawSpeed', 'transferSpeed', 140, False),\
                 ('Avg. Downspeed (P)', 'avgInPayloadSpeed', 'transferSpeed', 140, False),\
                 ('Avg. Upspeed (R)', 'avgOutRawSpeed', 'transferSpeed', 125, False),\

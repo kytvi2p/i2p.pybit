@@ -247,7 +247,7 @@ class Bt:
         
         #connections
         if wantedStats.get('connections', False):
-            stats['connections'] = self.connHandler.getStats(self.torrentIdent)
+            stats.update(self.connHandler.getStats(self.torrentIdent, connDetails=True))
             
         #files
         if wantedStats.get('files', False):
@@ -255,7 +255,21 @@ class Bt:
         
         #peers
         if wantedStats.get('peers', False):
+            #get peer stats
             stats.update(self.peerPool.getStats(self.torrentIdent))
+            stats.update(self.connHandler.getStats(self.torrentIdent, connSummary=True))
+            stats.update(self.trackerRequester.getStats(trackerSummary=True))
+            
+            #normalise peer stats
+            if stats['connectedLeeches'] > stats['knownLeeches']:
+                stats['knownLeeches'] = stats['connectedLeeches']
+            if stats['connectedSeeds'] > stats['knownSeeds']:
+                stats['knownSeeds'] = stats['connectedSeeds']
+            
+            if stats['knownLeeches'] + stats['knownSeeds'] > stats['knownPeers']:
+                stats['knownPeers'] = stats['knownLeeches'] + stats['knownSeeds']
+            elif stats['knownLeeches'] + stats['knownSeeds'] < stats['knownPeers']:
+                stats['knownLeeches'] += stats['knownPeers'] - stats['knownSeeds']
             
         #progress stats
         if wantedStats.get('progress', False):
@@ -267,7 +281,7 @@ class Bt:
             
         #tracker
         if wantedStats.get('tracker', False):
-            stats['tracker'] = self.trackerRequester.getStats()
+            stats.update(self.trackerRequester.getStats(trackerDetails=True))
             
         #transfer stats
         if wantedStats.get('transfer', False):

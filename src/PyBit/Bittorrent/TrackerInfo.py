@@ -385,9 +385,20 @@ class TrackerInfo:
     
     ##external functions - tracker - stats
     
-    def getStats(self):
+    def getStats(self, **kwargs):
         with self.lock:
-            stats = self._getStats().values()
+            stats = {}
+            
+            if kwargs.get('trackerDetails', False):
+                #generate detailed per tracker stats
+                stats['tracker'] = self._getStats().values()
+            
+            if kwargs.get('trackerSummary', False):
+                #generate summarised tracker stats
+                stats['knownSeeds'] = max(self.trackerSeedCounts.itervalues())
+                stats['knownLeeches'] = max(self.trackerLeechCounts.itervalues())
+                stats['knownDownloads'] = sum(self.trackerDownloadCounts.itervalues())
+                
             return stats
 
 

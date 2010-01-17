@@ -566,8 +566,8 @@ class TrackerRequester:
         self.lock.release()
         
         
-    def getStats(self):
+    def getStats(self, **kwargs):
         self.lock.acquire()
-        stats = self.trackerInfo.getStats()
+        stats = self.trackerInfo.getStats(**kwargs)
         self.lock.release()
         return stats

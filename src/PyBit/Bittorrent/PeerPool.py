@@ -148,12 +148,10 @@ class PeerPool:
         stats = {}
         if torrentIdent in self.possibleConns:
             #known torrent
-            stats['connectedPeers'] = len(self.currentConns[torrentIdent])
-            stats['knownPeers'] = stats['connectedPeers'] + len(self.possibleConns[torrentIdent])
+            stats['knownPeers'] = len(self.currentConns[torrentIdent]) + len(self.possibleConns[torrentIdent])
             
         else:
             #unknown, default to 0
-            stats['connectedPeers'] = 0
             stats['knownPeers'] = 0
         self.lock.release()
         return stats

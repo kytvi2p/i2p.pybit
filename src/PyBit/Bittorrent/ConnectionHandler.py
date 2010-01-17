@@ -599,16 +599,41 @@ class ConnectionHandler:
     
     ##external functions - stats
     
-    def getStats(self, torrentIdent):
+    def getStats(self, torrentIdent, **kwargs):
         self.lock.acquire()
-        stats = []
-        if torrentIdent in self.torrents:
-            superSeedingHandler = self.torrents[torrentIdent]['superSeedingHandler']
-            pieceStatus = self.torrents[torrentIdent]['pieceStatus']
-            for conn in self._getAllConnections(torrentIdent):
-                connStats = conn.getStats()
-                connStats['offeredPieces'] = ', '.join('%i (%i, %i)' % (pieceIndex, pieceStatus.getAvailability(pieceIndex), pieceStatus.getAssignedUploads(pieceIndex)) for pieceIndex in superSeedingHandler.getOfferedPieces(connStats['id']))
-                stats.append(connStats)
+        stats = {}
+        
+        if kwargs.get('connSummary', False):
+            #generate summarised conn stats
+            connectedLeeches = 0
+            connectedSeeds = 0
+            if torrentIdent in self.torrents:
+                conns = self._getAllConnections(torrentIdent)
+            else:
+                conns = []
+                
+            for conn in conns:
+                if conn.getStatus().isSeed():
+                    connectedSeeds += 1
+                else:
+                    connectedLeeches += 1
+            
+            stats['connectedPeers'] = len(conns)
+            stats['connectedLeeches'] = connectedLeeches
+            stats['connectedSeeds'] = connectedSeeds
+        
+        if kwargs.get('connDetails', False):
+            #generate detailed per conn stats
+            connStatList = []
+            if torrentIdent in self.torrents:
+                superSeedingHandler = self.torrents[torrentIdent]['superSeedingHandler']
+                pieceStatus = self.torrents[torrentIdent]['pieceStatus']
+                for conn in self._getAllConnections(torrentIdent):
+                    connStats = conn.getStats()
+                    connStats['offeredPieces'] = ', '.join('%i (%i, %i)' % (pieceIndex, pieceStatus.getAvailability(pieceIndex), pieceStatus.getAssignedUploads(pieceIndex)) for pieceIndex in superSeedingHandler.getOfferedPieces(connStats['id']))
+                    connStatList.append(connStats)
+                stats['connections'] = connStatList
+                
         self.lock.release()
         return stats
     

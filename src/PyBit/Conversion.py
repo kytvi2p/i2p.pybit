@@ -48,8 +48,8 @@ def stringToTimeInterval(string):
 
 def stringToPeerStats(string):
     data = []
-    for num in string[:-1].split(' ('):
-        data.append(int(num))
+    for num in string.split('('):
+        data.append(int(num.replace(')', '').replace(' ', '')))
     return data
 
 
@@ -141,7 +141,7 @@ def timeIntervalToString(timeLeft, max=365):
 
 
 def peerStatsToString(statTup):
-    return ''.join((str(statTup[0]), ' (', str(statTup[1]), ')'))
+    return '%i(%i) %i(%i)' % (statTup[0], statTup[1], statTup[2], statTup[3])
 
 
 def percentToString(zahl, roundToDigits=2):
