@@ -78,18 +78,18 @@ class VirtualListCtrl(wx.ListCtrl):
             orgImg = wx.ArtProvider_GetBitmap(imageIdent, wx.ART_OTHER, (14,14)).ConvertToImage()
             if (not isinstance(orgImg, type(wx.NullBitmap))) and sys.platform[:5] == 'linux' and orgImg.HasAlpha():
                 #looks ok, init empty new image
-                newImg = wx.EmptyImage(14, 18, clear=True)
+                newImg = wx.EmptyImage(14, 14, clear=True)
                 newImg.InitAlpha()
                 for x in xrange(0, 14):
-                    for y in xrange(0, 18):
+                    for y in xrange(0, 14):
                         newImg.SetAlpha(x, y, 0)
                         
                 #copy original image into new one
-                newImg.Paste(orgImg, 0, 3)
+                newImg.Paste(orgImg.GetSubImage((1,0,12,12)), 1, 2)
                 if orgImg.HasAlpha():
-                    for x in xrange(0, 14):
-                        for y in xrange(0, 14):
-                            newImg.SetAlpha(x, y+3, orgImg.GetAlpha(x, y))
+                    for x in xrange(0, 12):
+                        for y in xrange(0, 12):
+                            newImg.SetAlpha(x+1, y+2, orgImg.GetAlpha(x+1, y))
                 
             else:
                 #this looks borked (Windows?), draw bitmap from scratch
