@@ -23,44 +23,73 @@ import wx
 import Conversion
 
 class InfoPanel(wx.Panel):
-    def __init__(self, updateFunc, content, colsPerRow, varsPerRow, parent, **kwargs):
+    def __init__(self, updateFunc, content, growableColumns, growableRows, parent, **kwargs):
         wx.Panel.__init__(self, parent, **kwargs)
         self.updateFunc = updateFunc
         self.data = {}
         self.dataToStringFuncs = copy(Conversion.dataToStringFuncs)
         
+        #box: *name*, *colsPerRow*, *growableCols*, (*row*, *column*), (*rows*, *columns*), *items*
+        #items: *name*, *keyword*, *type*, *defaultvalue*, *columns*
         
-        mainSizer = wx.FlexGridSizer(cols = colsPerRow, vgap = 0, hgap = 0)
+        mainSizer = wx.GridBagSizer(vgap = 0, hgap = 0)
+        
+        #create boxes
         for boxDef in content:            
             #create box
             box = wx.StaticBox(self, -1, boxDef[0])
             boxSizer = wx.StaticBoxSizer(box, wx.VERTICAL)
-            boxItems = wx.FlexGridSizer(cols = varsPerRow*2, vgap = 3, hgap = 20)
-            #add items
-            boxDict = {}
-            for itemDef in boxDef[1]:
-                description = wx.StaticText(self, -1, itemDef[0])
-                itemType = itemDef[2]
-                value = wx.StaticText(self, -1, self.dataToStringFuncs[itemType](itemDef[3]))
-                boxDict[itemDef[0]] = {'itemType':itemType,\
-                                       'itemStatsName':itemDef[1],\
-                                       'itemObject':value,\
-                                       'itemDefaultValue':self.dataToStringFuncs[itemType](itemDef[3])}
-                boxItems.Add(description, 0, wx.EXPAND | wx.ALL, border = 1)
-                boxItems.Add(value, 0, wx.ALL, border = 1)
-
-            for col in xrange(1,varsPerRow*2, 2):
-                boxItems.AddGrowableCol(col,0)
-            self.data[boxDef[0]]=boxDict              
-
-            boxSizer.Add(boxItems, 1, wx.EXPAND | wx.ALL, border = 2)
-            mainSizer.Add(boxSizer, 1, wx.EXPAND | wx.ALL, border = 2)
+            boxItems = wx.GridBagSizer(vgap = 3, hgap = 20)
             
-        #allow growing
-        #for col in xrange(0, colsPerRow):
-        mainSizer.AddGrowableCol(colsPerRow-1,1)
-##        for row in xrange(1, ):
-        mainSizer.AddGrowableRow((len(content)/colsPerRow)-1,1)
+            #add items
+            curItemRow = 0
+            curItemCol = 0
+            maxItemCol = boxDef[1]
+            
+            boxDict = {}
+            for itemDef in boxDef[5]:
+                #create name and value GUI items
+                name = wx.StaticText(self, -1, itemDef[0])
+                value = wx.StaticText(self, -1, self.dataToStringFuncs[itemDef[2]](itemDef[3]))
+                
+                #check if there is still place in this row
+                if curItemCol + itemDef[4] + 1 > maxItemCol:
+                    curItemRow += 1
+                    curItemCol = 0
+                    
+                #add it to the dict
+                boxDict[itemDef[0]] = {'itemType':itemDef[2],\
+                                       'itemDataKeyword':itemDef[1],\
+                                       'itemObject':value,\
+                                       'itemDefaultValue':self.dataToStringFuncs[itemDef[2]](itemDef[3])}
+                                    
+                #add item to the GUI
+                boxItems.Add(name, (curItemRow, curItemCol), (1,1), wx.ALL, border = 1)
+                boxItems.Add(value, (curItemRow, curItemCol+1), (1, itemDef[4]), wx.EXPAND | wx.ALL, border = 1)
+                
+                #increment col
+                curItemCol += itemDef[4] + 1
+                
+            #set growable cols
+            for col in boxDef[2]:
+                boxItems.AddGrowableCol(col, 1)
+                
+            #add box items to data dict
+            self.data[boxDef[0]] = boxDict
+            
+            #add box to the GUI
+            boxSizer.Add(boxItems, 1, wx.EXPAND | wx.ALL, border = 2)
+            mainSizer.Add(boxSizer, boxDef[3], boxDef[4], wx.EXPAND | wx.ALL, border = 2)
+            
+            
+        #set growable cols
+        for col in growableColumns:
+            mainSizer.AddGrowableCol(col, 1)
+            
+        #set growable rows
+        for row in growableRows:
+            mainSizer.AddGrowableRow(row, 1)
+            
         #line everything up
         self.SetSizer(mainSizer)
         self.Layout()
@@ -72,30 +101,24 @@ class InfoPanel(wx.Panel):
         
 
     def dataUpdate(self):
-        stats = self.updateFunc()
-        if stats is not None:
-            for boxName in self.data.iterkeys():
-                box = self.data[boxName]
-                for itemName in box.iterkeys():
-                    item = box[itemName]
-                    data = stats[item['itemStatsName']]
-                    item['itemObject'].SetLabel(self.dataToStringFuncs[item['itemType']](data))
+        data = self.updateFunc()
+        if data is not None:
+            for box in self.data.itervalues():
+                for item in box.itervalues():
+                    itemData = data[item['itemDataKeyword']]
+                    item['itemObject'].SetLabel(self.dataToStringFuncs[item['itemType']](itemData))
                     self.Update()
 
         else:
-            for boxName in self.data.keys():
-                box = self.data[boxName]
-                for itemName in box.keys():
-                    item = box[itemName]
+            for box in self.data.itervalues():
+                for item in box.itervalues():
                     item['itemObject'].SetLabel(item['itemDefaultValue'])
                     self.Update()
         self.Layout()
         
         
     def clear(self):
-        for boxName in self.data.keys():
-            box = self.data[boxName]
-            for itemName in box.keys():
-                item = box[itemName]
+        for box in self.data.itervalues():
+            for item in box.itervalues():
                 item['itemObject'].SetLabel(item['itemDefaultValue'])
                 self.Update()

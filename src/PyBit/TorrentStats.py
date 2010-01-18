@@ -21,43 +21,44 @@ from InfoPanel import InfoPanel
 
 class TorrentStats(InfoPanel):
     def __init__(self, rawUpdateFunc, parent, **kwargs):
-        transfer = (('Downloaded:','inPayloadBytes','dataAmount',0),\
-                    ('Uploaded:','outPayloadBytes','dataAmount',0),\
-                    ('DownSpeed:','inRawSpeed','transferSpeed',0),\
-                    ('UpSpeed:','outRawSpeed','transferSpeed',0),\
-                    ('Avg DownSpeed:','avgInRawSpeed','transferSpeed',0),\
-                    ('Avg UpSpeed:','avgOutRawSpeed','transferSpeed',0))
+        #items: *name*, *keyword*, *type*, *defaultvalue*, *columns*
+        transfer = (('Downloaded:','inPayloadBytes','dataAmount',0, 1),\
+                    ('Uploaded:','outPayloadBytes','dataAmount',0, 1),\
+                    ('DownSpeed:','inRawSpeed','transferSpeed',0, 1),\
+                    ('UpSpeed:','outRawSpeed','transferSpeed',0, 1),\
+                    ('Avg DownSpeed:','avgInRawSpeed','transferSpeed',0, 1),\
+                    ('Avg UpSpeed:','avgOutRawSpeed','transferSpeed',0, 1))
                     
                     
-        torrent = ( ('Size:','torrentSize', 'dataAmount',0),\
-                    ('Name:','torrentName', 'native', ''),\
-                    ('Trackers:', 'trackerAmount', 'int',0),\
-                    ('Files:','fileAmount','int',0),\
-                    ('Pieces:', 'pieceAmount','int',0),\
-                    ('Size of a Piece:','pieceLength','dataAmount',0),\
-                    ('Creator:','torrentCreator','native',''),\
-                    ('Creationdate:','torrentCreationDate','date',0),\
-                    ('Comment:','torrentComment','native',''))
+        torrent = (('Name:', 'torrentName', 'native', '', 2),\
+                   ('Comment:', 'torrentComment', 'native', '', 2),\
+                   ('Files:', 'fileAmount', 'int', 0, 1),\
+                   ('Pieces:', 'pieceAmount', 'int', 0, 1),\
+                   ('Size:', 'torrentSize', 'dataAmount', 0, 1),\
+                   ('Size of a Piece:', 'pieceLength', 'dataAmount', 0, 1),\
+                   ('Creator:', 'torrentCreator', 'native', '', 1),\
+                   ('Creationdate:', 'torrentCreationDate', 'date', 0, 1),\
+                   ('Trackers:', 'trackerAmount', 'int',0, 1))
                     
                     
-        connections = (('Known Peers:','knownPeers','int',0),\
-                       ('Connected Peers:','connectedPeers','int',0))
+        connections = (('Known Peers:', 'knownPeers', 'int', 0, 1),\
+                       ('Connected Peers:', 'connectedPeers', 'int', 0, 1))
                     
         
-        other = (('Name:','torrentName','native',''),)
+        other = (('Name:', 'torrentName', 'native', '', 1),)
         
-        
-        content = (('Transfer',transfer),\
-                   ('Torrent',torrent),\
-                   ('Connections',connections),\
-                   ('Other',other))
+        #box: *name*, *colsPerRow*, *growableCols*, (*row*, *column*), (*rows*, *columns*), *items*
+        content = (('Transfer', 4, (3,), (0,0), (1,1), transfer),\
+                   ('Torrent', 4, (3,), (0,1), (1,1), torrent),\
+                   ('Connections', 4, (3,), (1,0), (1,1), connections),\
+                   ('Other', 4, (3,), (1,1), (1,1), other))
         
         self.rawUpdateFunc = rawUpdateFunc
         self.torrentId = None
         
         self._updateStatKw()
         func = lambda: self.rawUpdateFunc(**self.statKw)['bt']
-        InfoPanel.__init__(self, func, content, 2, 2, parent, **kwargs)
+        InfoPanel.__init__(self, func, content, (1,), (1,), parent, **kwargs)
         
         
     def _updateStatKw(self):
