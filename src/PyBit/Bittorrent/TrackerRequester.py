@@ -490,7 +490,7 @@ class TrackerRequester:
             if trackerSet is None:
                 self.log.warn("No trackers configured, aborting announce")
             else:
-                self._makeAnnounceRequest()
+                self._makeAnnounceRequest(trackerSet)
         self.lock.release()
         
         

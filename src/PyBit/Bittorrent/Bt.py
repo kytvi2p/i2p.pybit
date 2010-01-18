@@ -274,7 +274,10 @@ class Bt:
                 
             #generate additional conn stats if necessary
             if connAverages:
-                stats['knownLeechesPerSeed'] = (stats['knownSeeds'] * 1.0) / max(stats['knownLeeches'], 1)
+                if stats['knownLeeches'] == 0:
+                    stats['knownLeechesPerSeed'] = 0
+                else:
+                    stats['knownLeechesPerSeed'] = (stats['knownSeeds'] * 1.0) / stats['knownLeeches']
             
         #progress stats
         if wantedStats.get('progress', False):
