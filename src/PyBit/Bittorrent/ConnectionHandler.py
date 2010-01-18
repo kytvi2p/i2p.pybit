@@ -603,15 +603,17 @@ class ConnectionHandler:
         self.lock.acquire()
         stats = {}
         
-        if kwargs.get('connSummary', False):
+        if torrentIdent in self.torrents:
+            conns = self._getAllConnections(torrentIdent)
+        else:
+            conns = []
+            
+            
+        if kwargs.get('connSummary', False) or kwargs.get('connAverages', False):
             #generate summarised conn stats
             connectedLeeches = 0
             connectedSeeds = 0
-            if torrentIdent in self.torrents:
-                conns = self._getAllConnections(torrentIdent)
-            else:
-                conns = []
-                
+            
             for conn in conns:
                 if conn.getStatus().isSeed():
                     connectedSeeds += 1
@@ -621,6 +623,26 @@ class ConnectionHandler:
             stats['connectedPeers'] = len(conns)
             stats['connectedLeeches'] = connectedLeeches
             stats['connectedSeeds'] = connectedSeeds
+            
+        if kwargs.get('connAverages', False):
+            #generate additional connection averages
+            interestedSum = 0
+            progressSum = 0.0
+            payloadSum = 0.0
+            
+            for conn in conns:
+                connStatus = conn.getStatus()
+                progressSum += connStatus.getPercent()
+                payloadSum += conn.getPayloadRatio()
+                if conn.localInterested():
+                    interestedSum += 1
+            
+            stats['averagePeerProgress'] = progressSum / max(len(conns), 1)
+            stats['averagePeerPayloadRatio'] = payloadSum / max(len(conns), 1)
+            stats['peersWithLocalInterest'] = interestedSum
+            stats['connectedLeechesPerSeed'] = (stats['connectedLeeches'] * 1.0) / max(stats['connectedSeeds'], 1)
+            
+            
         
         if kwargs.get('connDetails', False):
             #generate detailed per conn stats
@@ -628,7 +650,7 @@ class ConnectionHandler:
             if torrentIdent in self.torrents:
                 superSeedingHandler = self.torrents[torrentIdent]['superSeedingHandler']
                 pieceStatus = self.torrents[torrentIdent]['pieceStatus']
-                for conn in self._getAllConnections(torrentIdent):
+                for conn in conns:
                     connStats = conn.getStats()
                     connStats['offeredPieces'] = ', '.join('%i (%i, %i)' % (pieceIndex, pieceStatus.getAvailability(pieceIndex), pieceStatus.getAssignedUploads(pieceIndex)) for pieceIndex in superSeedingHandler.getOfferedPieces(connStats['id']))
                     connStatList.append(connStats)

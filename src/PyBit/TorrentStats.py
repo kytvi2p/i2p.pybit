@@ -45,9 +45,10 @@ class TorrentStats(InfoPanel):
                    ('Size of a Piece:','pieceLength','dataAmount',0,'R',1))
                     
                     
-        connections = (('Known Peers:','knownPeers','int',0,'R',1),\
-                       ('Connected Peers:','connectedPeers','int',0,'R',1))
-                    
+        connections = (('Leecher Per Seed:','knownLeechesPerSeed','float',0.0,'R',1),\
+                       ('Data Sources:','peersWithLocalInterest','int',0,'R',1),\
+                       ('Avg. Payload Ratio:','averagePeerPayloadRatio','float',0.0,'R',1),\
+                       ('Avg. Progress:','averagePeerProgress','percent',0.0,'R',1))
         
         other = (('Name:','torrentName','native','','L',1),)
         
@@ -67,7 +68,8 @@ class TorrentStats(InfoPanel):
         
     def _updateStatKw(self):
         self.statKw = {'wantedStats':{'bt':self.torrentId},
-                       'wantedTorrentStats':{'peers':True,
+                       'wantedTorrentStats':{'connectionAverages':True,
+                                             'peers':True,
                                              'torrent':True,
                                              'transfer':True,
                                              'transferAverages':True}}

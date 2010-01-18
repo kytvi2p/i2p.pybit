@@ -254,10 +254,11 @@ class Bt:
             stats['files'] = self.filePrio.getStats()
         
         #peers
-        if wantedStats.get('peers', False):
+        if wantedStats.get('peers', False) or wantedStats.get('connectionAverages', False):
             #get peer stats
+            connAverages = wantedStats.get('connectionAverages', False)
             stats.update(self.peerPool.getStats(self.torrentIdent))
-            stats.update(self.connHandler.getStats(self.torrentIdent, connSummary=True))
+            stats.update(self.connHandler.getStats(self.torrentIdent, connSummary=True, connAverages=connAverages))
             stats.update(self.trackerRequester.getStats(trackerSummary=True))
             
             #normalise peer stats
@@ -270,6 +271,10 @@ class Bt:
                 stats['knownPeers'] = stats['knownLeeches'] + stats['knownSeeds']
             elif stats['knownLeeches'] + stats['knownSeeds'] < stats['knownPeers']:
                 stats['knownLeeches'] += stats['knownPeers'] - stats['knownSeeds']
+                
+            #generate additional conn stats if necessary
+            if connAverages:
+                stats['knownLeechesPerSeed'] = (stats['knownSeeds'] * 1.0) / max(stats['knownLeeches'], 1)
             
         #progress stats
         if wantedStats.get('progress', False):
