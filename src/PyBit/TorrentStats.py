@@ -21,31 +21,35 @@ from InfoPanel import InfoPanel
 
 class TorrentStats(InfoPanel):
     def __init__(self, rawUpdateFunc, parent, **kwargs):
-        #items: *name*, *keyword*, *type*, *defaultvalue*, *columns*
-        transfer = (('Downloaded:','inPayloadBytes','dataAmount',0, 1),\
-                    ('Uploaded:','outPayloadBytes','dataAmount',0, 1),\
-                    ('DownSpeed:','inRawSpeed','transferSpeed',0, 1),\
-                    ('UpSpeed:','outRawSpeed','transferSpeed',0, 1),\
-                    ('Avg DownSpeed:','avgInRawSpeed','transferSpeed',0, 1),\
-                    ('Avg UpSpeed:','avgOutRawSpeed','transferSpeed',0, 1))
+        #items: *name*, *keyword*, *type*, *defaultvalue*, *valueAlignment*, *columns*
+        transfer = (('Downloaded (P/R):','inPayloadBytes','dataAmount',0,'R',1),\
+                    ('','inRawBytes','dataAmount',0 ,'R', 1),\
+                    ('Uploaded (P/R):','outPayloadBytes','dataAmount',0,'R',1),\
+                    ('','outRawBytes','dataAmount',0,'R',1),\
+                    ('Avg Downspeed (P/R):','avgInPayloadSpeed','transferSpeed',0,'R',1),\
+                    ('','avgInRawSpeed','transferSpeed',0,'R',1),\
+                    ('Avg Upspeed (P/R):','avgOutPayloadSpeed','transferSpeed',0,'R',1),\
+                    ('','avgOutRawSpeed','transferSpeed',0,'R',1),\
+                    ('Downspeed (R):','inRawSpeed','transferSpeed',0,'R',3),\
+                    ('Upspeed (R):','outRawSpeed','transferSpeed',0,'R',3))
                     
                     
-        torrent = (('Name:', 'torrentName', 'native', '', 2),\
-                   ('Comment:', 'torrentComment', 'native', '', 2),\
-                   ('Files:', 'fileAmount', 'int', 0, 1),\
-                   ('Pieces:', 'pieceAmount', 'int', 0, 1),\
-                   ('Size:', 'torrentSize', 'dataAmount', 0, 1),\
-                   ('Size of a Piece:', 'pieceLength', 'dataAmount', 0, 1),\
-                   ('Creator:', 'torrentCreator', 'native', '', 1),\
-                   ('Creationdate:', 'torrentCreationDate', 'date', 0, 1),\
-                   ('Trackers:', 'trackerAmount', 'int',0, 1))
+        torrent = (('Name:','torrentName','native','','L',2),\
+                   ('Comment:','torrentComment','native','','L',2),\
+                   ('Creator:','torrentCreator','native','','L',2),\
+                   ('Creationdate:','torrentCreationDate','date',0,'R',1),\
+                   ('Trackers:','trackerAmount','int',0,'R',1),\
+                   ('Files:','fileAmount','int',0,'R',1),\
+                   ('Pieces:','pieceAmount','int',0,'R',1),\
+                   ('Size:','torrentSize','dataAmount',0,'R',1),\
+                   ('Size of a Piece:','pieceLength','dataAmount',0,'R',1))
                     
                     
-        connections = (('Known Peers:', 'knownPeers', 'int', 0, 1),\
-                       ('Connected Peers:', 'connectedPeers', 'int', 0, 1))
+        connections = (('Known Peers:','knownPeers','int',0,'R',1),\
+                       ('Connected Peers:','connectedPeers','int',0,'R',1))
                     
         
-        other = (('Name:', 'torrentName', 'native', '', 1),)
+        other = (('Name:','torrentName','native','','L',1),)
         
         #box: *name*, *colsPerRow*, *growableCols*, (*row*, *column*), (*rows*, *columns*), *items*
         content = (('Transfer', 4, (3,), (0,0), (1,1), transfer),\

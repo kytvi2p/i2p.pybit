@@ -30,7 +30,7 @@ class InfoPanel(wx.Panel):
         self.dataToStringFuncs = copy(Conversion.dataToStringFuncs)
         
         #box: *name*, *colsPerRow*, *growableCols*, (*row*, *column*), (*rows*, *columns*), *items*
-        #items: *name*, *keyword*, *type*, *defaultvalue*, *columns*
+        #items: *name*, *keyword*, *type*, *defaultvalue*, *valueAlignment*, *columns*
         
         mainSizer = wx.GridBagSizer(vgap = 0, hgap = 0)
         
@@ -55,35 +55,40 @@ class InfoPanel(wx.Panel):
                 name = wx.StaticText(self, -1, itemDef[0])
                 value = wx.StaticText(self, -1, self.dataToStringFuncs[itemDef[2]](itemDef[3]))
                 
-                #check if there is still place in this row
-                if curItemCol + itemDef[4] + 1 > maxItemCol:
-                    #no more place
-                    curItemCol = 0
-                    
-                    if itemDef[4] == curPerItemCol:
-                        #still everything the same, just use a new row
-                        curItemRow += 1
-                    else:
-                        #different number of cols per item, time for a new sizer
-                        print 'YUP', curItemRow, curPerItemCol
-                        boxItemGroups.Add(boxItems, 0, wx.EXPAND | wx.ALL, border = 0)
-                        boxItems = wx.GridBagSizer(vgap = 0, hgap = 20)
-                        boxItemsSizer.append(boxItems)
-                        curItemRow = 0
-                    
                 #add it to the dict
                 boxDict[itemDef[0]] = {'itemType':itemDef[2],\
                                        'itemDataKeyword':itemDef[1],\
                                        'itemObject':value,\
                                        'itemDefaultValue':self.dataToStringFuncs[itemDef[2]](itemDef[3])}
                                     
+                #check if there is still place in this row
+                if curItemCol + itemDef[5] + 1 > maxItemCol:
+                    #no more place
+                    curItemCol = 0
+                    
+                    if itemDef[5] == curPerItemCol:
+                        #still everything the same, just use a new row
+                        curItemRow += 1
+                    else:
+                        #different number of cols per item, time for a new sizer
+                        boxItemGroups.Add(boxItems, 0, wx.EXPAND | wx.ALL, border = 0)
+                        boxItems = wx.GridBagSizer(vgap = 0, hgap = 20)
+                        boxItemsSizer.append(boxItems)
+                        curItemRow = 0
+                        
+                #check alignment
+                if itemDef[4] == 'L':
+                    alignment = wx.ALIGN_LEFT
+                else:
+                    alignment = wx.ALIGN_RIGHT
+                
                 #add item to the GUI
                 boxItems.Add(name, (curItemRow, curItemCol), (1,1), wx.FIXED_MINSIZE | wx.ALL, border = 0)
-                boxItems.Add(value, (curItemRow, curItemCol+1), (1, itemDef[4]), wx.ALL, border = 0)
+                boxItems.Add(value, (curItemRow, curItemCol+1), (1, itemDef[5]), alignment | wx.ALL, border = 0)
                 
                 #increment col, set curPerItemCol
-                curItemCol += itemDef[4] + 1
-                curPerItemCol = itemDef[4]
+                curItemCol += itemDef[5] + 1
+                curPerItemCol = itemDef[5]
                 
                 
             #set growable cols
