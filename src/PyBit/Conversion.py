@@ -65,7 +65,11 @@ def stringToBool(string):
     
 
 def stringToTransferSpeed(string):
-    return stringToDataAmount(string[:-2])
+    if string[-1:] == ' ':
+        value = stringToDataAmount(string[:-3] + ' ')
+    else:
+        value = stringToDataAmount(string[:-2])
+    return value
 
 
 def stringToDate(string):
@@ -149,7 +153,12 @@ def percentToString(zahl, roundToDigits=2):
 
 
 def transferSpeedToString(zahl):
-    return dataAmountToString(zahl) + '/s'
+    dataAmount = dataAmountToString(zahl)
+    if dataAmount[-1:] == ' ':
+        dataAmount = dataAmount[:-1] + '/s '
+    else:
+        dataAmount += '/s'
+    return dataAmount
 
 
 def boolToString(wert):
