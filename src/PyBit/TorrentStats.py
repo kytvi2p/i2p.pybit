@@ -49,7 +49,7 @@ class TorrentStats(InfoPanel):
         
         #box: *name*, *colsPerRow*, *growableCols*, (*row*, *column*), (*rows*, *columns*), *items*
         content = (('Transfer', 4, (3,), (0,0), (1,1), transfer),\
-                   ('Torrent', 4, (3,), (0,1), (1,1), torrent),\
+                   ('Torrent', 4, (1,3), (0,1), (1,1), torrent),\
                    ('Connections', 4, (3,), (1,0), (1,1), connections),\
                    ('Other', 4, (3,), (1,1), (1,1), other))
         

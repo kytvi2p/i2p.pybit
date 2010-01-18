@@ -39,11 +39,14 @@ class InfoPanel(wx.Panel):
             #create box
             box = wx.StaticBox(self, -1, boxDef[0])
             boxSizer = wx.StaticBoxSizer(box, wx.VERTICAL)
-            boxItems = wx.GridBagSizer(vgap = 3, hgap = 20)
+            boxItemGroups = wx.BoxSizer(wx.VERTICAL)
+            boxItems = wx.GridBagSizer(vgap = 0, hgap = 20)
+            boxItemsSizer = [boxItems]
             
             #add items
             curItemRow = 0
             curItemCol = 0
+            curPerItemCol = 0
             maxItemCol = boxDef[1]
             
             boxDict = {}
@@ -54,8 +57,19 @@ class InfoPanel(wx.Panel):
                 
                 #check if there is still place in this row
                 if curItemCol + itemDef[4] + 1 > maxItemCol:
-                    curItemRow += 1
+                    #no more place
                     curItemCol = 0
+                    
+                    if itemDef[4] == curPerItemCol:
+                        #still everything the same, just use a new row
+                        curItemRow += 1
+                    else:
+                        #different number of cols per item, time for a new sizer
+                        print 'YUP', curItemRow, curPerItemCol
+                        boxItemGroups.Add(boxItems, 0, wx.EXPAND | wx.ALL, border = 0)
+                        boxItems = wx.GridBagSizer(vgap = 0, hgap = 20)
+                        boxItemsSizer.append(boxItems)
+                        curItemRow = 0
                     
                 #add it to the dict
                 boxDict[itemDef[0]] = {'itemType':itemDef[2],\
@@ -64,21 +78,25 @@ class InfoPanel(wx.Panel):
                                        'itemDefaultValue':self.dataToStringFuncs[itemDef[2]](itemDef[3])}
                                     
                 #add item to the GUI
-                boxItems.Add(name, (curItemRow, curItemCol), (1,1), wx.ALL, border = 1)
-                boxItems.Add(value, (curItemRow, curItemCol+1), (1, itemDef[4]), wx.EXPAND | wx.ALL, border = 1)
+                boxItems.Add(name, (curItemRow, curItemCol), (1,1), wx.FIXED_MINSIZE | wx.ALL, border = 0)
+                boxItems.Add(value, (curItemRow, curItemCol+1), (1, itemDef[4]), wx.ALL, border = 0)
                 
-                #increment col
+                #increment col, set curPerItemCol
                 curItemCol += itemDef[4] + 1
+                curPerItemCol = itemDef[4]
+                
                 
             #set growable cols
-            for col in boxDef[2]:
-                boxItems.AddGrowableCol(col, 1)
+            for sizer in boxItemsSizer:
+                for col in boxDef[2]:
+                    sizer.AddGrowableCol(col, 1)
                 
             #add box items to data dict
             self.data[boxDef[0]] = boxDict
             
             #add box to the GUI
-            boxSizer.Add(boxItems, 1, wx.EXPAND | wx.ALL, border = 2)
+            boxItemGroups.Add(boxItems, 0, wx.EXPAND | wx.ALL, border = 0)
+            boxSizer.Add(boxItemGroups, 1, wx.EXPAND | wx.ALL, border = 2)
             mainSizer.Add(boxSizer, boxDef[3], boxDef[4], wx.EXPAND | wx.ALL, border = 2)
             
             
