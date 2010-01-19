@@ -277,7 +277,7 @@ class Bt:
                 if stats['knownLeeches'] == 0:
                     stats['knownLeechesPerSeed'] = 0
                 else:
-                    stats['knownLeechesPerSeed'] = (stats['knownSeeds'] * 1.0) / stats['knownLeeches']
+                    stats['knownLeechesPerSeed'] = (stats['knownLeeches'] * 1.0) / stats['knownSeeds']
             
         #progress stats
         if wantedStats.get('progress', False):
