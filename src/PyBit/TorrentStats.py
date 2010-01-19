@@ -50,13 +50,17 @@ class TorrentStats(InfoPanel):
                        ('Avg. Payload Ratio:','averagePeerPayloadRatio','float',0.0,'R',1),\
                        ('Avg. Progress:','averagePeerProgress','percent',0.0,'R',1))
         
-        other = (('Name:','torrentName','native','','L',1),)
-        
+        pieces = (('Min. Piece Availability:','minPieceAvailability','int',0,'R',1),\
+                  ('Avg. Piece Availability:','avgPieceAvailability','float',0.0,'R',1),\
+                  ('Requested Pieces:','requestedPieceAmount','int',0,'R',1),\
+                  ('Avg. Req. Piece Availability:','avgReqPieceAvailability','float',0.0,'R',1))
+                
+                
         #box: *name*, *colsPerRow*, *growableCols*, (*row*, *column*), (*rows*, *columns*), *items*
         content = (('Transfer', 4, (3,), (0,0), (1,1), transfer),\
                    ('Torrent', 4, (1,3), (0,1), (1,1), torrent),\
                    ('Connections', 4, (3,), (1,0), (1,1), connections),\
-                   ('Other', 4, (3,), (1,1), (1,1), other))
+                   ('Pieces', 4, (3,), (1,1), (1,1), pieces))
         
         self.rawUpdateFunc = rawUpdateFunc
         self.torrentId = None
@@ -70,6 +74,7 @@ class TorrentStats(InfoPanel):
         self.statKw = {'wantedStats':{'bt':self.torrentId},
                        'wantedTorrentStats':{'connectionAverages':True,
                                              'peers':True,
+                                             'pieceAverages':True,
                                              'torrent':True,
                                              'transfer':True,
                                              'transferAverages':True}}

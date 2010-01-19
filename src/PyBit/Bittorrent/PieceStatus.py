@@ -205,9 +205,14 @@ class PieceStatus:
 
     ##external functions - status
     
-    def getAvailability(self, pieceIndex):
+    def getAvailability(self, pieceIndex=None, pieces=None):
         self.lock.acquire()
-        availability = self.availability[pieceIndex]
+        if pieceIndex is not None:
+            availability = self.availability[pieceIndex]
+        else:
+            availability = {}
+            for pieceIndex in pieces:
+                availability[pieceIndex] = self.availability[pieceIndex]
         self.lock.release()
         return availability
 
@@ -360,6 +365,18 @@ class PieceStatus:
         self._updatePieceGroups(upPieces, assignedUploadsChange=1)
         self.lock.release()
         return set(upPieces)
+    
+    
+    ##external functions - stats
+    
+    def getStats(self, **kwargs):
+        self.lock.acquire()
+        stats = {}
+        if kwargs.get('pieceAverages', False):
+            stats['avgPieceAvailability'] = (sum(self.availability.itervalues()) * 1.0) / max(len(self.availability), 1)
+            stats['minPieceAvailability'] = min(self.availability.itervalues())
+        self.lock.release()
+        return stats
 
 
 

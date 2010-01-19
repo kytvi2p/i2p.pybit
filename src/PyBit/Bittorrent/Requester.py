@@ -300,5 +300,12 @@ class Requester:
             self._makeRequestsForConn(conn)
             
             
-    def getStats(self):
-        return [req.getStats() for req in self.requestedPieces.itervalues()]
+    def getStats(self, **kwargs):
+        stats = {}
+        if kwargs.get('requestDetails', False):
+            stats['requests'] = [req.getStats() for req in self.requestedPieces.itervalues()]
+            
+        if kwargs.get('pieceAverages', False):
+            stats['requestedPieceAmount'] = len(self.requestedPieces)
+            stats['avgReqPieceAvailability'] = (sum(self.pieceStatus.getAvailability(pieces=self.requestedPieces).itervalues()) * 1.0) / max(len(self.requestedPieces), 1)
+        return stats

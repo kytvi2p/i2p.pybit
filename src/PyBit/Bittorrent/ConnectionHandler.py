@@ -661,11 +661,14 @@ class ConnectionHandler:
         return stats
     
     
-    def getRequesterStats(self, torrentIdent):
+    def getRequesterStats(self, torrentIdent, **kwargs):
         self.lock.acquire()
         if torrentIdent in self.torrents:
-            stats = self.torrents[torrentIdent]['requester'].getStats()
+            stats = self.torrents[torrentIdent]['requester'].getStats(**kwargs)
         else:
-            stats = []
+            stats = {}
+            stats['requests'] = []
+            stats['requestedPieceAmount'] = 0
+            stats['avgReqPieceAvailability'] = 0.0
         self.lock.release()
         return stats

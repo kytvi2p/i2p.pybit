@@ -278,14 +278,20 @@ class Bt:
                     stats['knownLeechesPerSeed'] = 0
                 else:
                     stats['knownLeechesPerSeed'] = (stats['knownLeeches'] * 1.0) / stats['knownSeeds']
-            
+        
+        #pieces
+        if wantedStats.get('pieceAverages', False):
+            stats.update(self.pieceStatus.getStats(pieceAverages=True))
+        
         #progress stats
         if wantedStats.get('progress', False):
             stats.update(self.storage.getStats())
                     
         #requests
-        if wantedStats.get('requests', False):
-            stats['requests'] = self.connHandler.getRequesterStats(self.torrentIdent)
+        if wantedStats.get('requests', False) or wantedStats.get('pieceAverages', False):
+            reqDetails = wantedStats.get('requests', False)
+            pieceAverages = wantedStats.get('pieceAverages', False)
+            stats.update(self.connHandler.getRequesterStats(self.torrentIdent, requestDetails=reqDetails, pieceAverages=pieceAverages))
             
         #tracker
         if wantedStats.get('tracker', False):
