@@ -195,7 +195,7 @@ def fullTimeToString(timestamp):
 
 ##data - dict
 
-dataToStringFuncs  = {'float':str,\
+dataToStringFuncs  = {'float':lambda x: str(round(x, 2)),\
                       'int':str,\
                       'str':str,\
                       'native':lambda x: x,\
