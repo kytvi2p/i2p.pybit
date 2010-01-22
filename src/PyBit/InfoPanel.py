@@ -26,7 +26,7 @@ class InfoPanel(wx.Panel):
     def __init__(self, updateFunc, content, growableColumns, growableRows, parent, **kwargs):
         wx.Panel.__init__(self, parent, **kwargs)
         self.updateFunc = updateFunc
-        self.data = {}
+        self.items = []
         self.dataToStringFuncs = copy(Conversion.dataToStringFuncs)
         
         #box: *name*, *colsPerRow*, *growableCols*, (*row*, *column*), (*rows*, *columns*), *items*
@@ -49,17 +49,16 @@ class InfoPanel(wx.Panel):
             curPerItemCol = 0
             maxItemCol = boxDef[1]
             
-            boxDict = {}
             for itemDef in boxDef[5]:
                 #create name and value GUI items
                 name = wx.StaticText(self, -1, itemDef[0])
                 value = wx.StaticText(self, -1, self.dataToStringFuncs[itemDef[2]](itemDef[3]))
                 
                 #add it to the dict
-                boxDict[itemDef[0]] = {'itemType':itemDef[2],\
-                                       'itemDataKeyword':itemDef[1],\
-                                       'itemObject':value,\
-                                       'itemDefaultValue':self.dataToStringFuncs[itemDef[2]](itemDef[3])}
+                self.items.append({'itemType':itemDef[2],\
+                                   'itemDataKeyword':itemDef[1],\
+                                   'itemObject':value,\
+                                   'itemDefaultValue':self.dataToStringFuncs[itemDef[2]](itemDef[3])})
                                     
                 #check if there is still place in this row
                 if curItemCol + itemDef[5] + 1 > maxItemCol:
@@ -95,9 +94,6 @@ class InfoPanel(wx.Panel):
             for sizer in boxItemsSizer:
                 for col in boxDef[2]:
                     sizer.AddGrowableCol(col, 1)
-                
-            #add box items to data dict
-            self.data[boxDef[0]] = boxDict
             
             #add box to the GUI
             boxItemGroups.Add(boxItems, 0, wx.EXPAND | wx.ALL, border = 0)
@@ -126,17 +122,15 @@ class InfoPanel(wx.Panel):
     def dataUpdate(self):
         data = self.updateFunc()
         if data is not None:
-            for box in self.data.itervalues():
-                for item in box.itervalues():
-                    itemData = data[item['itemDataKeyword']]
-                    item['itemObject'].SetLabel(self.dataToStringFuncs[item['itemType']](itemData))
-                    self.Update()
+            for item in self.items:
+                itemData = data[item['itemDataKeyword']]
+                item['itemObject'].SetLabel(self.dataToStringFuncs[item['itemType']](itemData))
+                self.Update()
 
         else:
-            for box in self.data.itervalues():
-                for item in box.itervalues():
-                    item['itemObject'].SetLabel(item['itemDefaultValue'])
-                    self.Update()
+            for item in self.items:
+                item['itemObject'].SetLabel(item['itemDefaultValue'])
+                self.Update()
         self.Layout()
         
         

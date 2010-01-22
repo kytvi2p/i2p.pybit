@@ -277,9 +277,32 @@ class TorrentHttpFetch:
             stats['files'] = []
         
         #peers
-        if wantedStats.get('peers', False):
+        if wantedStats.get('peers', False) or wantedStats.get('connectionAverages', False):
+            #general peer stats
             stats['connectedPeers'] = 0
             stats['knownPeers'] = 0
+            stats['knownLeeches'] = 0
+            stats['knownLeechesPerSeed'] = 0
+            stats['knownSeeds'] = 0
+            stats['connectedLeeches'] = 0
+            stats['connectedSeeds'] = 0
+            
+            #connection averages
+            stats['averagePeerProgress'] = 0.0
+            stats['averagePeerPayloadRatio'] = 0.0
+            stats['peersWithLocalInterest'] = 0
+            stats['connectedLeechesPerSeed'] = 0
+            
+            #tracker averages
+            stats['knownDownloads'] = 0
+            
+
+        #pieces
+        if wantedStats.get('pieceAverages', False):
+            stats['avgPieceAvailability'] = 0.0
+            stats['minPieceAvailability'] = 0
+            stats['requestedPieceAmount'] = 0
+            stats['avgReqPieceAvailability'] = 0.0
             
         #requests
         if wantedStats.get('requests', False):
