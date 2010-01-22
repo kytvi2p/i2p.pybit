@@ -40,7 +40,7 @@ class InfoPanel(wx.Panel):
             box = wx.StaticBox(self, -1, boxDef[0])
             boxSizer = wx.StaticBoxSizer(box, wx.VERTICAL)
             boxItemGroups = wx.BoxSizer(wx.VERTICAL)
-            boxItems = wx.GridBagSizer(vgap = 0, hgap = 20)
+            boxItems = wx.GridBagSizer(vgap = 3, hgap = 20)
             boxItemsSizer = [boxItems]
             
             #add items
@@ -71,8 +71,8 @@ class InfoPanel(wx.Panel):
                         curItemRow += 1
                     else:
                         #different number of cols per item, time for a new sizer
-                        boxItemGroups.Add(boxItems, 0, wx.EXPAND | wx.ALL, border = 0)
-                        boxItems = wx.GridBagSizer(vgap = 0, hgap = 20)
+                        boxItemGroups.Add(boxItems, 0, wx.EXPAND | wx.BOTTOM, border = 3)
+                        boxItems = wx.GridBagSizer(vgap = 3, hgap = 20)
                         boxItemsSizer.append(boxItems)
                         curItemRow = 0
                         
