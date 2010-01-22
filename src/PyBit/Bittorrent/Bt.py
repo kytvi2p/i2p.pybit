@@ -274,7 +274,7 @@ class Bt:
                 
             #generate additional conn stats if necessary
             if connAverages:
-                if stats['knownLeeches'] == 0:
+                if stats['knownSeeds'] == 0:
                     stats['knownLeechesPerSeed'] = 0
                 else:
                     stats['knownLeechesPerSeed'] = (stats['knownLeeches'] * 1.0) / stats['knownSeeds']
