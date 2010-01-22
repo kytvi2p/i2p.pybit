@@ -135,7 +135,6 @@ class InfoPanel(wx.Panel):
         
         
     def clear(self):
-        for box in self.data.itervalues():
-            for item in box.itervalues():
-                item['itemObject'].SetLabel(item['itemDefaultValue'])
-                self.Update()
+        for item in self.items:
+            item['itemObject'].SetLabel(item['itemDefaultValue'])
+            self.Update()
