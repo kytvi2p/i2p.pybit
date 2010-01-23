@@ -207,6 +207,7 @@ class FilePriority:
             firstPiece = self.fileInfo[idx]['firstPiece']
             lastPiece = self.fileInfo[idx]['lastPiece']
             
+            #general stats
             neededPieces = set(xrange(firstPiece, lastPiece + 1))
             gotPieces = self.ownStatus.getMatchingGotPieces(neededPieces)
             neededBytes = len(neededPieces) * pieceSize
@@ -217,6 +218,13 @@ class FilePriority:
                 gotBytes -= lastTorrentPieceSizeDiff
             progress = (gotBytes * 100.0) / neededBytes
             
+            #availability averages
+            pieceAvailability = self.pieceStatus.getAvailability(pieces=xrange(firstPiece,lastPiece+1))
+            minPieceAvailability = min(pieceAvailability.itervalues())
+            avgPieceAvailability = sum(pieceAvailability.itervalues()) / max(len(pieceAvailability) * 1.0, 1.0)
+            
+            
+            #add to list
             stats.append({'id':idx,
                           'path':files[idx]['path'],
                           'size':files[idx]['size'],
@@ -224,5 +232,7 @@ class FilePriority:
                           'firstPiece':firstPiece,
                           'lastPiece':lastPiece,
                           'wanted':self.fileInfo[idx]['wanted'],
-                          'priority':self.fileInfo[idx]['priority']})
+                          'priority':self.fileInfo[idx]['priority'],
+                          'minAvailability':minPieceAvailability,
+                          'avgAvailability':avgPieceAvailability})
         return stats

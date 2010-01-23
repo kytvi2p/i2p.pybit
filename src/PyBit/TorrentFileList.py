@@ -34,8 +34,10 @@ class TorrentFileList(PersistentVirtualListCtrl):
                 ('Progress', 'progress', 'percent', 75, True),
                 ('D', 'wanted', 'bool', 20, True),
                 ('Priority', 'priority', 'int', 75, True),
-                ('First Piece', 'firstPiece', 'int', 75, True),
-                ('Last Piece', 'lastPiece', 'int', 75, True)]
+                ('First Piece', 'firstPiece', 'int', 75, False),
+                ('Last Piece', 'lastPiece', 'int', 75, False),
+                ('Min. Availability', 'minAvailability', 'int', 75, False),
+                ('Avg. Availability', 'avgAvailability', 'float', 75, False)]
        
         self.rawUpdateFunc = rawUpdateFunc
         PersistentVirtualListCtrl.__init__(self, persister, 'TorrentFileList-', self._updatePerstData, version,
