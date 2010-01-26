@@ -187,14 +187,19 @@ class Connection:
                             
                         if message[0] is not None:
                             #execute
-                            message[0]()
+                            message[0][0](*message[0][1], **message[0][2])
                             
                             
-    def _queueSend(self, data, sendFinishedHandle=None):
+    def _queueSend(self, data, sendFinishedFunc=None, sendFinishedArgs=[], sendFinishedKws={}):
         if len(self.outBufferQueue) == 0:
             #first queued item, notify about send interest
             self.connStatus.wantsToSend(True, self.connIdent)
         messageId = self.outBufferMessageId
+        if sendFinishedFunc is None:
+            sendFinishedHandle = None
+        else:
+            sendFinishedHandle = (sendFinishedFunc, sendFinishedArgs, sendFinishedKws)
+            
         self.outBufferMessageId += 1
         self.outBufferQueue.append(messageId)
         self.outBufferMessages[messageId] = [sendFinishedHandle, data, False]
@@ -534,12 +539,12 @@ class BtConnection(Connection):
                  self._fail("could not get data for outrequest")
             else:
                 message = Messages.generatePiece(outRequest[0], outRequest[1], data)
-                self.outRate.updatePayloadCounter(outRequest[2])
                 self.outRequestsInFlight += 1
-                self._queueSend(message, self._outRequestGotSend)
+                self._queueSend(message, self._outRequestGotSend, [outRequest[2]])
         
 
-    def _outRequestGotSend(self):
+    def _outRequestGotSend(self, dataSize):
+        self.outRate.updatePayloadCounter(dataSize)
         self.outRequestsInFlight -= 1
         assert self.outRequestsInFlight == 0, 'multiple out requests in flight?!'
         assert len(self.outRequestQueue) == len(self.outRequestHandles), 'out of sync: queue length %i but %i handles!' % (len(self.outRequestQueue), len(self.outRequestHandles))
