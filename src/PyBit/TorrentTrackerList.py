@@ -35,8 +35,9 @@ class TorrentTrackerList(PersistentVirtualListCtrl):
                 ('Tier', 'tier', 'int', 75, False),\
                 ('Pos In Tier', 'tierPos', 'int', 75, False),\
                 ('Priority', 'trackerPrio', 'int', 75, True),\
-                ('Url', 'trackerUrl', 'native', 400, True),\
-                ('A', 'active', 'bool', 20, True),\
+                ('Url', 'trackerUrl', 'native', 300, True),\
+                ('Active', 'active', 'bool', 20, True),\
+                ('Last Announce Result', 'lastAnnounceResult', 'native', 150, True),\
                 ('Seeds', 'seeds', 'int', 75, True),\
                 ('Leeches', 'leeches', 'int', 75, True),\
                 ('Downloads', 'downloads', 'int', 75, True),\

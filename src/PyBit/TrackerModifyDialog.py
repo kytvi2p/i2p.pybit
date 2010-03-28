@@ -114,6 +114,7 @@ class TrackerModifyPanel(wx.Panel):
                 ('Seeds', 'seeds', 'int', 75, False),\
                 ('Leeches', 'leeches', 'int', 75, False),\
                 ('Downloads', 'downloads', 'int', 75, False),\
+                ('Last Announce Result', 'lastAnnounceResult', 'native', 170, False),\
                 ('Last Announce Attempt', 'announceTryTime', 'fullTime', 170, False),\
                 ('Last Announce Success', 'announceSuccessTime', 'fullTime', 170, False),\
                 ('Last Scrape Attempt', 'scrapeTryTime', 'fullTime', 170, False),\
@@ -333,6 +334,7 @@ class TrackerModifyPanel(wx.Panel):
                                          'announceTryTime':None,
                                          'announceSuccessCount':None,
                                          'announceSuccessTime':None,
+                                         'lastAnnounceResult':'None',
                                          'scrapeTryCount':None,
                                          'scrapeTryTime':None,
                                          'scrapeSuccessCount':None,
