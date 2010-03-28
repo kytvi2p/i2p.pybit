@@ -425,7 +425,11 @@ class PersistentTrackerInfo(TrackerInfo):
                     
                     
     def _persist(self):
-        self.btPersister.store('TrackerInfo-trackerInfo', (self.trackerInfos, self.trackerTiers, self.version))
+        trackers = {}
+        for trackerId, trackerInfo in self.trackerInfos.iteritems():
+            trackers[trackerId] = {'logUrl':trackerInfo['logUrl'],
+                                   'tier':trackerInfo['tier']}
+        self.btPersister.store('TrackerInfo-trackerInfo', (trackers, self.trackerTiers, self.version))
         
         
     ##internal functions - init
@@ -435,36 +439,15 @@ class PersistentTrackerInfo(TrackerInfo):
         if perstData is None:
             self._createTrackerInfo()
         else:
-            self.trackerInfos = perstData[0]
+            trackers = perstData[0]
             self.trackerTiers = perstData[1]
-            for trackerId in self.trackerInfos:
+            self.trackerInfo = {}
+            for trackerId, trackerSet in trackers.iteritems():
+                self.trackerInfos[trackerId] = self._genTrackerInfo(trackerSet['tier'], trackerId, trackerSet['logUrl'])
+                
                 self.trackerSeedCounts[trackerId] = 0
                 self.trackerLeechCounts[trackerId] = 0
                 self.trackerDownloadCounts[trackerId] = 0
-    
-    
-    ##internal functions - tracker - announce
-    
-    def _setAnnounceTry(self, trackerId):
-        TrackerInfo._setAnnounceTry(self, trackerId)
-        self._persist()
-        
-    
-    def _setAnnounceSuccess(self, trackerId):
-        TrackerInfo._setAnnounceSuccess(self, trackerId)
-        self._persist()
-            
-    
-    ##internal functions - tracker - scrape
-    
-    def _setScrapeTry(self, trackerId):
-        TrackerInfo._setScrapeTry(self, trackerId)
-        self._persist()
-        
-        
-    def _setScrapeSuccess(self, trackerId):
-        TrackerInfo._setScrapeSuccess(self, trackerId)
-        self._persist()
             
             
     ##internal functions - tracker - modifying
