@@ -6,7 +6,7 @@ You don't need to install PyBit. Simply extract the archive somewhere (which you
 Requirements
 ----------------------- 
 PyBit needs the following:
-- Python >= 2.5 (tested with 2.5 and 2.6; Python 3.0 is incompatible to python 2.x !)
+- Python >= 2.5 (tested with 2.5 and 2.6; Python 3.0 is incompatible with python 2.x !)
 - wxPython >= 2.8 (unicode version; version 2.8.7.1 and 2.8.9.1 were tested, versions >= 2.6.3.3 should also work but were not tested)
 - python-profiler (optional, only needed if you want to run PyBit with the "--profile" switch to generate profiling stats and want to use the "cProfile" or "hotshot" profiler)
 
@@ -32,7 +32,6 @@ Known Problems
 -----------------------
 (these are only the ones which you will probably stumble upon, look into the file "todo" for a more complete list of things which need to be improved)
 - if the config dialog is opened, a few GTK warnings may be printed to the console => the cause is unknown but these warnings shouldn't cause any problems
-- the torrent name is displayed twice in the "General"-tab, once in the box "Torrent" and once in the box "Other" => this is not a problem, the torrent name is displayed in the "Other" box as a placeholder for other statistics which will be displayed there in the future.
 - when using the "--profile" switch the output seems to miss most classes => the standard profiler of python only profiles the main thread (which happens to be the GUI thread for PyBit); add "--method own" to use a profiler which supports profiling multiple threads
 
 
@@ -105,6 +104,9 @@ Downspeed (R): Current (60sec average) receive speed (of 'raw' data, including p
 Uploaded (R): How much was send up to now (the 'raw' byte count, including protocol messages)
 Uploaded (P): How much was send up to now (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
 Upspeed (R): Current (60sec average) send speed (of 'raw' data, including protocol data)
+Seeds (Connected): The number of seeds to which we are currently connected.
+Seeds (Known): The number of seeds of which we know, regardless if we are connected to them or not.
+Tracker Status: The current tracker communication status for this torrent. If PyBit managed to announce to at least one tracker, then "Ok" or "No Peers" will be shown in this column, else "Error" will be shown.
 Peers: Includes two stats: The number of connected peers and the number of known peers, the later being shown in brackets
 Avg. Downspeed (R): How much was received on average up to know, ignoring periods when the torrent was stopped ('raw' byte count, including protocol messages)
 Avg. Downspeed (P): How much was received on average up to know, ignoring periods when the torrent was stopped (only 'payload' data, meaning actual file data excluding protocol data, but including unverified payload data)
@@ -150,6 +152,8 @@ D: If this file should be downloaded (=true, marked with a '*') or not.
 Priority: The priority of this file. Higher values represent a higher priority.
 First Piece: The first piece of the torrent which is needed for this file.
 Last Piece: The last piece of the torrent which is needed for this file.
+Min. Availability: Shows the minimum number of sources for the pieces of this file. If this is below 1 then PyBit cannot fully download this file using the currently connected peers.
+Avg. Availability: Shows the average number of sources for the pieces of this file.
 
 requests panel:
 Piece: The number of this piece (numbering starts from 0)
@@ -168,4 +172,18 @@ tracker panel:
 Id: Unique id of this tracker, only used internally
 Tier: index of the tier of this tracker (tier = group of trackers which share information), tiers with a lower index are tried before tiers with a higher one
 Pos in Tier: position of this tracker within the tier, the trackers are tried in order
+Priority: The priority of this tracker (a lower number means a lower priority).
 Url: The url of this tracker.
+Active: The active tracker is the one which we successfully announced to.
+Last Announce Results: The result of the last announce to this tracker. Anything else but "Ok" or "No Peers" means that the announce failed.
+Seeds: The number of seeds which this tracker knows of (acquired by scraping the tracker).
+Leeches: The number of leeches which this tracker knows of (acquired by scraping the tracker).
+Downloads: The number of complete downloads of which the tracker knows (acquired by scraping the tracker).
+Last Announce Attempt: The last time when PyBit tried to announce to this tracker.
+Last Announce Success: The last time when an announce to this tracker worked.
+Last Scrape Attempt:  The last time when PyBit tried to scrape this tracker.
+Last Scrape Success: The last time when scraping this tracker worked.
+Announce Attempts: How often PyBit tried to announce to this tracker up to now.
+Announce Successes: How often an announce to this tracker worked up to now.
+Scrape Attempts: How often PyBit tried to scrape this tracker up to now.
+Scrape Successes: How often scraping this tracker worked up to now.
