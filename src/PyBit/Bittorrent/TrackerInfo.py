@@ -114,10 +114,10 @@ class TrackerInfo:
     
         
     def _getFirstTracker(self):
-        if len(self.trackerInfos) > 0:
-            trackerSet = deepcopy(self.trackerInfos[0])
-        else:
-            trackerSet = None
+        trackerSet = None
+        if len(self.trackerTiers) > 0:
+            if len(self.trackerTiers[0]) > 0:
+                trackerSet = deepcopy(self.trackerInfos[self.trackerTiers[0][0]])
         return trackerSet
     
     
