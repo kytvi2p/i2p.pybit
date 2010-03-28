@@ -1,6 +1,13 @@
 0.3.0 - xx.yy.2010
 -----------------------
 Blub:
+- added support for fetching torrents from http urls
+- added support for scrapes, improved the logic of the TrackerRequester class and made much of the previously hardcoded settings for announcing and http fetches configurable
+- added support for modifying the trackers of a torrent
+- added a few statistics to the "General"-tab, added a few columns to some lists
+- added support for visualising the sort order of lists
+- fixed some issues with non-ascii chars in the path of the working dir (the directory in which PyBit is "installed")
+- other small fixes and improvements
 
 
 0.2.3 - 16.09.2009

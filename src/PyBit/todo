@@ -6,13 +6,12 @@ General
 - webinterface (with support to only start the webinterface = headless mode)
 - improve peer handling (for example reconnect to known seeds if we switch from seed to leech when another file gets selected for download)
 - support forcing the GUI to use B/KB/MB/... (both size and speed)
-- add support for adding torrents from an url
+- restructure the classes involved in tracker requests
+- use a relative path for torrents inside the "Torrents" directory, not a fixed ones (to allow moving the directory into which PyBit was "installed").
+
 
 Classes
 -----------------------
-
-Config:
-- prevent deadlocks because of calling callbacks within the write lock
 
 Gui:
 - if multiple torrents get added and a few ones fail, show one message with the information for all failures, not one message per failure
@@ -42,10 +41,6 @@ Bittorrent.Torrent:
 Bittorrent.TrackerRequester:
 - change the number of requested peer adresses depending on the number of already connected peers
 - don't ask for peers when stopping
-
-InfoPanel:
-- fix weird wrapping of text with wxPython 2.8
-- add more sizing support
 
 Logger:
 - make max log size and number of kept logs configurable
