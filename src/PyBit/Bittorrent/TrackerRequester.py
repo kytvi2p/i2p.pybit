@@ -17,6 +17,7 @@ You should have received a copy of the GNU General Public License
 along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+from collections import defaultdict
 from sha import sha
 from time import time
 import re
@@ -121,11 +122,14 @@ class TrackerRequester:
         return url
     
     
-    def _makeAnnounceRequest(self, trackerSet):
+    def _makeAnnounceRequest(self, trackerSet, requestStats=None):
+        if requestStats is None:
+            requestStats = defaultdict(int)
+            
         url = self._createAnnounceUrl(trackerSet['url'])
         if url is not None:
             requestId = self.httpRequester.makeRequest(url, self.finishedAnnounceRequest,
-                                                       callbackArgs=[trackerSet, self.torrentEvent],
+                                                       callbackArgs=[trackerSet, self.torrentEvent, requestStats],
                                                        transferTimeout=self.config.get('http', 'trackerRequestTransferTimeout'),\
                                                        requestTimeout=self.config.get('http', 'trackerRequestTimeout'),\
                                                        maxHeaderSize=self.config.get('http', 'trackerRequestMaxHeaderSize'),\
@@ -141,6 +145,7 @@ class TrackerRequester:
     def _parseAnnounceResponse(self, trackerSet, data):
         url = trackerSet['logUrl']
         result = u'Invalid Response' #May be "Invalid Response", "Request Failed", "No Peers" or "Ok"
+        errorMsg = None
         
         try:
             response = bdecode(data)
@@ -157,6 +162,7 @@ class TrackerRequester:
                 if 'failure reason' in response:
                     #request failed
                     result = u'Request Failed'
+                    errorMsg = unicode(response['failure reason'], 'ascii', 'ignore')
                     self.log.warn('Announce request to tracker "%s" failed: "%s"', url, unicode(response['failure reason'], 'ascii', 'ignore'))
                 else:
                     if 'warning message' in response:
@@ -209,24 +215,29 @@ class TrackerRequester:
                                         result = u'Ok'
                                         self.log.debug('Tracker "%s" returned valid peer with address "%s" in its announce response', url, peerAddr)
                                         self.peerPool.addPossibleConnections(self.torrentIdent, [peerAddr])
-        return result
+        return result, errorMsg
     
     
-    def _finishedAnnounceRequest(self, response, trackerSet, event):
+    def _finishedAnnounceRequest(self, response, trackerSet, event, requestStats):
         self.announceHttpRequests.remove(response['id'])
         success = response['success']
         
         if not success:
             #http request failed
             result = u'Connect Failed'
+            errorMsg = None
         else:
             #http request succeded
             self.log.debug('Got announce response from tracker "%s"', trackerSet['logUrl'])
-            result = self._parseAnnounceResponse(trackerSet, response['data'])
+            result, errorMsg = self._parseAnnounceResponse(trackerSet, response['data'])
             
-        self.trackerInfo.setAnnounceResult(trackerSet['id'], result)
+        if errorMsg is None:
+            self.trackerInfo.setAnnounceResult(trackerSet['id'], result)
+        else:
+            self.trackerInfo.setAnnounceResult(trackerSet['id'], "%s (%s)" % (result, errorMsg))
+        requestStats[result] += 1
         
-        if result == 'Ok':
+        if result in (u'Ok', u'No Peers'):
             #request was a success
             self.log.debug('Announce request to tracker "%s" succeeded', trackerSet['logUrl'])
             self.trackerInfo.setAnnounceSuccess(trackerSet['id'])
@@ -244,30 +255,45 @@ class TrackerRequester:
                 self.log.debug("Finished sending stop event")
                 self.torrentEvent = None
                 
-            else:
-                #was not a stop event and not paused
+            elif result == u'Ok':
+                #was not a stop event and not paused, got peers
                 announceInterval = self.config.get('tracker', 'announceInterval')
                 self.log.debug("Next announce request in %i minutes", announceInterval/60)
                 self.torrentEvent = None
                 self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=announceInterval)
-        
-        elif result in ("Connect Failed", "Invalid Response", "Request Failed", "No Peers"):
+                
+            else:
+                #was not a stop event and not paused, but we did not get any peers
+                nextTracker = self.trackerInfo.getNext(trackerSet['id'], useNextTier=True)
+                if nextTracker is not None:
+                    #try next
+                    self.log.debug("Announcing to next tracker because we got no peers")
+                    self._makeAnnounceRequest(nextTracker)
+                else:
+                    announceInterval = self.config.get('tracker', 'announceInterval')
+                    self.log.debug("Next announce request in %i minutes", announceInterval/60)
+                    self.torrentEvent = None
+                    self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=announceInterval)
+            
+        elif result in (u"Connect Failed", u"Invalid Response", u"Request Failed"):
             #request failed
             self.trackerInfo.setAnnounceFailure(trackerSet['id'])
             
             nextTracker = self.trackerInfo.getNext(trackerSet['id'])
-            if nextTracker is None:
-                #no further trackers to try, try again after some time
-                if not result == "Connect Failed":
-                    self.log.debug("Next announce request in 10 minute")
-                    self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=600)
-                else:
-                    self.log.debug("Next announce request in 1 minute")
-                    self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=60)
-                
-            else:
+            if nextTracker is not None:
                 #try next
                 self._makeAnnounceRequest(nextTracker)
+            else:
+                #no further trackers to try, try again after some time
+                if sum(count for result, count in requestStats.iteritems() if result in (u"Invalid Response", u"Request Failed", u"No Peers", u"Ok")) == 0:
+                    #all tries resulted in a connect failure, try again soon
+                    self.log.debug("Next announce request in 5 minute")
+                    self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=300)
+                else:
+                    #at least some trackers responed, so we will have to wait
+                    announceInterval = self.config.get('tracker', 'announceInterval')
+                    self.log.debug("Next announce request in %i minute", announceInterval/60)
+                    self.announceEvent = self.sched.scheduleEvent(self.announce, timedelta=announceInterval)
         
         
     def _abortAnnounces(self):
@@ -504,10 +530,10 @@ class TrackerRequester:
         self.lock.release()
         
         
-    def finishedAnnounceRequest(self, response, trackerSet, event):
+    def finishedAnnounceRequest(self, response, trackerSet, event, requestStats):
         self.lock.acquire()
         if response['id'] in self.announceHttpRequests:
-            self._finishedAnnounceRequest(response, trackerSet, event)
+            self._finishedAnnounceRequest(response, trackerSet, event, requestStats)
         self.lock.release()
         
         

@@ -121,13 +121,13 @@ class TrackerInfo:
         return trackerSet
     
     
-    def _getNextTracker(self, trackerId):
+    def _getNextTracker(self, trackerId, useNextTier):
         tierId = self.trackerInfos[trackerId]['tier']
         tier = self.trackerTiers[tierId]
         place = tier.index(trackerId)
         
         #get next tracker id
-        if place < len(tier)-1:
+        if (not useNextTier) and place < len(tier)-1:
             #just get next tracker from tier
             nextTrackerId = tier[place+1]
         
@@ -310,10 +310,10 @@ class TrackerInfo:
             return self._getFirstTracker()
         
     
-    def getNext(self, trackerId):
+    def getNext(self, trackerId, useNextTier=False):
         with self.lock:
             if trackerId in self.trackerInfos:
-                trackerSet = self._getNextTracker(trackerId)
+                trackerSet = self._getNextTracker(trackerId, useNextTier)
             else:
                 trackerSet = self._getFirstTracker()
             return trackerSet
