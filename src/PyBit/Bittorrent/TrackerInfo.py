@@ -95,7 +95,7 @@ class TrackerInfo:
                        'announceTryTime':None,
                        'announceSuccessCount':0,
                        'announceSuccessTime':None,
-                       'lastAnnounceResult':'None',
+                       'lastAnnounceResult':u'None',
                        'scrapeTryCount':0,
                        'scrapeTryTime':None,
                        'scrapeSuccessCount':0,
@@ -175,6 +175,11 @@ class TrackerInfo:
         if place > 0:
             del tier[place]
             tier.insert(0, trackerId)
+            
+            
+    def _setAnnounceResult(self, trackerId, result):
+        trackerSet = self.trackerInfos[trackerId]
+        trackerSet['lastAnnounceResult'] = result
             
     
     ##internal functions - scrape - announce
@@ -332,6 +337,12 @@ class TrackerInfo:
         with self.lock:
             if trackerId in self.trackerInfos:
                 self._setAnnounceSuccess(trackerId)
+                
+                
+    def setAnnounceResult(self, trackerId, result):
+        with self.lock:
+            if trackerId in self.trackerInfos:
+                self._setAnnounceResult(trackerId, result)
         
     
     ##external functions - tracker - scrape
