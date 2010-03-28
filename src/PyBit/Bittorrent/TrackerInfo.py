@@ -33,10 +33,6 @@ class TrackerInfo:
     def __init__(self, torrent):
         self.torrent = torrent
         
-        self.trackerSeedCounts = {}
-        self.trackerLeechCounts = {}
-        self.trackerDownloadCounts = {}
-        
         self.trackerInfos = {}
         self.trackerTiers = []
         self._initTrackerInfo()
@@ -68,11 +64,6 @@ class TrackerInfo:
                 
                 #info
                 self.trackerInfos[trackerId] = self._genTrackerInfo(tierIdx, trackerId, trackerUrl)
-                
-                #counts
-                self.trackerSeedCounts[trackerId] = 0
-                self.trackerLeechCounts[trackerId] = 0
-                self.trackerDownloadCounts[trackerId] = 0
                 
                 trackerId += 1
             tierIdx += 1
@@ -107,7 +98,10 @@ class TrackerInfo:
                        'scrapeTryCount':0,
                        'scrapeTryTime':None,
                        'scrapeSuccessCount':0,
-                       'scrapeSuccessTime':None}
+                       'scrapeSuccessTime':None,
+                       'seedCount':0,
+                       'leechCount':0,
+                       'downloadCount':0}
         trackerInfo['scrapeUrl'], trackerInfo['scrapeLogUrl'] = self._getScrapeUrl(trackerInfo['url'])
         return trackerInfo
     
@@ -197,22 +191,25 @@ class TrackerInfo:
         
     
     def _setTrackerScrapeStats(self, trackerId, seeds, leeches, downloads):
-        self.trackerSeedCounts[trackerId] = seeds
-        self.trackerLeechCounts[trackerId] = leeches
-        self.trackerDownloadCounts[trackerId] = downloads
+        trackerInfo = self.trackerInfos[trackerId]
+        trackerInfo['seedCount'] = seeds
+        trackerInfo['leechCount'] = leeches
+        trackerInfo['downloadCount'] = downloads
         
         
     def _clearTrackerScrapeStats(self, trackerId):
-        self.trackerSeedCounts[trackerId] = 0
-        self.trackerLeechCounts[trackerId] = 0
-        self.trackerDownloadCounts[trackerId] = 0
+        trackerInfo = self.trackerInfos[trackerId]
+        trackerInfo['seedCount'] = 0
+        trackerInfo['leechCount'] = 0
+        trackerInfo['downloadCount'] = 0
             
         
     def _clearAllTrackerScrapeStats(self):
-        for trackerId in self.trackerSeedCounts.keys():
-            self.trackerSeedCounts[trackerId] = 0
-            self.trackerLeechCounts[trackerId] = 0
-            self.trackerDownloadCounts[trackerId] = 0
+        for trackerId in self.trackerInfo.keys():
+            trackerInfo = self.trackerInfos[trackerId]
+            trackerInfo['seedCount'] = 0
+            trackerInfo['leechCount'] = 0
+            trackerInfo['downloadCount'] = 0
             
             
     ##internal functions - tracker - stats
@@ -237,9 +234,9 @@ class TrackerInfo:
                                     'scrapeTryTime':trackerSet['scrapeTryTime'],
                                     'scrapeSuccessCount':trackerSet['scrapeSuccessCount'],
                                     'scrapeSuccessTime':trackerSet['scrapeSuccessTime'],
-                                    'seeds':self.trackerSeedCounts[trackerId],
-                                    'leeches':self.trackerLeechCounts[trackerId],
-                                    'downloads':self.trackerDownloadCounts[trackerId]}
+                                    'seeds':trackerSet['seedCount'],
+                                    'leeches':trackerSet['leechCount'],
+                                    'downloads':trackerSet['downloadCount']}
                 trackerPrio -= 1
         return stats
     
@@ -279,9 +276,6 @@ class TrackerInfo:
                     if not trackerId in self.trackerInfos:
                         #new tracker
                         self.trackerInfos[trackerId] = self._genTrackerInfo(tierIdx, trackerId, tracker['trackerUrl'])
-                        self.trackerSeedCounts[trackerId] = 0
-                        self.trackerLeechCounts[trackerId] = 0
-                        self.trackerDownloadCounts[trackerId] = 0
                     else:
                         #old tracker
                         oldTracker = self.trackerInfos[trackerId]
@@ -295,9 +289,6 @@ class TrackerInfo:
             #remove old trackers which are not in any tier
             for trackerId in oldTrackerIds.difference(allTrackerIds):
                 del self.trackerInfos[trackerId]
-                del self.trackerSeedCounts[trackerId]
-                del self.trackerLeechCounts[trackerId]
-                del self.trackerDownloadCounts[trackerId]
                 
     
     ##external functions - tracker - general
@@ -395,9 +386,9 @@ class TrackerInfo:
             
             if kwargs.get('trackerSummary', False):
                 #generate summarised tracker stats
-                stats['knownSeeds'] = max(self.trackerSeedCounts.itervalues())
-                stats['knownLeeches'] = max(self.trackerLeechCounts.itervalues())
-                stats['knownDownloads'] = sum(self.trackerDownloadCounts.itervalues())
+                stats['knownSeeds'] = max(trackerInfo['seedCount'] for trackerInfo in self.trackerInfos.itervalues())
+                stats['knownLeeches'] = max(trackerInfo['leechCount'] for trackerInfo in self.trackerInfos.itervalues())
+                stats['knownDownloads'] = sum(trackerInfo['downloadCount'] for trackerInfo in self.trackerInfos.itervalues())
                 
             return stats
 
@@ -444,10 +435,6 @@ class PersistentTrackerInfo(TrackerInfo):
             self.trackerInfo = {}
             for trackerId, trackerSet in trackers.iteritems():
                 self.trackerInfos[trackerId] = self._genTrackerInfo(trackerSet['tier'], trackerId, trackerSet['logUrl'])
-                
-                self.trackerSeedCounts[trackerId] = 0
-                self.trackerLeechCounts[trackerId] = 0
-                self.trackerDownloadCounts[trackerId] = 0
             
             
     ##internal functions - tracker - modifying
