@@ -365,6 +365,16 @@ class Http_ConfigPanel(wx.Panel):
         self.spin5.SetToolTipString('Maximum allowed size of the data part of the http request')
         torrentFetchBoxItems.Add(self.spin5, 1)
         
+        #autostart after fetch
+        label = wx.StaticText(self, -1, "Start Torrent after fetch:")
+        label.SetToolTipString('Should PyBit automatically start the download of the torrent contents after the torrent itself got downloaded?')
+        torrentFetchBoxItems.Add(label, 1, wx.ALIGN_CENTER_VERTICAL | wx.EXPAND)
+        
+        self.check1 = wx.CheckBox(self, -1)
+        self.check1.SetToolTipString('Should PyBit automatically start the download of the torrent contents after the torrent itself got downloaded?')
+        self.check1.SetValue(self.config.getBool('http','startDownloadAfterTorrentFetch'))
+        torrentFetchBoxItems.Add(self.check1, 1)
+        
         #add item sizer to box sizer
         torrentFetchBoxSizer.Add(torrentFetchBoxItems, 1, wx.EXPAND | wx.ALL, border = 5)
         
@@ -453,6 +463,7 @@ class Http_ConfigPanel(wx.Panel):
         optionDict[('http', 'torrentFetchRequestTimeout')] = self.spin3.GetValue()
         optionDict[('http', 'torrentFetchMaxHeaderSize')] = self.spin4.GetValue() * 1024
         optionDict[('http', 'torrentFetchMaxDataSize')] = self.spin5.GetValue() * 1024
+        optionDict[('http', 'startDownloadAfterTorrentFetch')] = self.check1.GetValue()
         optionDict[('http', 'trackerRequestTransferTimeout')] = self.spin6.GetValue()
         optionDict[('http', 'trackerRequestTimeout')] = self.spin7.GetValue()
         optionDict[('http', 'trackerRequestMaxHeaderSize')] = self.spin8.GetValue() * 1024
@@ -1149,7 +1160,8 @@ if __name__ == "__main__":
                                   'trackerRequestTransferTimeout':(120, 'int'),
                                   'trackerRequestTimeout':(300, 'int'),
                                   'trackerRequestMaxHeaderSize':(4096, 'int'),
-                                  'trackerRequestMaxDataSize':(1048576, 'int')},
+                                  'trackerRequestMaxDataSize':(1048576, 'int'),
+                                  'startDownloadAfterTorrentFetch':(False, 'bool')},
                       'i2p':{'samIp':('127.0.0.1', 'ip'),
                              'samPort':(7656, 'port'),
                              'samDisplayName':('PyBit', 'str'),

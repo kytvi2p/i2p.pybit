@@ -322,8 +322,14 @@ class BtQueueManager:
                     #fetch succeded
                     failureMsg = self._replaceHttpFetchObj(queueId, result['data'])
                     if failureMsg is not None:
+                        #adding the torrent failed fatally
                         self.log.info("Torrent %i: failed to add fetched torrent, reason: %s", queueId, failureMsg)
                         self.queueJobs[queueId].setState('error (%s)' % (failureMsg.split('\n')[0],))
+                        
+                    elif self.config.get('http', 'startDownloadAfterTorrentFetch'):
+                        #the torrent got added and autostart after fetch is enabled
+                        self._startJob(queueId)
+                        
         
         
     ##external functions - queue
