@@ -46,7 +46,7 @@ class BtQueue:
             #need to do some updating
             if objVersion < (0,3,0):
                 #pre v0.2.4 format, reconstruct everything
-                self.log.info('Updating persisted obj to the v0.2.4+ format')
+                self.log.info('Updating persisted obj to the v0.3.0+ format')
                 newObj = {}
                 oldQueue = obj['queue']
                 newObj['queue'] = [ele['id'] for ele in oldQueue]
