@@ -53,7 +53,7 @@ class HttpRequester:
     ##internal functions - requests
         
     def _addRequest(self, addr, host, url, maxHeaderSize, maxDataSize, callback, callbackArgs, callbackKws, transferTimeout, requestTimeout, maxReqTries): 
-        self.log.debug('Adding request to "%s" for "%s" with maxHeaderSize "%d" and maxDataSize "%d"', addr[:10], joinUrl(url), maxHeaderSize, maxDataSize)
+        self.log.debug('Adding request to "%s" for "%s" with maxHeaderSize "%d" and maxDataSize "%d"', addr, joinUrl(url), maxHeaderSize, maxDataSize)
         self.requestId += 1
         
         #create conn obj
@@ -93,7 +93,7 @@ class HttpRequester:
         requestSet = self.requests[requestId]
         data = requestSet['request'].getData()
         header = requestSet['request'].getHeader()
-        self.log.debug('Request to "%s": finished successfully (response-length: %d)', connSet['sock'].getpeername()[:10], len(data))
+        self.log.debug('Request to "%s": finished successfully (response-length: %d)', connSet['sock'].getpeername(), len(data))
         
         #remove request
         self._removeRequest(requestId)
@@ -109,7 +109,7 @@ class HttpRequester:
     def _failRequest(self, requestId, reason, header=None):
         requestSet = self.requests[requestId]
         connSet = self.conns[requestSet['connId']]
-        self.log.debug('Request to "%s": failed (reason: %s)', connSet['sock'].getpeername()[:10], reason)
+        self.log.debug('Request to "%s": failed (reason: %s)', connSet['sock'].getpeername(), reason)
         
         self._removeRequest(requestId)
         result = {'id':requestId,
@@ -130,7 +130,7 @@ class HttpRequester:
             #retries left, retry
             connId = requestSet['connId']
             connSet = self.conns[connId]
-            self.log.debug('Request to "%s": failed (reason: %s), retrying (try %i of %i)', connSet['sock'].getpeername()[:10], reason, requestSet['reqTries'], requestSet['maxReqTries'])
+            self.log.debug('Request to "%s": failed (reason: %s), retrying (try %i of %i)', connSet['sock'].getpeername(), reason, requestSet['reqTries'], requestSet['maxReqTries'])
             
             #get old conn info
             transferTimeout = connSet['transferTimeout']
@@ -203,7 +203,7 @@ class HttpRequester:
         
         if not connSet['connected']:
             #connected, queue response
-            self.log.debug('Request to "%s": connected', connSet['sock'].getpeername()[:10])
+            self.log.debug('Request to "%s": connected', connSet['sock'].getpeername())
             
             self.sched.rescheduleEvent(connSet['transferTimeoutEvent'], timedelta=connSet['transferTimeout'])
             connSet['connected'] = True
@@ -217,7 +217,7 @@ class HttpRequester:
             sendBytes = connSet['sock'].send(data)
             connSet['sendBytes'] += sendBytes
             
-            self.log.debug('Request to "%s": send %d bytes of request', connSet['sock'].getpeername()[:10], sendBytes)
+            self.log.debug('Request to "%s": send %d bytes of request', connSet['sock'].getpeername(), sendBytes)
             
             if sendBytes < dataLen:
                 #not all send, requeue
@@ -225,7 +225,7 @@ class HttpRequester:
             
             else:
                 #all send, wait for response
-                self.log.debug('Request to "%s": finished sending request, waiting for response', connSet['sock'].getpeername()[:10])
+                self.log.debug('Request to "%s": finished sending request, waiting for response', connSet['sock'].getpeername())
                 connSet['outBuffer'] = None
                 self.connsWithSendInterest.remove(connId)
                 self.connsWithRecvInterest.add(connId)
@@ -238,7 +238,7 @@ class HttpRequester:
         
         #recv data
         data = connSet['sock'].recv()
-        self.log.debug('Request to "%s": got %d bytes of response', connSet['sock'].getpeername()[:10], len(data))
+        self.log.debug('Request to "%s": got %d bytes of response', connSet['sock'].getpeername(), len(data))
         
         try:
             finished = requestSet['request'].handleData(data)
