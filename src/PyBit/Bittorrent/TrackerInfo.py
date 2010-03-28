@@ -403,6 +403,29 @@ class TrackerInfo:
                 stats['knownLeeches'] = max(trackerInfo['leechCount'] for trackerInfo in self.trackerInfos.itervalues())
                 stats['knownDownloads'] = sum(trackerInfo['downloadCount'] for trackerInfo in self.trackerInfos.itervalues())
                 
+            if kwargs.get('trackerStatus', False):
+                #generate one tracker status
+                numTrackers = len(self.trackerInfos)
+                numNoneStatus = len([1 for trackerInfo in self.trackerInfos.itervalues() if trackerInfo['lastAnnounceResult'] == u'None'])
+                numOkStatus = len([1 for trackerInfo in self.trackerInfos.itervalues() if trackerInfo['lastAnnounceResult'] == u'Ok'])
+                numNoPeersStatus = len([1 for trackerInfo in self.trackerInfos.itervalues() if trackerInfo['lastAnnounceResult'] == u'No Peers'])
+                
+                if numNoneStatus == numTrackers:
+                    #did not do any requests up to now
+                    stats['trackerStatus'] = u'-'
+                
+                elif numOkStatus > 0:
+                    #at least one tracker was successful
+                    stats['trackerStatus'] = u'Ok'
+                    
+                elif numNoPeersStatus > 0:
+                    #at least one tracker was successful but we did not get any peers
+                    stats['trackerStatus'] = u'No Peers'
+                    
+                else:
+                    #all trackers failed
+                    stats['trackerStatus'] = u'Error'
+                
             return stats
 
 

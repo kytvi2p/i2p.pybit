@@ -50,6 +50,9 @@ class TorrentList(PersistentVirtualListCtrl):
                 ('Uploaded (P)', 'outPayloadBytes', 'dataAmount', 100, True),\
                 ('Upspeed (R)', 'outRawSpeed', 'transferSpeed', 100, True),\
                 ('Peers', ('connectedSeeds', 'knownSeeds', 'connectedLeeches', 'knownLeeches') , 'peerStats', 125, True),\
+                ('Seeds (Connected)', 'connectedSeeds', 'int', 100, False),\
+                ('Seeds (Known)', 'knownSeeds', 'int', 100, False),\
+                ('Tracker Status', 'trackerStatus', 'native', 100, False),\
                 ('Avg. Downspeed (R)', 'avgInRawSpeed', 'transferSpeed', 140, False),\
                 ('Avg. Downspeed (P)', 'avgInPayloadSpeed', 'transferSpeed', 140, False),\
                 ('Avg. Upspeed (R)', 'avgOutRawSpeed', 'transferSpeed', 125, False),\
@@ -63,6 +66,7 @@ class TorrentList(PersistentVirtualListCtrl):
                                         'state':True,
                                         'progress':True,
                                         'torrent':True,
+                                        'trackerStatus':True,
                                         'transfer':True,
                                         'transferAverages':True}}
                                         

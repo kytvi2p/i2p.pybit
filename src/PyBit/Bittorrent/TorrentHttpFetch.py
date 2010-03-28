@@ -312,6 +312,9 @@ class TorrentHttpFetch:
         if wantedStats.get('tracker', False):
             stats['tracker'] = []
             
+        if wantedStats.get('trackerStatus', False):
+            stats['trackerStatus'] = u'None'
+            
         self.lock.release()
         return stats
     

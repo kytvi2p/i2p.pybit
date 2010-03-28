@@ -297,6 +297,9 @@ class Bt:
         if wantedStats.get('tracker', False):
             stats.update(self.trackerRequester.getStats(trackerDetails=True))
             
+        if wantedStats.get('trackerStatus', False):
+            stats.update(self.trackerRequester.getStats(trackerStatus=True))
+            
         #transfer stats
         if wantedStats.get('transfer', False):
             stats['inRawBytes'] = self.inRate.getTotalTransferedBytes()
