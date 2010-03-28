@@ -44,7 +44,7 @@ class BtQueue:
         
         if objVersion < currentVersion:
             #need to do some updating
-            if objVersion < (0,2,4):
+            if objVersion < (0,3,0):
                 #pre v0.2.4 format, reconstruct everything
                 self.log.info('Updating persisted obj to the v0.2.4+ format')
                 newObj = {}
@@ -54,9 +54,9 @@ class BtQueue:
                 for ele in oldQueue:
                     newObj['queueInfo'][ele['id']] = {'type':'bt',
                                                       'dataPath':ele['dataPath']}
-                newObj['version'] = '0.2.4'
+                newObj['version'] = '0.3.0'
                 obj = newObj
-                objVersion = (0,2,4)
+                objVersion = (0,3,0)
                 
                 #first add the new obj, then remove the old one
                 self.persister.store('BtQueue-queue', obj)
