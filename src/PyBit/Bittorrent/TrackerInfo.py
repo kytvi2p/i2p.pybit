@@ -211,7 +211,7 @@ class TrackerInfo:
             
         
     def _clearAllTrackerScrapeStats(self):
-        for trackerId in self.trackerInfo.keys():
+        for trackerId in self.trackerInfos.keys():
             trackerInfo = self.trackerInfos[trackerId]
             trackerInfo['seedCount'] = 0
             trackerInfo['leechCount'] = 0
@@ -468,7 +468,7 @@ class PersistentTrackerInfo(TrackerInfo):
         else:
             trackers = perstData[0]
             self.trackerTiers = perstData[1]
-            self.trackerInfo = {}
+            self.trackerInfos = {}
             for trackerId, trackerSet in trackers.iteritems():
                 self.trackerInfos[trackerId] = self._genTrackerInfo(trackerSet['tier'], trackerId, trackerSet['logUrl'])
             
