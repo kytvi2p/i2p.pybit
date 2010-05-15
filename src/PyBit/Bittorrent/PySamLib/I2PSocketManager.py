@@ -21,6 +21,7 @@ from time import sleep, time
 import logging
 import threading
 
+from AsyncPoll import POLLRECV, POLLSEND, POLLERROR
 from AsyncSocketManager import AsyncSocketManager
 from I2PSocketStatus import I2PSocketStatus
 from RealSocketStatus import RealSocketStatus
@@ -37,7 +38,7 @@ class I2PSocketManager:
             asmLog = logging.getLogger(asmLog)
         
         self.realSockManager = AsyncSocketManager(log=asmLog) #handler for real sockets
-        self.realSockStatus = RealSocketStatus()
+        self.realSockStatus = RealSocketStatus(self.realSockManager)
         
         self.i2pSockActEvent = threading.Event()
         self.i2pSockStatus = I2PSocketStatus(self.i2pSockActEvent)
@@ -420,30 +421,29 @@ class I2PSocketManager:
         try:
             while self.shouldStop==False:
                 self.lock.release()
-
-                recvInterest, sendInterest, errorInterest = self.realSockStatus.getSelectSets()
-                recvSet, sendSet, errorSet = self.realSockManager.select(recvInterest, sendInterest, errorInterest, timeout=1)
+                sockEvents = self.realSockStatus.getConnEvents()
                 self.lock.acquire()
                 
-                for realSockId in recvSet:
-                    ##recv
-                    if self.realSockStatus.connExists(realSockId):
-                        destId = self.realSockStatus.getConnInfo(realSockId)
-                        self.i2pDests[destId]['obj'].recvEvent()
+                for realSockId, eventmask in sockEvents:
+                    if eventmask & POLLRECV != 0:
+                        ##recv
+                        if self.realSockStatus.connExists(realSockId):
+                            destId = self.realSockStatus.getConnInfo(realSockId)
+                            self.i2pDests[destId]['obj'].recvEvent()
+                            
                         
-                    
-                for realSockId in sendSet:
-                    ##send
-                    if self.realSockStatus.connExists(realSockId):
-                        destId = self.realSockStatus.getConnInfo(realSockId)
-                        self.i2pDests[destId]['obj'].sendEvent()
-                     
-                    
-                for realSockId in errorSet:
-                    ##error
-                    if self.realSockStatus.connExists(realSockId):
-                        destId = self.realSockStatus.getConnInfo(realSockId)
-                        self.i2pDests[destId]['obj'].errorEvent()
+                    if eventmask & POLLSEND != 0:
+                        ##send
+                        if self.realSockStatus.connExists(realSockId):
+                            destId = self.realSockStatus.getConnInfo(realSockId)
+                            self.i2pDests[destId]['obj'].sendEvent()
+                         
+                        
+                    if eventmask & POLLERROR != 0:
+                        ##error
+                        if self.realSockStatus.connExists(realSockId):
+                            destId = self.realSockStatus.getConnInfo(realSockId)
+                            self.i2pDests[destId]['obj'].errorEvent()
         
             #delete own reference
             self.thread = None

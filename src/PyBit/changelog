@@ -4,6 +4,7 @@ Blub:
 - fixed bug in "Bittorrent.TrackerInfo": A typo in the name of a class variable could cause a crash when PyBit was closed.
 - fixed bug in "TorrentStats": The layout wasn't correctly configured, causing a few layout issues.
 - added "Bittorrent.ConnectionStatsCache": This class is used to cache the transfer statistics of failed connections so that these statistics can be reused if PyBit should manage to reconnect to that peer.
+- updated PySamLib from v0.2.6 to v0.2.7
 
 
 0.3.0 - 28.03.2010

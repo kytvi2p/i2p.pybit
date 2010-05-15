@@ -17,32 +17,41 @@ You should have received a copy of the GNU Lesser General Public License
 along with PySamLib.  If not, see <http://www.gnu.org/licenses/>.
 """
 
+
+from AsyncPoll import AsyncPoll, POLLIN, POLLOUT, POLLERROR
+
+
 class RealSocketStatus:
-    def __init__(self):
+    def __init__(self, sockManager):
+        self.pollObj = AsyncPoll(sockManager)
         self._allConns = set()
         self._wantsToSend = set()
         self._wantsToRecv = set()
-        self._allowedToSend = set()
-        self._allowedToRecv = set()
-        
         self.connIdToConnInfo = {}
+        
+        
+    def _updateState(self, connId):
+        state = POLLERROR
+        if connId in self._wantsToSend:
+            state |= POLLOUT
+            
+        if connId in self._wantsToRecv:
+            state |= POLLIN
+            
+        self.pollObj.register(connId, state)
         
         
     def addConn(self, connId, destId):
         self._allConns.add(connId)
-        self._allowedToSend.add(connId)
-        self._allowedToRecv.add(connId)
-        
+        self._updateState(connId)
         self.connIdToConnInfo[connId] = destId
     
     
     def removeConn(self, connId):
         self._allConns.remove(connId)
-        self._allowedToSend.discard(connId)
-        self._allowedToRecv.discard(connId)
         self._wantsToSend.discard(connId)
         self._wantsToRecv.discard(connId)
-        
+        self.pollObj.unregister(connId)
         del self.connIdToConnInfo[connId]
         
         
@@ -60,6 +69,7 @@ class RealSocketStatus:
             self._wantsToSend.add(connId)
         else:
             self._wantsToSend.remove(connId)
+        self._updateState(connId)
             
             
     def setWantsToRecv(self, want, connId):
@@ -68,26 +78,8 @@ class RealSocketStatus:
             self._wantsToRecv.add(connId)
         else:
             self._wantsToRecv.remove(connId)
-            
-    
-    def setAllowedToSend(self, allowed, connId):
-        if allowed:
-            assert not connId in self._allowedToSend,'state out of sync!'
-            self._allowedToSend.add(connId)
-        else:
-            self._allowedToSend.remove(connId)
-            
-            
-    def setAllowedToRecv(self, allowed, connId):
-        if allowed:
-            assert not connId in self._allowedToRecv,'state out of sync!'
-            self._allowedToRecv.add(connId)
-        else:
-            self._allowedToRecv.remove(connId)
+        self._updateState(connId)
         
     
-    def getSelectSets(self):
-        recv = self._wantsToRecv.intersection(self._allowedToRecv)
-        send = self._wantsToSend.intersection(self._allowedToSend)
-        error = self._allConns.copy()
-        return recv, send, error
+    def getConnEvents(self):
+        return self.pollObj.poll(1000)

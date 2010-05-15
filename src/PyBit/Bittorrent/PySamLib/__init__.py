@@ -1,5 +1,5 @@
 """
-Copyright 2009  Blub
+Copyright 2010  Blub
 
 This is the module "init" file and only contains the version number of the library.
 This file is part of PySamLib.
@@ -17,4 +17,4 @@ You should have received a copy of the GNU Lesser General Public License
 along with PySamLib.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-version = '0.2.6'
+version = '0.2.7'

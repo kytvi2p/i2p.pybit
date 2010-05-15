@@ -1,3 +1,9 @@
+0.2.7 - 15.05.2010
+-----------------------
+Blub:
+- replaced the old async socket library which has problems with high throughput because of delay issues, with a new (buffer-less) one.
+
+
 0.2.6 - 14.09.2009
 -----------------------
 - fixed bug in "I2PSocketManager": a crash occured when a listening socket was closed (a needed parameter wasn't given ...)

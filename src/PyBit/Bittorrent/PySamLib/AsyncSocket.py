@@ -20,48 +20,67 @@ along with PySamLib.  If not, see <http://www.gnu.org/licenses/>.
 
 class AsyncSocketError(Exception):
     pass
+            
 
-
-class AsyncSocketInvalidArgument(Exception):
-    pass
 
 
 class AsyncSocket:
-    def __init__(self, asm, sockNum=None, remoteAddr=None):
-        self.asm = asm
-        self.sockNum = sockNum
-        self.timeout = None
-        self.remoteAddr = remoteAddr         
-
+    def __init__(self, sockManager, sockId=None, remoteAddr=None):
+        self.sockManager = sockManager
+        self.sockId = sockId
+        self.remoteAddr = remoteAddr
+    
+    
+    ##helpers##
     
     def fileno(self):
-        return self.sockNum
+        if self.sockId is None:
+            raise AsyncSocketError("No valid socket id")
+        return self.sockId
     
     
-    def connect(self, addr, recvBufMaxSize=32768, sendBufMaxSize=32768):
-        if self.sockNum is not None:
-            raise AsyncSocketError("Already connected")
-        self.sockNum = self.asm.connect(addr, recvBufMaxSize, sendBufMaxSize)
-
-
+    def getpeername(self):
+        if self.remoteAddr is None:
+            raise AsyncSocketError("No valid socket id")
+        return self.remoteAddr
+    
+    
+    ##data transfer, accepting conns, ...
+        
+    def connect(self, addr):
+        self.sockId = self.sockManager.connect(addr)
+        self.remoteAddr = addr
+    
+    
+    def listen(self, addr):
+        self.sockId = self.sockManager.listen(addr)
+        
+        
+    def accept(self):
+        if self.sockId is None:
+            raise AsyncSocketError("No valid socket id")
+        
+        newConn = self.sockManager.accept(self.sockId)
+        if newConn is None:
+            raise AsyncSocketError("Would block")
+        else:
+            newConn = AsyncSocket(self.sockManager, newConn[0], newConn[1])
+        return newConn
+    
+        
     def send(self, data):
-        if self.sockNum is None:
-            raise AsyncSocketError("Not connected")
-            
-        bytesSend = self.asm.send(self.sockNum, data)
-        return bytesSend
+        if self.sockId is None:
+            raise AsyncSocketError("No valid socket id")
+        return self.sockManager.send(self.sockId, data)
     
     
-    def recv(self, maxBytes=-1):
-        if self.sockNum is None:
-            raise AsyncSocketError("Not connected")
-        
-        data = self.asm.recv(self.sockNum, maxBytes)
-        return data
-        
+    def recv(self, max=4096):
+        if self.sockId is None:
+            raise AsyncSocketError("No valid socket id")
+        return self.sockManager.recv(self.sockId, max)
+    
     
     def close(self):
-        if self.sockNum is None:
-            raise AsyncSocketError("Not connected")
-        
-        self.asm.close(self.sockNum)
+        if self.sockId is None:
+            raise AsyncSocketError("No valid socket id")
+        self.sockManager.close(self.sockId)

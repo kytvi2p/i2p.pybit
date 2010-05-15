@@ -59,7 +59,7 @@ class SamBaseDestination:
     
     def _connectRealSocket(self):
         self.sock = AsyncSocket(self.asyncSocketManager)
-        self.sock.connect((self.ip, self.port), 49152, 49152)
+        self.sock.connect((self.ip, self.port))
         self.sockNum = self.sock.fileno()
         self.realSockStatus.addConn(self.sockNum, self.destId)
         self.realSockStatus.setWantsToSend(True, self.sockNum)
