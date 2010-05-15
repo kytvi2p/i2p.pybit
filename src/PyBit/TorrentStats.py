@@ -34,9 +34,9 @@ class TorrentStats(InfoPanel):
                     ('Upspeed (R):','outRawSpeed','transferSpeed',0,'R',3))
                     
                     
-        torrent = (('Name:','torrentName','native','','L',2),\
-                   ('Comment:','torrentComment','native','','L',2),\
-                   ('Creator:','torrentCreator','native','','L',2),\
+        torrent = (('Name:','torrentName','native','','L',3),\
+                   ('Comment:','torrentComment','native','','L',3),\
+                   ('Creator:','torrentCreator','native','','L',3),\
                    ('Creationdate:','torrentCreationDate','date',0,'R',1),\
                    ('Trackers:','trackerAmount','int',0,'R',1),\
                    ('Files:','fileAmount','int',0,'R',1),\
@@ -60,7 +60,7 @@ class TorrentStats(InfoPanel):
         content = (('Transfer', 4, (3,), (0,0), (1,1), transfer),\
                    ('Torrent', 4, (1,3), (0,1), (1,1), torrent),\
                    ('Connections', 4, (3,), (1,0), (1,1), connections),\
-                   ('Pieces', 4, (3,), (1,1), (1,1), pieces))
+                   ('Pieces', 4, (1,3), (1,1), (1,1), pieces))
         
         self.rawUpdateFunc = rawUpdateFunc
         self.torrentId = None
