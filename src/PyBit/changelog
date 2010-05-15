@@ -2,6 +2,7 @@
 -----------------------
 Blub:
 - fixed bug in "Bittorrent.TrackerInfo": A typo in the name of a class variable could cause a crash when PyBit was closed.
+- added "Bittorrent.ConnectionStatsCache": This class is used to cache the transfer statistics of failed connections so that these statistics can be reused if PyBit should manage to reconnect to that peer.
 
 
 0.3.0 - 28.03.2010
