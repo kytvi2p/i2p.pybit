@@ -30,7 +30,7 @@ class TorrentConnectionList(PersistentVirtualListCtrl):
                 ('Addr','addr', 'native', 125, True),\
                 ('Client','peerClient', 'native', 100, True),\
                 ('Direction','direction','native', 75, True),\
-                ('Connected', 'connectedInterval', 'timeInterval', 75, True),\
+                ('Connected (total)', 'totalConnectedInterval', 'timeInterval', 75, True),\
                 ('Progress', 'peerProgress', 'percent', 75, True),\
                 ('I', 'localInterest', 'bool', 20, True),\
                 ('C', 'localChoke', 'bool', 20, True),\
@@ -44,6 +44,7 @@ class TorrentConnectionList(PersistentVirtualListCtrl):
                 ('Upspeed (R)', 'outRawSpeed', 'transferSpeed', 100, True),\
                 ('lReq', 'localRequestCount', 'int', 50, True),\
                 ('rReq', 'remoteRequestCount', 'int', 50, True),\
+                ('Connected (connection)', 'connectedInterval', 'timeInterval', 75, True),\
                 ('Avg. Downspeed (R)', 'avgInRawSpeed', 'transferSpeed', 140, False),\
                 ('Avg. Downspeed (P)', 'avgInPayloadSpeed', 'transferSpeed', 140, False),\
                 ('Avg. Upspeed (R)', 'avgOutRawSpeed', 'transferSpeed', 125, False),\

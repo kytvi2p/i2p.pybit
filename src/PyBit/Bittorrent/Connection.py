@@ -34,7 +34,7 @@ import threading
 
 class Connection:
     def __init__(self, connStatus, scheduler, conn, direction, remotePeerAddr,\
-                 inMeasureParent, outMeasureParent, outLimiter, inLimiter,\
+                 inMeasure, outMeasure, inMeasureParent, outMeasureParent, outLimiter, inLimiter,\
                  msgLenFunc, msgDecodeFunc, msgLengthFieldLen, maxMsgLength, keepaliveMsgFunc,\
                  log):
         
@@ -62,8 +62,17 @@ class Connection:
         self.inLimiter.addUser(self.connIdent, callback=self.connStatus.allowedToRecv, callbackArgs=[self.connIdent])
         
         #rate
-        self.inRate = Measure(self.sched, 60, [inMeasureParent])
-        self.outRate = Measure(self.sched, 60, [outMeasureParent])
+        if inMeasure is None:
+            self.inRate = Measure(self.sched, 60, [inMeasureParent])
+        else:
+            self.inRate = inMeasure
+            self.inRate.start()
+            
+        if outMeasure is None:
+            self.outRate = Measure(self.sched, 60, [outMeasureParent])
+        else:
+            self.outRate = outMeasure
+            self.outRate.start()
         
         #data buffer
         self.inBuffer = []
@@ -355,14 +364,15 @@ class Connection:
     
     
 class BtConnection(Connection):
-    def __init__(self, torrentIdent, globalStatus, connStatus, remotePeerId, \
+    def __init__(self, torrentIdent, globalStatus, connStatsCache, connStatus, remotePeerId, \
                  scheduler, conn, direction, remotePeerAddr,\
                  inMeasureParent, outMeasureParent, outLimiter, inLimiter):
                     
         log = Logger('BtConnection', '%-6s - %-6s - ', torrentIdent, conn.fileno())
+        inRate, outRate = connStatsCache.get(torrentIdent, remotePeerAddr, remotePeerId)
                  
         Connection.__init__(self, connStatus, scheduler, conn, direction, remotePeerAddr,\
-                            inMeasureParent, outMeasureParent, outLimiter, inLimiter,\
+                            inRate, outRate, inMeasureParent, outMeasureParent, outLimiter, inLimiter,\
                             Messages.getMessageLength, Messages.decodeMessage, 4, 140000, Messages.generateKeepAlive,\
                             log)
         
@@ -372,6 +382,9 @@ class BtConnection(Connection):
         #peer
         self.remotePeerId = remotePeerId
         self.remoteClient = peerIdToClient(remotePeerId)
+        
+        #conn stats cache
+        self.connStatsCache = connStatsCache
         
         #piece status
         self.status = Status(globalStatus.getPieceAmount(), globalStatus)
@@ -412,6 +425,9 @@ class BtConnection(Connection):
                 
     def _close(self):
         Connection._close(self)
+        
+        #store inRate and outRate
+        self.connStatsCache.store(self.torrentIdent, self.remotePeerAddr, self.remotePeerId, self.inRate, self.outRate)
         
         #clear piece status
         self.status.clear()
@@ -814,6 +830,7 @@ class BtConnection(Connection):
         stats['addr'] = self.conn.getpeername()
         stats['direction'] = self.direction
         stats['connectedInterval'] = time() - self.connectTime
+        stats['totalConnectedInterval'] = self.inRate.getTotalRunTime()
         stats['peerProgress'] = self.status.getPercent()
         stats['peerClient'] = self.remoteClient
         stats['inRawBytes'] = self.inRate.getTotalTransferedBytes()

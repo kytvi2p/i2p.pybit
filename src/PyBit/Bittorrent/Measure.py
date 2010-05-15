@@ -26,7 +26,8 @@ class Measure:
         self.sched = scheduler
         self.interval = interval
         
-        self.createTime = time()
+        self.startTime = None
+        self.runTime = 0
         
         self.transferedBytes = 0
         self.totalTransferedBytes = 0
@@ -43,19 +44,31 @@ class Measure:
         
     ##internal
     
+    def _getCumulativeRunTime(self):
+        runTime = self.runTime
+        if self.startTime is not None:
+            runTime += time() - self.startTime
+        return runTime
+    
+    
     def _start(self):
         if self.eventId is None:
+            self.startTime = time()
             self.eventId = self.sched.scheduleEvent(self.cleanOldTransfers, timedelta=1, repeatdelta=1)
         
 
     def _stop(self):
-        self.sched.removeEvent(self.eventId)
-        self.eventId = None
-        
-        while len(self.transferTimes)>0:
-            self.transferedBytes -= self.transferAmounts[0]
-            del self.transferTimes[0]
-            del self.transferAmounts[0]
+        if self.eventId is not None:
+            self.sched.removeEvent(self.eventId)
+            self.eventId = None
+            
+            self.runTime += time() - self.startTime
+            self.startTime = None
+            
+            while len(self.transferTimes)>0:
+                self.transferedBytes -= self.transferAmounts[0]
+                del self.transferTimes[0]
+                del self.transferAmounts[0]
     
     
     ##external
@@ -126,7 +139,7 @@ class Measure:
     
     def getAverageRate(self):
         self.lock.acquire()
-        value = self.totalTransferedBytes / max(1.0, (time() - self.createTime*1.0))
+        value = self.totalTransferedBytes / max(1.0, self._getCumulativeRunTime() * 1.0)
         if value > 0:
             value /= 1024.0
         self.lock.release()
@@ -135,9 +148,16 @@ class Measure:
     
     def getAveragePayloadRate(self):
         self.lock.acquire()
-        value = self.totalTransferedPayloadBytes / max(1.0, (time() - self.createTime*1.0))
+        value = self.totalTransferedPayloadBytes / max(1.0, self._getCumulativeRunTime() * 1.0)
         if value > 0:
             value /= 1024.0
+        self.lock.release()
+        return value
+    
+    
+    def getTotalRunTime(self):
+        self.lock.acquire()
+        value = self._getCumulativeRunTime()
         self.lock.release()
         return value
     

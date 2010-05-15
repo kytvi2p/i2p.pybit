@@ -30,8 +30,9 @@ import Messages
 from Utilities import logTraceback
 
 class ConnectionHandler:
-    def __init__(self, config, peerPool, selectFunc, scheduler, inLimiter, outLimiter, peerId):
+    def __init__(self, config, connStatsCache, peerPool, selectFunc, scheduler, inLimiter, outLimiter, peerId):
         self.config = config
+        self.connStatsCache = connStatsCache
         self.peerPool = peerPool
         self.selectFunc = selectFunc
         self.scheduler = scheduler
@@ -96,8 +97,8 @@ class ConnectionHandler:
             self.peerPool.lostConnection(torrentIdent, remoteAddr)
         else:
             #really add this conn
-            conn = BtConnection(torrentIdent, torrent['pieceStatus'], self.connStatus, remotePeerId,\
-                                self.scheduler, connSock, direction, remoteAddr,\
+            conn = BtConnection(torrentIdent, torrent['pieceStatus'], self.connStatsCache, self.connStatus,\
+                                remotePeerId, self.scheduler, connSock, direction, remoteAddr,\
                                 torrent['inMeasure'], torrent['outMeasure'], self.outLimiter, self.inLimiter)
             connId = conn.fileno()
             self.conns[connId] = conn

@@ -31,6 +31,7 @@ from Conversion import shortIntToBinary
 from ConnectionBuilder import ConnectionBuilder
 from ConnectionHandler import ConnectionHandler
 from ConnectionListener import ConnectionListener
+from ConnectionStatsCache import ConnectionStatsCache
 from PeerPool import PeerPool
 from EventScheduler import EventScheduler
 from HttpRequester import HttpRequester
@@ -101,7 +102,8 @@ class MultiBt:
         
         #create connection related classes
         self.peerPool = PeerPool()
-        self.connHandler = ConnectionHandler(self.config, self.peerPool, self.samSockManager.select, self.eventSched,\
+        self.connStatsCache = ConnectionStatsCache()
+        self.connHandler = ConnectionHandler(self.config, self.connStatsCache, self.peerPool, self.samSockManager.select, self.eventSched,\
                                              self.inLimiter, self.outLimiter, self.peerId)
         self.connListener = ConnectionListener(self.eventSched, self.connHandler, self.peerPool, self.destNum, self.samSockManager, self.peerId)
         self.connBuilder = ConnectionBuilder(self.eventSched, self.connHandler, self.peerPool, self.destNum, self.samSockManager, self.peerId)
@@ -268,6 +270,7 @@ class MultiBt:
         self.connHandler.stop()
         self.connListener.stop()
         self.connBuilder.stop()
+        self.connStatsCache.stop()
         
         #stop traffic related classes
         self.log.info("Stopping limiter and measurer")
