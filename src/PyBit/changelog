@@ -1,4 +1,4 @@
-0.3.1 - xx.yy.2010
+0.3.1 - 27.03.2011
 -----------------------
 Blub:
 - fixed bug in "Bittorrent.TrackerInfo": A typo in the name of a class variable could cause a crash when PyBit was closed.
