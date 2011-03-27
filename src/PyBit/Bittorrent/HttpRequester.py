@@ -277,6 +277,11 @@ class HttpRequester:
                 recvable, sendable, errored = self.samSockManager.select(self.connsWithRecvInterest, self.connsWithSendInterest, self.allConns, timeout=1)
                 self.lock.acquire()
                 
+                for connId in recvable:
+                    if connId in self.allConns:
+                        #received data
+                        self._recv(connId)
+                        
                 for connId in errored:
                     #conn failed, close it
                     if connId in self.allConns:
@@ -289,12 +294,7 @@ class HttpRequester:
                 for connId in sendable:
                     if connId in self.allConns:
                         self._send(connId)
-                        
-                for connId in recvable:
-                    if connId in self.allConns:
-                        #received data
-                        self._recv(connId)
-                        
+                
             self.thread = None
             self.log.info("Stopping")
             self.lock.release()

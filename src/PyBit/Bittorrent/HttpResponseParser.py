@@ -284,9 +284,11 @@ class HttpResponseParser:
         data = self._getLastChunk() + data
                 
         #try to find the endline of the header
-        if '\n\n' in data:
+        unixNewlinePos = data.find('\n\n')
+        windowsNewlinePos = data.find('\r\n\r\n')
+        if unixNewlinePos >= 0 and (windowsNewlinePos == -1 or unixNewlinePos < windowsNewlinePos):
             self.newline = '\n'
-        elif '\r\n\r\n' in data:
+        elif windowsNewlinePos >= 0 and (unixNewlinePos == -1 or windowsNewlinePos < unixNewlinePos):
             self.newline = '\r\n'
             
         if self.newline is None:
