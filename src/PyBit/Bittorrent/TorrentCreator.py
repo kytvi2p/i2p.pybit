@@ -21,7 +21,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 ##builtin
 from __future__ import with_statement
 from collections import deque
-from sha import sha
+from hashlib import sha1
 import os
 import threading
 
@@ -147,7 +147,7 @@ class TorrentCreator:
                     self.processedFileSize += (len(data) - trailingDataLen)
                     while len(data) == pieceLength and (not self.shouldAbort):
                         #hash one data chunk
-                        pieceHashes.append(sha(data).digest())
+                        pieceHashes.append(sha1(data).digest())
                         self.currentFileProgress = (self.processedFileSize - previousBytes) / (fileSet[2] * 1.0)
                         data = fl.read(pieceLength)
                         self.processedFileSize += len(data)
@@ -166,7 +166,7 @@ class TorrentCreator:
                 raise TorrentCreatorException('Failed to access file "%s" (absolute path "%s")!', os.path.join(*fileSet[0]), fileSet[1])
             
         if len(trailingData) > 0:
-            pieceHashes.append(sha(trailingData).digest())
+            pieceHashes.append(sha1(trailingData).digest())
             
         return ''.join(pieceHashes)
     

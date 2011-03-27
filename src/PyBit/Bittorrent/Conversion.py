@@ -20,7 +20,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 from collections import deque
 from socket import inet_ntoa
 
-import sha
+import hashlib
 import binascii
 
 
@@ -176,15 +176,15 @@ def hexToLongInt(hexString):
 ##hash
 
 def hashToBin(toHash):
-    return hexToBin(binascii.hexlify(sha.sha(toHash).digest()))
+    return hexToBin(binascii.hexlify(hashlib.sha1(toHash).digest()))
 
 
 def hashToInt(toHash):
-    return hexToInt(binascii.hexlify(sha.sha(toHash).digest()))
+    return hexToInt(binascii.hexlify(hashlib.sha1(toHash).digest()))
 
 
 def hashToHex(toHash):
-    return binascii.hexlify(sha.sha(toHash).digest()).upper()
+    return binascii.hexlify(hashlib.sha1(toHash).digest()).upper()
 
 
 ##bt specific

@@ -18,7 +18,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from collections import deque, defaultdict
-from sha import sha
+from hashlib import sha1
 
 from Logger import Logger
 from Request import Request
@@ -228,7 +228,7 @@ class Requester:
                     self.log.error('Failed to read data of piece "%i":\n%s', pieceIndex, logTraceback())
                 
                 #check data
-                if sha(pieceData).digest() == self.torrent.getPieceHashByPieceIndex(pieceIndex):
+                if sha1(pieceData).digest() == self.torrent.getPieceHashByPieceIndex(pieceIndex):
                     #success
                     finishedPiece = True
                     self.ownStatus.gotPiece(pieceIndex)

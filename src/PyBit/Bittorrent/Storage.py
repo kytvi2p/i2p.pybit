@@ -19,7 +19,7 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 
 ##builtin
 from __future__ import with_statement
-from sha import sha
+from hashlib import sha1
 from time import time
 import os
 import threading
@@ -173,7 +173,7 @@ class Storage:
         while (not self.shouldAbortLoad) and piece < pieceAmount:
             #check piece
             data = self.getData(piece, 0, self.torrent.getLengthOfPiece(piece))
-            if sha(data).digest() == self.torrent.getPieceHashByPieceIndex(piece):
+            if sha1(data).digest() == self.torrent.getPieceHashByPieceIndex(piece):
                 #hash matches, piece is finished
                 self.ownStatus.setPieceStatus(piece, True)
                 self.log.debug('Piece Nr. %d is finished', piece)

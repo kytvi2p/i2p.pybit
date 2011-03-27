@@ -18,7 +18,6 @@ along with PyBit.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from collections import defaultdict
-from sha import sha
 from time import time
 import re
 import threading

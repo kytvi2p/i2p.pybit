@@ -21,7 +21,7 @@ from Bencoding import bencode, bdecode
 from HttpUtilities import i2pHttpUrlRegexObj
 
 from copy import deepcopy
-from sha import sha
+from hashlib import sha1
 from random import shuffle
 import logging
 import os
@@ -156,7 +156,7 @@ class Torrent:
         
         #torrent hash and name
         info = torrentdata['info']
-        self.torrentHash = sha(bencode(info)).digest()
+        self.torrentHash = sha1(bencode(info)).digest()
         self.torrentName = unicode(info['name'], self.charset, 'ignore')
 
         #files
